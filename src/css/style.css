@@ -1,0 +1,641 @@
+@import url("https://fonts.googleapis.com/css2?family=Poppins:wght@600&display=swap");
+
+/* Welcome Animation Styles */
+
+body,
+html {
+  margin: 0;
+  padding: 0;
+  overflow-x: hidden; /* Add this */
+}
+body.initial-load {
+  margin: 0;
+  padding: 0;
+  height: 100vh;
+  width: 100vw;
+  font-family: "Poppins", sans-serif;
+  background: #1b1b1b;
+  color: #fff;
+  overflow: hidden;
+  display: grid;
+  place-items: center;
+}
+
+#welcome-message {
+  font-size: 2.5rem;
+  opacity: 0;
+  position: fixed;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  text-align: center;
+  user-select: none;
+  z-index: 1000;
+  text-shadow: 0 0 15px rgba(255, 255, 255, 0.3);
+  animation: centerToTop 3s forwards cubic-bezier(0.2, 0.8, 0.4, 1);
+}
+
+@keyframes centerToTop {
+  0% {
+    opacity: 0;
+    transform: translate(-50%, -50%) scale(0.9);
+  }
+  20% {
+    opacity: 1;
+    transform: translate(-50%, -50%) scale(1.1);
+  }
+  50% {
+    opacity: 1;
+    transform: translate(-50%, -50%) scale(1);
+  }
+  80% {
+    opacity: 0.5;
+    transform: translate(-50%, -150%) scale(0.9);
+  }
+  100% {
+    opacity: 0;
+    transform: translate(-50%, -200%) scale(0.8);
+  }
+}
+
+/* Map Styles */
+#map {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  width: 100%;
+  opacity: 0;
+  transition: opacity 1s ease-in 2s; /* Delay to match animation */
+  overflow-x: hidden;
+}
+
+body:not(.initial-load) #map {
+  opacity: 1;
+}
+
+/* Button Styles */
+#flight-button {
+  position: absolute;
+  bottom: 20px;
+  left: 60%;
+  transform: translateX(-60%);
+  padding: 12px 24px;
+  background: linear-gradient(135deg, #3498db, #2c3e50);
+  color: white;
+  border: none;
+  border-radius: 30px;
+  font-family: "Poppins", sans-serif;
+  font-size: 1.1rem;
+  cursor: pointer;
+  z-index: 1000;
+  box-shadow: 0 4px 15px rgba(0, 0, 0, 0.2);
+  transition: all 0.3s;
+  opacity: 0;
+  animation: fadeIn 1s ease-in 3s forwards; /* Appears after welcome */
+}
+
+#loc-button {
+  position: absolute;
+  bottom: 20px;
+  left: 40%;
+  transform: translateX(-40%);
+  padding: 12px 24px;
+  background: linear-gradient(135deg, #3498db, #2c3e50);
+  color: white;
+  border: none;
+  border-radius: 30px;
+  font-family: "Poppins", sans-serif;
+  font-size: 1.1rem;
+  cursor: pointer;
+  z-index: 1000;
+  box-shadow: 0 4px 15px rgba(0, 0, 0, 0.2);
+  transition: all 0.3s;
+  opacity: 0;
+  animation: fadeIn 1s ease-in 3s forwards; /* Appears after welcome */
+}
+
+#add-wfs {
+  position: absolute;
+  bottom: 20px;
+  left: 40%;
+  transform: translateX(-60%);
+  padding: 12px 24px;
+  background: linear-gradient(135deg, #3498db, #2c3e50);
+  color: white;
+  border: none;
+  border-radius: 30px;
+  font-family: "Poppins", sans-serif;
+  font-size: 1.1rem;
+  cursor: pointer;
+  z-index: 1000;
+  box-shadow: 0 4px 15px rgba(0, 0, 0, 0.2);
+  transition: all 0.3s;
+  opacity: 0;
+  animation: fadeIn 1s ease-in 3s forwards; /* Appears after welcome */
+}
+
+#add-wms {
+  position: absolute;
+  bottom: 20px;
+  left: 40%;
+  transform: translateX(-40%);
+  padding: 12px 24px;
+  background: linear-gradient(135deg, #3498db, #2c3e50);
+  color: white;
+  border: none;
+  border-radius: 30px;
+  font-family: "Poppins", sans-serif;
+  font-size: 1.1rem;
+  cursor: pointer;
+  z-index: 1000;
+  box-shadow: 0 4px 15px rgba(0, 0, 0, 0.2);
+  transition: all 0.3s;
+  opacity: 0;
+  animation: fadeIn 1s ease-in 3s forwards; /* Appears after welcome */
+}
+
+#add-lines {
+  position: absolute;
+  bottom: 20px;
+  left: 20%;
+  transform: translateX(-20%);
+  padding: 12px 24px;
+  background: linear-gradient(135deg, #3498db, #2c3e50);
+  color: white;
+  border: none;
+  border-radius: 30px;
+  font-family: "Poppins", sans-serif;
+  font-size: 1.1rem;
+  cursor: pointer;
+  z-index: 1000;
+  box-shadow: 0 4px 15px rgba(0, 0, 0, 0.2);
+  transition: all 0.3s;
+  opacity: 0;
+  animation: fadeIn 1s ease-in 3s forwards;
+}
+
+#add-points {
+  position: absolute;
+  bottom: 20px;
+  left: 80%;
+  transform: translateX(-80%);
+  padding: 12px 24px;
+  background: linear-gradient(135deg, #3498db, #2c3e50);
+  color: white;
+  border: none;
+  border-radius: 30px;
+  font-family: "Poppins", sans-serif;
+  font-size: 1.1rem;
+  cursor: pointer;
+  z-index: 1000;
+  box-shadow: 0 4px 15px rgba(0, 0, 0, 0.2);
+  transition: all 0.3s;
+  opacity: 0;
+  animation: fadeIn 1s ease-in 3s forwards;
+}
+
+/* Drawing Management Buttons */
+#save-drawing {
+  position: absolute;
+  bottom: 20px;
+  left: 50%;
+  transform: translateX(-50%);
+  padding: 12px 24px;
+  background: linear-gradient(135deg, #2ecc71, #27ae60);
+  color: white;
+  border: none;
+  border-radius: 30px;
+  font-family: "Poppins", sans-serif;
+  font-size: 1.1rem;
+  cursor: pointer;
+  z-index: 1000;
+  box-shadow: 0 4px 15px rgba(0, 0, 0, 0.2);
+  transition: all 0.3s;
+  opacity: 0;
+  animation: fadeIn 1s ease-in 3s forwards;
+}
+
+#load-drawing {
+  position: absolute;
+  bottom: 20px;
+  left: 30%;
+  transform: translateX(-30%);
+  padding: 12px 24px;
+  background: linear-gradient(135deg, #3498db, #2980b9);
+  color: white;
+  border: none;
+  border-radius: 30px;
+  font-family: "Poppins", sans-serif;
+  font-size: 1.1rem;
+  cursor: pointer;
+  z-index: 1000;
+  box-shadow: 0 4px 15px rgba(0, 0, 0, 0.2);
+  transition: all 0.3s;
+  opacity: 0;
+  animation: fadeIn 1s ease-in 3s forwards;
+}
+
+#delete-drawing {
+  position: absolute;
+  bottom: 20px;
+  left: 70%;
+  transform: translateX(-70%);
+  padding: 12px 24px;
+  background: linear-gradient(135deg, #e74c3c, #c0392b);
+  color: white;
+  border: none;
+  border-radius: 30px;
+  font-family: "Poppins", sans-serif;
+  font-size: 1.1rem;
+  cursor: pointer;
+  z-index: 1000;
+  box-shadow: 0 4px 15px rgba(0, 0, 0, 0.2);
+  transition: all 0.3s;
+  opacity: 0;
+  animation: fadeIn 1s ease-in 3s forwards;
+}
+
+/* Hover effects for drawing buttons */
+#save-drawing:hover {
+  transform: translateX(-50%) scale(1.05);
+  box-shadow: 0 6px 20px rgba(46, 204, 113, 0.3);
+}
+
+#load-drawing:hover {
+  transform: translateX(-30%) scale(1.05);
+  box-shadow: 0 6px 20px rgba(52, 152, 219, 0.3);
+}
+
+#delete-drawing:hover {
+  transform: translateX(-70%) scale(1.05);
+  box-shadow: 0 6px 20px rgba(231, 76, 60, 0.3);
+}
+
+
+#create-buffer {
+  position: absolute;
+  bottom: 20px;
+  left: 85%;
+  transform: translateX(-85%);
+  padding: 12px 24px;
+  background: linear-gradient(135deg, #e74c3c, #c0392b);
+  color: white;
+  border: none;
+  border-radius: 30px;
+  font-family: "Poppins", sans-serif;
+  font-size: 1.1rem;
+  cursor: pointer;
+  z-index: 1000;
+  box-shadow: 0 4px 15px rgba(0, 0, 0, 0.2);
+  transition: all 0.3s;
+  opacity: 0;
+  animation: fadeIn 1s ease-in 3s forwards;
+}
+/* Responsive adjustments for drawing buttons */
+@media (max-width: 768px) {
+  #save-drawing,
+  #load-drawing,
+  #delete-drawing {
+    padding: 10px 18px;
+    font-size: 1rem;
+    bottom: 15px;
+  }
+  
+  #save-drawing {
+    left: 50%;
+    transform: translateX(-50%);
+  }
+  
+  #load-drawing {
+    left: 20%;
+    transform: translateX(-20%);
+  }
+  
+  #delete-drawing {
+    left: 80%;
+    transform: translateX(-80%);
+  }
+  
+  /* Adjust hover effects for mobile */
+  #save-drawing:hover {
+    transform: translateX(-50%) scale(1.03);
+  }
+  
+  #load-drawing:hover {
+    transform: translateX(-20%) scale(1.03);
+  }
+  
+  #delete-drawing:hover {
+    transform: translateX(-80%) scale(1.03);
+  }
+}
+
+
+#add-raster {
+  position: absolute;
+  bottom: 20px;
+  left: 10%;
+  transform: translateX(-50%);
+  padding: 12px 24px;
+  background: linear-gradient(135deg, #3498db, #2c3e50);
+  color: white;
+  border: none;
+  border-radius: 30px;
+  font-family: "Poppins", sans-serif;
+  font-size: 1.1rem;
+  cursor: pointer;
+  z-index: 1000;
+  box-shadow: 0 4px 15px rgba(0, 0, 0, 0.2);
+  transition: all 0.3s;
+  opacity: 0;
+  animation: fadeIn 1s ease-in 3s forwards;
+}
+
+#add-wmts {
+  position: absolute;
+  bottom: 20px;
+  left: 10%;
+  transform: translateX(-50%);
+  padding: 12px 24px;
+  background: linear-gradient(135deg, #3498db, #2c3e50);
+  color: white;
+  border: none;
+  border-radius: 30px;
+  font-family: "Poppins", sans-serif;
+  font-size: 1.1rem;
+  cursor: pointer;
+  z-index: 1000;
+  box-shadow: 0 4px 15px rgba(0, 0, 0, 0.2);
+  transition: all 0.3s;
+  opacity: 0;
+  animation: fadeIn 1s ease-in 3s forwards;
+}
+
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+#flight-button:hover {
+  transform: translateX(-60%) scale(1.05);
+  box-shadow: 0 6px 20px rgba(0, 0, 0, 0.3);
+}
+
+#loc-button:hover {
+  transform: translateX(-40%) scale(1.05);
+  box-shadow: 0 6px 20px rgba(0, 0, 0, 0.3);
+}
+
+#add-lines:hover, #add-points:hover {
+  transform: translateX(-20%) scale(1.05);
+  box-shadow: 0 6px 20px rgba(0, 0, 0, 0.3);
+}
+
+#add-points:hover {
+  transform: translateX(-80%) scale(1.05);
+}
+
+/* Draw Controls */
+#draw-controls {
+  position: absolute;
+  top: 20px;
+  right: 20px;
+  background: rgba(255, 255, 255, 0.9);
+  padding: 10px 15px;
+  border-radius: 8px;
+  box-shadow: 0 2px 10px rgba(0, 0, 0, 0.2);
+  z-index: 1000;
+  transition: all 0.3s ease;
+  opacity: 0;
+  animation: fadeIn 1s ease-in 3s forwards;
+}
+
+#draw-controls form {
+  display: flex;
+  align-items: center;
+}
+
+#draw-controls label {
+  font-family: "Poppins", sans-serif;
+  font-size: 1rem;
+  font-weight: 500;
+  margin-right: 8px;
+  color: #2c3e50;
+}
+
+#draw-controls select {
+  background-color: #fff;
+  border: 1px solid #3498db;
+  border-radius: 4px;
+  padding: 6px 10px;
+  font-family: "Poppins", sans-serif;
+  font-size: 0.9rem;
+  color: #2c3e50;
+  cursor: pointer;
+  outline: none;
+  transition: all 0.2s;
+}
+
+#draw-controls select:hover {
+  border-color: #2980b9;
+  box-shadow: 0 0 5px rgba(52, 152, 219, 0.3);
+}
+
+#draw-controls select:focus {
+  border-color: #2980b9;
+  box-shadow: 0 0 8px rgba(52, 152, 219, 0.5);
+}
+
+.tools {
+  position: absolute;
+  top: 10px;
+  left: 40px;
+  background: rgba(255, 255, 255, 0.9);
+  padding: 15px;
+  border-radius: 8px;
+  box-shadow: 0 2px 10px rgba(0, 0, 0, 0.2);
+  z-index: 1000;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  font-family: "Poppins", sans-serif;
+  opacity: 0;
+  animation: fadeIn 1s ease-in 3s forwards;
+}
+
+.tools > span {
+  font-size: 0.9rem;
+  color: #2c3e50;
+  font-weight: 500;
+  margin-right: 10px;
+}
+
+.tools .toggle-container {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  width: 100%;
+}
+
+.toggle-switch {
+  position: relative;
+  display: inline-block;
+  width: 50px;
+  height: 24px;
+  margin-left: 10px;
+}
+
+.toggle-switch input {
+  opacity: 0;
+  width: 0;
+  height: 0;
+}
+
+.slider {
+  position: absolute;
+  cursor: pointer;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background-color: #ccc;
+  transition: .4s;
+  border-radius: 24px;
+}
+
+.slider:before {
+  position: absolute;
+  content: "";
+  height: 18px;
+  width: 18px;
+  left: 3px;
+  bottom: 3px;
+  background-color: white;
+  transition: .4s;
+  border-radius: 50%;
+}
+
+input:checked + .slider {
+  background-color: #3498db;
+}
+
+input:checked + .slider:before {
+  transform: translateX(26px);
+}
+
+/* Responsive adjustments for draw controls */
+@media (max-width: 768px) {
+  #draw-controls {
+    top: 10px;
+    right: 10px;
+    padding: 8px 12px;
+  }
+  
+  #draw-controls label {
+    font-size: 0.9rem;
+  }
+  
+  #draw-controls select {
+    font-size: 0.8rem;
+    padding: 5px 8px;
+  }
+
+  .tools {
+    padding: 10px;
+    top: 10px;
+    left: 10px;
+  }
+  
+  .tools > span {
+    font-size: 0.8rem;
+  }
+  
+  .toggle-switch {
+    width: 40px;
+    height: 20px;
+  }
+  
+  .slider:before {
+    height: 14px;
+    width: 14px;
+  }
+  
+  input:checked + .slider:before {
+    transform: translateX(20px);
+  }
+}
+
+/* Responsive adjustments */
+@media (max-width: 600px) {
+  #welcome-message {
+    font-size: 1.8rem;
+  }
+
+  #flight-button {
+    padding: 10px 20px;
+    font-size: 1rem;
+  }
+
+  #loc-button {
+    padding: 10px 20px;
+    font-size: 1rem;
+  }
+}
+
+.drawing-options {
+  margin: 10px 0;
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+}
+
+.drawing-options label {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  cursor: pointer;
+}
+
+.drawing-options input[type="checkbox"] {
+  cursor: pointer;
+}
+
+.popup-message {
+  position: fixed;
+  top: 20px;
+  right: 20px;
+  padding: 10px 15px;
+  border-radius: 4px;
+  color: white;
+  font-weight: bold;
+  z-index: 1000;
+  box-shadow: 0 2px 10px rgba(0, 0, 0, 0.2);
+  animation: fadeInOut 5s forwards;
+}
+
+.popup-message.success {
+  background-color: #4CAF50;
+}
+
+.popup-message.error {
+  background-color: #f44336;
+}
+
+.popup-message.warning {
+  background-color: #ff9800;
+}
+
+.popup-message.info {
+  background-color: #2196F3;
+}
+
+@keyframes fadeInOut {
+  0% { opacity: 0; }
+  10% { opacity: 1; }
+  90% { opacity: 1; }
+  100% { opacity: 0; }
+}

@@ -1,0 +1,70 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>WebGIS Training</title>
+    <link rel="stylesheet" href="./css/style.css" />
+  </head>
+  <body class="initial-load">
+    <div id="welcome-message">Welcome to WebGIS Training</div>
+    <div id="map"></div>
+    <!-- <div id="loc-button">Get Current Location</div> -->
+    <!-- <button id="flight-button">Flight Path from Pune</button> -->
+    <!-- <div id="add-wfs">Add WFS Layer</div> -->
+    <!-- <div id="add-wms">Add WMS Layer</div>
+    <div id="add-lines">Add FTTH Lines</div>
+    <div id="add-points">Add FTTH Points</div>
+    <div id="add-raster">Add Raster Image</div> -->
+
+    <button class="control-button" id="create-buffer"> Create Buffer</button>
+
+    <button id="add-wmts">Add WMTS Layer</button>
+
+    <div id="draw-controls">
+      <form>
+        <label for="type">Draw: </label>
+        <select id="type">
+          <option value="Point">Point</option>
+          <option value="LineString">LineString</option>
+          <option value="Polygon">Polygon</option>
+          <option value="Circle">Circle</option>
+        </select>
+        
+        <div class="drawing-options">
+          <label>
+            <input type="checkbox" id="auto-save" checked> Auto-save
+          </label>
+          <label>
+            <input type="checkbox" id="prevent-intersections" checked> Prevent intersections
+          </label>
+        </div>
+      </form>
+      
+      <div class="drawing-actions">
+        <button id="save-drawing">Save</button>
+        <button id="load-drawing">Load</button>
+        <button id="delete-drawing">Delete Selected</button>
+        <button id="export-drawing">Export GeoJSON</button>
+      </div>
+    </div>
+
+    <div class="tools">
+      <span>Autosave</span>
+      <label class="toggle-switch">
+        <input id="auto-save" type="checkbox" />
+        <span class="slider"></span>
+      </label>
+      
+      <span>Drawing</span>
+      <label class="toggle-switch">
+        <input id="drawing-active" type="checkbox" checked />
+        <span class="slider"></span>
+      </label>
+    </div>
+
+    <script src="https://api.mapbox.com/mapbox.js/plugins/arc.js/v0.1.0/arc.js"></script>
+    <!-- Load main.js which will initialize the map and then use draw.js -->
+    <script type="module" src="./js/main.js"></script>
+  </body>
+</html>
