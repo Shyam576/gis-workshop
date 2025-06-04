@@ -33,7 +33,7 @@
         
         <div class="drawing-options">
           <label>
-            <input type="checkbox" id="auto-save" checked> Auto-save
+            <input type="checkbox" id="auto-save"> Auto-save
           </label>
           <label>
             <input type="checkbox" id="prevent-intersections" checked> Prevent intersections
@@ -41,13 +41,22 @@
         </div>
       </form>
       
-      <div class="drawing-actions">
-        <button id="save-drawing">Save</button>
-        <button id="load-drawing">Load</button>
-        <button id="delete-drawing">Delete Selected</button>
-        <button id="export-drawing">Export GeoJSON</button>
+      <div class="control-group">
+        <button id="union-features" class="control-button" title="Union selected features">
+          <i class="fas fa-object-group"></i> Union
+        </button>
+        <button id="direct-union" class="control-button" title="Direct Union">
+          <i class="fas fa-object-ungroup"></i> Direct Union
+        </button>
+        <button id="simple-union" class="control-button" title="Simple Union">
+          <i class="fas fa-object-group"></i> Simple Union
+        </button>
       </div>
     </div>
+    <button id="save-drawing">Save</button>
+    <button id="load-drawing">Load</button>
+    <button id="delete-drawing">Delete Selected</button>
+    <button id="export-drawing">Export GeoJSON</button>
 
     <div class="tools">
       <span>Autosave</span>

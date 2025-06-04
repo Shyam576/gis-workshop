@@ -682,6 +682,8 @@ var _interaction = require("ol/interaction");
 var _condition = require("ol/events/condition");
 var _bufferToolsJs = require("./buffer-tools.js");
 var _selectFeatureJs = require("./select-feature.js");
+var _geometryOperationsJs = require("./geometry-operations.js");
+var _utilsJs = require("./utils.js");
 const geoserverURL = "http://localhost:8080/geoserver";
 const geoserverWFSURL = "http://localhost:8080/geoserver/ows";
 const workspace = "ne"; // Replace with your workspace
@@ -691,12 +693,16 @@ const password = "geoserver"; // Replace with your password
 document.addEventListener("DOMContentLoaded", async ()=>{
     // Initialize map
     const map = (0, _mapInitJs.initMap)();
+    // Make map available globally for debugging
+    window.map = map;
     // Initialize drawing tools with our map instance
     const drawTools = (0, _drawJs.initDrawTools)(map);
-    // Add a Select interaction for selecting features to delete
+    // Add a Select interaction for selecting features to delete or union
     const select = new (0, _interaction.Select)({
         condition: (0, _condition.click)
     });
+    // Make select available globally for debugging
+    window.select = select;
     map.addInteraction(select);
     // Add event listener for the drawing toggle
     const drawingToggle = document.getElementById('drawing-active');
@@ -714,12 +720,12 @@ document.addEventListener("DOMContentLoaded", async ()=>{
     document.getElementById('save-drawing').addEventListener('click', async ()=>{
         const features = drawTools.source.getFeatures();
         if (features.length === 0) {
-            alert('No features to save');
+            (0, _utilsJs.showPopupMessage)('No features to save', 'warning');
             return;
         }
         const result = await (0, _saveDrawingJs.saveDrawing)(features, workspace, layerName, 'EPSG:3857', username, password, geoserverURL);
-        if (result.status === 'success') alert(`Successfully saved ${result.totalInserted || features.length} features`);
-        else alert(`Error: ${result.message || 'Unknown error'}`);
+        if (result.status === 'success') (0, _utilsJs.showPopupMessage)(`Successfully saved ${result.totalInserted || features.length} features`, 'success');
+        else (0, _utilsJs.showPopupMessage)(`Error: ${result.message || 'Unknown error'}`, 'error');
     });
     // Load drawing event listener
     document.getElementById('load-drawing').addEventListener('click', async ()=>{
@@ -738,14 +744,14 @@ document.addEventListener("DOMContentLoaded", async ()=>{
                 ],
                 duration: 1000
             });
-            alert(`Loaded ${result.count} features`);
-        } else alert(`Error: ${result.message || 'Unknown error'}`);
+            (0, _utilsJs.showPopupMessage)(`Loaded ${result.count} features`, 'success');
+        } else (0, _utilsJs.showPopupMessage)(`Error: ${result.message || 'Unknown error'}`, 'error');
     });
     // Delete drawing event listener
     document.getElementById('delete-drawing').addEventListener('click', async ()=>{
         const selectedFeatures = select.getFeatures().getArray();
         if (selectedFeatures.length === 0) {
-            alert('No features selected for deletion');
+            (0, _utilsJs.showPopupMessage)('No features selected for deletion', 'warning');
             return;
         }
         if (!confirm(`Are you sure you want to delete ${selectedFeatures.length} features?`)) return;
@@ -757,173 +763,102 @@ document.addEventListener("DOMContentLoaded", async ()=>{
             });
             // Clear selection
             select.getFeatures().clear();
-            alert(`Successfully deleted ${result.totalDeleted || selectedFeatures.length} features`);
-        } else alert(`Error: ${result.message || 'Unknown error'}`);
+            (0, _utilsJs.showPopupMessage)(`Successfully deleted ${result.totalDeleted || selectedFeatures.length} features`, 'success');
+        } else (0, _utilsJs.showPopupMessage)(`Error: ${result.message || 'Unknown error'}`, 'error');
     });
-    setTimeout(()=>{
-        document.body.classList.remove("initial-load");
-    }, 3000);
-    //   document.getElementById("loc-button").addEventListener('click', async () => {
-    //     const view = map.getView();
-    //     const hasLocationLayer = map.getLayers().getArray().some(layer => layer.get('title') === 'location-layer');
-    //     if (!hasLocationLayer) {
-    //     current_location(view).then(({ layer }) => {
-    //         map.addLayer(layer);
-    //     });
-    // }
-    //     });
-    // document
-    //   .getElementById("flight-button")
-    //   .addEventListener("click", async () => {
-    //     const view = map.getView();
-    //     const location = await current_location(view);
-    //     const current_location_point = location.pointFeature;
-    //     const destLocation = current_location_point
-    //       .getGeometry()
-    //       .transform("EPSG:3857", "EPSG:4326")
-    //       .getCoordinates();
-    //     const flight_layer = createFlightRouteLayer(destLocation, view);
-    //     map.addLayer(flight_layer);
-    //   });
-    // document.getElementById("add-wfs").addEventListener("click", async () => {
-    //   const features = await fetchFeatures(
-    //     "http://localhost:9090/geoserver/ows",
-    //     "topp",
-    //     "states",
-    //     "admin",
-    //     "geoserver"
-    //   );
-    //   const hasWfsLayer = map
-    //     .getLayers()
-    //     .getArray()
-    //     .some((layer) => layer.get("title") === "wfs-layer");
-    //   if (!hasWfsLayer) {
-    //     const wfsLayer = createWfsLayer(features);
-    //     map.getView().fit(wfsLayer.getSource().getExtent(), {
-    //       padding: [50, 50, 50, 50],
-    //       duration: 1000,
-    //     });
-    //     map.addLayer(wfsLayer);
-    //   }
-    // });
-    // document.getElementById("add-wms").addEventListener("click", async () => {
-    //   const geoserverURL = "http://localhost:8080/geoserver/ows";
-    //   const workspace = "ne";
-    //   const layer_name = "thromdeBoundary";
-    //   // Check if layer already exists
-    //   const hasLayer = map
-    //     .getLayers()
-    //     .getArray()
-    //     .some((layer) => layer.get("title") === "wms-layer-" + layer_name);
-    //   if (hasLayer) {
-    //     // Remove layer if it exists
-    //     map.getLayers().forEach((layer) => {
-    //       if (layer.get("title") === "wms-layer-" + layer_name) {
-    //         map.removeLayer(layer);
-    //       }
-    //     });
-    //   } else {
-    //     // Add layer if it doesn't exist
-    //     const layer = loadWms(geoserverURL, layer_name, workspace);
-    //     map.addLayer(layer);
-    //     const thimphuCoords = fromLonLat([89.638427, 27.478586]); // Thimphu coordinates
-    //     // Animate to the new location
-    //     map.getView().animate({
-    //       center: thimphuCoords,
-    //       zoom: 14,
-    //       duration: 1000,
-    //     });
-    //   }
-    // });
-    // document.getElementById("add-lines").addEventListener("click", async () => {
-    //   const geoserverURL = "http://localhost:8080/geoserver/ows";
-    //   const workspace = "ne";
-    //   const layer_name = "thimphu";
-    //   // Check if layer already exists
-    //   const hasLayer = map
-    //     .getLayers()
-    //     .getArray()
-    //     .some((layer) => layer.get("title") === "wms-layer-" + layer_name);
-    //   if (hasLayer) {
-    //     // Remove layer if it exists
-    //     map.getLayers().forEach((layer) => {
-    //       if (layer.get("title") === "wms-layer-" + layer_name) {
-    //         map.removeLayer(layer);
-    //       }
-    //     });
-    //   } else {
-    //     // Add layer if it doesn't exist
-    //     const layer = loadWms(geoserverURL, layer_name, workspace);
-    //     map.addLayer(layer);
-    //     const thimphuCoords = fromLonLat([89.638427, 27.478586]); // Thimphu coordinates
-    //     // Animate to the new location
-    //     map.getView().animate({
-    //       center: thimphuCoords,
-    //       zoom: 14,
-    //       duration: 1000,
-    //     });
-    //   }
-    // });
-    // document.getElementById("add-points").addEventListener("click", async () => {
-    //   const geoserverURL = "http://localhost:8080/geoserver/ows";
-    //   const workspace = "ne";
-    //   const layer_name = "thromdeFTTHPoints";
-    //   // Check if layer already exists
-    //   const hasLayer = map
-    //     .getLayers()
-    //     .getArray()
-    //     .some((layer) => layer.get("title") === "wms-layer-" + layer_name);
-    //   if (hasLayer) {
-    //     // Remove layer if it exists
-    //     map.getLayers().forEach((layer) => {
-    //       if (layer.get("title") === "wms-layer-" + layer_name) {
-    //         map.removeLayer(layer);
-    //       }
-    //     });
-    //   } else {
-    //     // Add layer if it doesn't exist
-    //     const layer = loadWms(geoserverURL, layer_name, workspace);
-    //     map.addLayer(layer);
-    //     // Convert coordinates from lon/lat to the map's projection
-    //     const thimphuCoords = fromLonLat([89.638427, 27.478586]); // Thimphu coordinates
-    //     // Animate to the new location
-    //     map.getView().animate({
-    //       center: thimphuCoords,
-    //       zoom: 14,
-    //       duration: 1000,
-    //     });
-    //   }
-    // });
-    // document.getElementById("add-raster").addEventListener("click", async () => {
-    //   const geoserverURL = "http://localhost:8080/geoserver/ows";
-    //   const workspace = "nurc";
-    //   const layer_name = "mosaic";
-    //   // Check if layer already exists
-    //   const hasLayer = map
-    //     .getLayers()
-    //     .getArray()
-    //     .some((layer) => layer.get("title") === "wms-layer-" + layer_name);
-    //   if (hasLayer) {
-    //     // Remove layer if it exists
-    //     map.getLayers().forEach((layer) => {
-    //       if (layer.get("title") === "wms-layer-" + layer_name) {
-    //         map.removeLayer(layer);
-    //       }
-    //     });
-    //   } else {
-    //     // Add layer if it doesn't exist
-    //     const layer = loadWms(geoserverURL, layer_name, workspace);
-    //     map.addLayer(layer);
-    //     // Convert coordinates from lon/lat to the map's projection
-    //     const thimphuCoords = fromLonLat([12.4964, 41.9028]); // Thimphu coordinates
-    //     // Animate to the new location
-    //     map.getView().animate({
-    //       center: thimphuCoords,
-    //       zoom: 4,
-    //       duration: 1000,
-    //     });
-    //   }
-    // });
+    // Add union features functionality
+    document.getElementById('union-features')?.addEventListener('click', ()=>{
+        console.log("Union button clicked");
+        const selectedFeatures = select.getFeatures().getArray();
+        console.log("Selected features:", selectedFeatures);
+        if (selectedFeatures.length < 2) {
+            (0, _utilsJs.showPopupMessage)('Select at least two features to union', 'warning');
+            return;
+        }
+        // Import the function dynamically to ensure we're using the latest version
+        require("2b29e93450dd6ece").then((module)=>{
+            const unionFeature = module.unionFeatures(selectedFeatures, drawTools.source);
+            console.log("Union result:", unionFeature);
+            if (unionFeature) {
+                // Clear selection
+                select.getFeatures().clear();
+                // Select the new union feature
+                select.getFeatures().push(unionFeature);
+            }
+        }).catch((error)=>{
+            console.error("Error importing union-tool module:", error);
+            (0, _utilsJs.showPopupMessage)("Failed to perform union operation: " + error.message, "error");
+        });
+    });
+    // Direct union button event listener
+    document.getElementById('direct-union')?.addEventListener('click', ()=>{
+        console.log("Direct union button clicked");
+        const selectedFeatures = select.getFeatures().getArray();
+        if (selectedFeatures.length < 2) {
+            (0, _utilsJs.showPopupMessage)('Select at least two features to union', 'warning');
+            return;
+        }
+        // Import the function dynamically
+        require("2b29e93450dd6ece").then((module)=>{
+            try {
+                const result = module.unionFeatures(selectedFeatures, drawTools.source);
+                console.log("Union result:", result);
+                if (result) {
+                    // Clear selection
+                    select.getFeatures().clear();
+                    // Select the new feature
+                    select.getFeatures().push(result);
+                    (0, _utilsJs.showPopupMessage)("Union completed successfully", "success");
+                }
+            } catch (error) {
+                console.error("Error during union operation:", error);
+                (0, _utilsJs.showPopupMessage)("Error during union: " + error.message, "error");
+            }
+        }).catch((error)=>{
+            console.error('Error importing module:', error);
+            (0, _utilsJs.showPopupMessage)("Failed to load union module: " + error.message, "error");
+        });
+    });
+    // Simple union button event listener
+    document.getElementById('simple-union')?.addEventListener('click', ()=>{
+        console.log("Simple union button clicked");
+        const selectedFeatures = select.getFeatures().getArray();
+        if (selectedFeatures.length < 2) {
+            (0, _utilsJs.showPopupMessage)('Select at least two features to union', 'warning');
+            return;
+        }
+        // Import the function dynamically
+        require("2b29e93450dd6ece").then((module)=>{
+            try {
+                const result = module.unionFeatures(selectedFeatures, drawTools.source);
+                console.log("Simple union result:", result);
+                if (result) {
+                    // Clear selection
+                    select.getFeatures().clear();
+                    // Select the new feature
+                    select.getFeatures().push(result);
+                    (0, _utilsJs.showPopupMessage)("Simple union completed successfully", "success");
+                }
+            } catch (error) {
+                console.error("Error during simple union operation:", error);
+                (0, _utilsJs.showPopupMessage)("Error during simple union: " + error.message, "error");
+            }
+        }).catch((error)=>{
+            console.error('Error importing module:', error);
+            (0, _utilsJs.showPopupMessage)("Failed to load union module: " + error.message, "error");
+        });
+    });
+    // Create buffer event listener
+    document.getElementById('create-buffer').addEventListener('click', async ()=>{
+        const selectedFeatures = select.getFeatures();
+        if (selectedFeatures.getArray().length > 0) {
+            selectedFeatures.forEach((feature)=>{
+                (0, _bufferToolsJs.createBuffer)(feature, 10, wfsLayer);
+            });
+            (0, _utilsJs.showPopupMessage)("Buffer created successfully", "success");
+        } else (0, _utilsJs.showPopupMessage)("No features selected for buffer", "warning");
+    });
+    // Add WMTS layer event listener
     document.getElementById("add-wmts").addEventListener("click", async ()=>{
         const extent = [
             9975165.7992,
@@ -934,17 +869,47 @@ document.addEventListener("DOMContentLoaded", async ()=>{
         const wmtsLayer = (0, _loadWmtsJs.createWMTSLayer)(geoserverURL, "ne", "thromdeBoundary", extent);
         map.addLayer(wmtsLayer);
         map.getView().fit(extent);
+        (0, _utilsJs.showPopupMessage)("WMTS layer added", "success");
     });
-    // const featureSelection = activateSelectInteraction(map)
-    document.getElementById('create-buffer').addEventListener('click', async ()=>{
-        const selectedFeatures = select.getFeatures();
-        if (selectedFeatures.getArray().length > 0) selectedFeatures.forEach((feature)=>{
-            (0, _bufferToolsJs.createBuffer)(feature, 10, wfsLayer);
-        });
+    // Export GeoJSON event listener
+    document.getElementById('export-drawing')?.addEventListener('click', ()=>{
+        const features = drawTools.source.getFeatures();
+        if (features.length === 0) {
+            (0, _utilsJs.showPopupMessage)('No features to export', 'warning');
+            return;
+        }
+        try {
+            const format = new GeoJSON();
+            const geojson = format.writeFeatures(features, {
+                dataProjection: 'EPSG:4326',
+                featureProjection: 'EPSG:3857'
+            });
+            // Create a download link
+            const blob = new Blob([
+                geojson
+            ], {
+                type: 'application/json'
+            });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = 'export.geojson';
+            document.body.appendChild(a);
+            a.click();
+            document.body.removeChild(a);
+            URL.revokeObjectURL(url);
+            (0, _utilsJs.showPopupMessage)(`Exported ${features.length} features to GeoJSON`, 'success');
+        } catch (error) {
+            console.error("Error exporting to GeoJSON:", error);
+            (0, _utilsJs.showPopupMessage)(`Error exporting to GeoJSON: ${error.message}`, 'error');
+        }
     });
+    setTimeout(()=>{
+        document.body.classList.remove("initial-load");
+    }, 3000);
 });
 
-},{"./map-init.js":"dDQRS","./geolocation.js":"gp2Gj","./flight-path.js":"aG9FU","./load-wfs.js":"bsKzT","./load-wms.js":"8l3Ji","ol/proj":"8OK47","./draw.js":"9euAx","./load-wmts.js":"cLSxx","./save-drawing.js":"lpmgp","./fetch-drawing.js":"cVrUZ","./delete-drawing.js":"3LDLH","ol/interaction":"9kyTl","ol/events/condition":"gm0iA","./buffer-tools.js":"ef2iZ","./select-feature.js":"5Qkjh"}],"dDQRS":[function(require,module,exports,__globalThis) {
+},{"./map-init.js":"dDQRS","./geolocation.js":"gp2Gj","./flight-path.js":"aG9FU","./load-wfs.js":"bsKzT","./load-wms.js":"8l3Ji","ol/proj":"8OK47","./draw.js":"9euAx","./load-wmts.js":"cLSxx","./save-drawing.js":"lpmgp","./fetch-drawing.js":"cVrUZ","./delete-drawing.js":"3LDLH","ol/interaction":"9kyTl","ol/events/condition":"gm0iA","./buffer-tools.js":"ef2iZ","./select-feature.js":"5Qkjh","./geometry-operations.js":"a2P7c","./utils.js":"bMpAD","2b29e93450dd6ece":"5IIWm"}],"dDQRS":[function(require,module,exports,__globalThis) {
 var parcelHelpers = require("@parcel/transformer-js/src/esmodule-helpers.js");
 parcelHelpers.defineInteropFlag(exports);
 //initialize the map on the web
@@ -43458,6 +43423,12 @@ parcelHelpers.export(exports, "checkInteraction", ()=>checkInteraction);
  * @param {import('ol/Map.js').default} map - The OpenLayers map instance
  * @returns {Object} - Object containing drawing tools and methods
  */ parcelHelpers.export(exports, "initDrawTools", ()=>initDrawTools);
+/**
+ * Union selected features using JSTS
+ * @param {Array<Feature>} features - Array of features to union
+ * @param {VectorSource} source - Vector source to add the result to and remove original features from
+ * @returns {Feature|null} - The union result as a feature, or null if operation fails
+ */ parcelHelpers.export(exports, "unionSelectedFeatures", ()=>unionSelectedFeatures);
 var _draw = require("ol/interaction/Draw");
 var _drawDefault = parcelHelpers.interopDefault(_draw);
 var _geoserverCrudJs = require("./geoserver-crud.js");
@@ -43504,47 +43475,71 @@ var _geometryCollectionDefault = parcelHelpers.interopDefault(_geometryCollectio
 var _ol3Parser = require("jsts/org/locationtech/jts/io/OL3Parser");
 var _ol3ParserDefault = parcelHelpers.interopDefault(_ol3Parser);
 var _relate = require("jsts/org/locationtech/jts/operation/relate");
+var _union = require("jsts/org/locationtech/jts/operation/union");
 function checkIntersection(feature, layer, showAlert = true) {
     if (!feature || !layer) return false;
     const drawGeom = feature.getGeometry();
     if (!drawGeom) return false;
+    // Validate geometry before proceeding
+    if (drawGeom.getType() === 'Polygon') {
+        const coords = drawGeom.getCoordinates();
+        if (!coords || !coords[0] || coords[0].length < 4) {
+            console.warn("Invalid polygon: not enough points for a LinearRing", coords);
+            return false;
+        }
+    }
     // Use JSTS for precise intersection checking
     const parser = new (0, _ol3ParserDefault.default)();
     parser.inject((0, _pointDefault.default), (0, _lineStringDefault.default), (0, _linearRingDefault.default), (0, _polygonDefault.default), (0, _multiPointDefault.default), (0, _multiLineStringDefault.default), (0, _multiPolygonDefault.default), (0, _geometryCollectionDefault.default));
-    // Convert the drawn geometry to JSTS geometry
-    const jstsGeom = parser.read(drawGeom);
-    // Get the extent of the drawn geometry for quick filtering
-    const drawGeomExtent = drawGeom.getExtent();
-    let hasIntersection = false;
-    let intersectingFeature = null;
-    // Check against each existing feature
-    layer.getSource().getFeatures().forEach((existingFeature)=>{
-        // Skip checking against itself
-        if (existingFeature === feature) return;
-        const existingGeom = existingFeature.getGeometry();
-        if (!existingGeom) return;
-        // Quick check with extents first (bounding boxes)
-        if ((0, _extentJs.intersects)(drawGeomExtent, existingGeom.getExtent())) {
-            // Convert existing geometry to JSTS geometry
-            const jstsExistingGeom = parser.read(existingGeom);
-            // Perform precise intersection check
-            if ((0, _relate.RelateOp).intersects(jstsGeom, jstsExistingGeom)) {
-                hasIntersection = true;
-                intersectingFeature = existingFeature;
-                // Show alert if requested
-                if (showAlert) {
-                    const featureType = drawGeom.getType();
-                    const existingType = existingGeom.getType();
-                    (0, _popupMessageJs.showPopupMessage)(`Intersection detected between ${featureType} and existing ${existingType}`, 'warning');
-                    // Highlight the intersecting feature
-                    highlightIntersectingFeature(existingFeature, layer);
+    try {
+        // Convert the drawn geometry to JSTS geometry
+        const jstsGeom = parser.read(drawGeom);
+        // Get the extent of the drawn geometry for quick filtering
+        const drawGeomExtent = drawGeom.getExtent();
+        let hasIntersection = false;
+        let intersectingFeature = null;
+        // Check against each existing feature
+        layer.getSource().getFeatures().forEach((existingFeature)=>{
+            // Skip checking against itself
+            if (existingFeature === feature) return;
+            const existingGeom = existingFeature.getGeometry();
+            if (!existingGeom) return;
+            // Validate existing geometry
+            if (existingGeom.getType() === 'Polygon') {
+                const coords = existingGeom.getCoordinates();
+                if (!coords || !coords[0] || coords[0].length < 4) {
+                    console.warn("Invalid existing polygon: not enough points for a LinearRing", coords);
+                    return;
                 }
-                // We found an intersection, no need to check further
-                return;
             }
-        }
-    });
-    return hasIntersection;
+            // Quick check with extents first (bounding boxes)
+            if ((0, _extentJs.intersects)(drawGeomExtent, existingGeom.getExtent())) try {
+                // Convert existing geometry to JSTS geometry
+                const jstsExistingGeom = parser.read(existingGeom);
+                // Perform precise intersection check
+                if ((0, _relate.RelateOp).intersects(jstsGeom, jstsExistingGeom)) {
+                    hasIntersection = true;
+                    intersectingFeature = existingFeature;
+                    // Show alert if requested
+                    if (showAlert) {
+                        const featureType = drawGeom.getType();
+                        const existingType = existingGeom.getType();
+                        (0, _popupMessageJs.showPopupMessage)(`Intersection detected between ${featureType} and existing ${existingType}`, "warning");
+                        // Highlight the intersecting feature
+                        highlightIntersectingFeature(existingFeature, layer);
+                    }
+                    // We found an intersection, no need to check further
+                    return;
+                }
+            } catch (error) {
+                console.error("Error checking intersection:", error);
+            }
+        });
+        return hasIntersection;
+    } catch (error) {
+        console.error("Error in checkIntersection:", error);
+        return false;
+    }
 }
 /**
  * Temporarily highlight an intersecting feature
@@ -43556,16 +43551,16 @@ function checkIntersection(feature, layer, showAlert = true) {
     // Set a highlight style
     feature.setStyle(new (0, _styleDefault.default)({
         stroke: new (0, _strokeDefault.default)({
-            color: 'red',
+            color: "red",
             width: 3
         }),
         fill: new (0, _fillDefault.default)({
-            color: 'rgba(255, 0, 0, 0.3)'
+            color: "rgba(255, 0, 0, 0.3)"
         }),
         image: new (0, _circleDefault.default)({
             radius: 7,
             fill: new (0, _fillDefault.default)({
-                color: 'red'
+                color: "red"
             })
         })
     }));
@@ -43580,7 +43575,7 @@ function calculateArea(feature) {
         ha: 0
     };
     const geometry = feature.getGeometry();
-    if (!geometry || geometry.getType() !== 'Polygon') return {
+    if (!geometry || geometry.getType() !== "Polygon") return {
         m2: 0,
         ha: 0
     };
@@ -43590,10 +43585,10 @@ function calculateArea(feature) {
     const areaInHa = areaInM2 / 10000;
     return {
         m2: Math.round(areaInM2 * 100) / 100,
-        ha: Math.round(areaInHa * 10000) / 10000 // Round to 4 decimal places
+        ha: Math.round(areaInHa * 10000) / 10000
     };
 }
-function enableDraw(map, vectorLayer, drawType = 'Polygon', geoserverURL) {
+function enableDraw(map, vectorLayer, drawType = "Polygon", geoserverURL) {
     let drawnfeatures = [];
     let modifiedFeatures = [];
     let isDrawing = false;
@@ -43605,60 +43600,69 @@ function enableDraw(map, vectorLayer, drawType = 'Polygon', geoserverURL) {
     });
     map.addInteraction(draw);
     // Track when drawing starts
-    draw.on('drawstart', (event)=>{
+    draw.on("drawstart", (event)=>{
         isDrawing = true;
-        console.log('Drawing started');
+        const hasIntersection = checkIntersection(event.feature, vectorLayer);
+        console.log("Has Intersection: ", hasIntersection);
+        const preventIntersections = document.getElementById("prevent-intersections")?.checked || false;
+        if (hasIntersection && preventIntersections) {
+            // Remove the feature that was just drawn
+            vectorLayer.getSource().removeFeature(event.feature);
+            (0, _popupMessageJs.showPopupMessage)("Drawing removed due to intersection with existing feature", "warning");
+            return;
+        }
+        console.log("Drawing started");
     });
     // Handle drawing end
-    draw.on('drawend', async (event)=>{
+    draw.on("drawend", async (event)=>{
         isDrawing = false;
-        console.log('Drawing ended');
+        console.log("Drawing ended");
         const feature = event.feature;
         // Check for intersections with existing features
         const hasIntersection = checkIntersection(feature, vectorLayer);
-        console.log('Intersection check result:', hasIntersection);
+        console.log("Intersection check result:", hasIntersection);
         // If intersection is found and we want to prevent it
-        const preventIntersections = document.getElementById('prevent-intersections')?.checked || false;
+        const preventIntersections = document.getElementById("prevent-intersections")?.checked || false;
         if (hasIntersection && preventIntersections) {
             // Remove the feature that was just drawn
             vectorLayer.getSource().removeFeature(feature);
-            (0, _popupMessageJs.showPopupMessage)('Drawing removed due to intersection with existing feature', 'warning');
+            (0, _popupMessageJs.showPopupMessage)("Drawing removed due to intersection with existing feature", "warning");
             return;
         }
         // Calculate area for polygons
-        if (drawType === 'Polygon') {
+        if (drawType === "Polygon") {
             const area = calculateArea(feature);
             feature.setProperties({
-                'area_m2': area.m2,
-                'area_ha': area.ha
+                area_m2: area.m2,
+                area_ha: area.ha
             });
             // Show area information
-            (0, _popupMessageJs.showPopupMessage)(`Area: ${area.m2} m\xb2 (${area.ha} ha)`, 'info');
+            (0, _popupMessageJs.showPopupMessage)(`Area: ${area.m2} m\xb2 (${area.ha} ha)`, "info");
         }
         const newFeat = new (0, _ol.Feature)();
-        newFeat.setGeometryName('geom');
+        newFeat.setGeometryName("geom");
         newFeat.setGeometry(feature.getGeometry());
         newFeat.setProperties({
-            'name': 'test',
+            name: "test",
             ...feature.getProperties()
         });
-        const autoSave = document.getElementById('auto-save')?.checked || false;
+        const autoSave = document.getElementById("auto-save")?.checked || false;
         if (autoSave) try {
-            const res = await (0, _geoserverCrudJs.transactWFS)('insert', [
+            const res = await (0, _geoserverCrudJs.transactWFS)("insert", [
                 newFeat
-            ], 'ne', 'draw_layer', 'EPSG:3857', 'admin', 'geoserver', geoserverURL);
-            const featureId = parseInt(res.insertedFIDs[0].split('.')[1]);
+            ], "ne", "draw_layer", "EPSG:3857", "admin", "geoserver", geoserverURL);
+            const featureId = parseInt(res.insertedFIDs[0].split(".")[1]);
             event.feature.setProperties({
-                'fid': featureId
+                fid: featureId
             });
-            console.log('Feature drawn and saved to server');
+            console.log("Feature drawn and saved to server");
         } catch (error) {
-            console.error('Error saving feature:', error);
-            (0, _popupMessageJs.showPopupMessage)('Error saving feature to server', 'error');
+            console.error("Error saving feature:", error);
+            (0, _popupMessageJs.showPopupMessage)("Error saving feature to server", "error");
         }
         else {
             drawnfeatures.push(newFeat);
-            console.log('Feature drawn and saved to memory');
+            console.log("Feature drawn and saved to memory");
         }
     });
     const modify = new (0, _modifyJsDefault.default)({
@@ -43666,7 +43670,7 @@ function enableDraw(map, vectorLayer, drawType = 'Polygon', geoserverURL) {
     });
     map.addInteraction(modify);
     // Store original geometry before modification
-    modify.on('modifystart', (event)=>{
+    modify.on("modifystart", (event)=>{
         const features = event.features.getArray();
         features.forEach((feature)=>{
             // Store a clone of the original geometry
@@ -43674,51 +43678,51 @@ function enableDraw(map, vectorLayer, drawType = 'Polygon', geoserverURL) {
         });
     });
     // Handle feature modification
-    modify.on('modifyend', (event)=>{
-        console.log('Modification ended');
+    modify.on("modifyend", (event)=>{
+        console.log("Modification ended");
         const features = event.features.getArray();
         features.forEach(async (feature)=>{
             // Check for intersections with existing features
             const hasIntersection = checkIntersection(feature, vectorLayer);
-            console.log('Modification intersection check result:', hasIntersection);
+            console.log("Modification intersection check result:", hasIntersection);
             // If intersection is found and we want to prevent it
-            const preventIntersections = document.getElementById('prevent-intersections')?.checked || false;
+            const preventIntersections = document.getElementById("prevent-intersections")?.checked || false;
             if (hasIntersection && preventIntersections) {
                 // Revert the modification using the stored original geometry
                 const originalGeometry = originalFeatureGeometries.get(feature);
                 if (originalGeometry) {
                     feature.setGeometry(originalGeometry);
-                    (0, _popupMessageJs.showPopupMessage)('Modification reverted due to intersection with existing feature', 'warning');
+                    (0, _popupMessageJs.showPopupMessage)("Modification reverted due to intersection with existing feature", "warning");
                     return; // Skip the rest of the processing for this feature
-                } else (0, _popupMessageJs.showPopupMessage)('Modification creates intersection with existing feature', 'warning');
+                } else (0, _popupMessageJs.showPopupMessage)("Modification creates intersection with existing feature", "warning");
             }
             // Recalculate area for polygons
-            if (feature.getGeometry().getType() === 'Polygon') {
+            if (feature.getGeometry().getType() === "Polygon") {
                 const area = calculateArea(feature);
                 feature.setProperties({
-                    'area_m2': area.m2,
-                    'area_ha': area.ha
+                    area_m2: area.m2,
+                    area_ha: area.ha
                 });
                 // Show updated area information
-                (0, _popupMessageJs.showPopupMessage)(`Updated area: ${area.m2} m\xb2 (${area.ha} ha)`, 'info');
+                (0, _popupMessageJs.showPopupMessage)(`Updated area: ${area.m2} m\xb2 (${area.ha} ha)`, "info");
             }
             const newFeat = new (0, _ol.Feature)();
-            newFeat.setGeometryName('geom');
+            newFeat.setGeometryName("geom");
             newFeat.setGeometry(feature.getGeometry());
             newFeat.setId(feature.getProperties().fid);
-            const autoSave = document.getElementById('auto-save')?.checked || false;
+            const autoSave = document.getElementById("auto-save")?.checked || false;
             if (autoSave) try {
-                await (0, _geoserverCrudJs.transactWFS)('update', [
+                await (0, _geoserverCrudJs.transactWFS)("update", [
                     newFeat
-                ], 'ne', 'draw_layer', 'EPSG:3857', 'admin', 'geoserver', geoserverURL);
-                console.log('Feature modified and saved to server');
+                ], "ne", "draw_layer", "EPSG:3857", "admin", "geoserver", geoserverURL);
+                console.log("Feature modified and saved to server");
             } catch (error) {
-                console.error('Error updating feature:', error);
-                (0, _popupMessageJs.showPopupMessage)('Error updating feature on server', 'error');
+                console.error("Error updating feature:", error);
+                (0, _popupMessageJs.showPopupMessage)("Error updating feature on server", "error");
             }
             else {
                 modifiedFeatures.push(newFeat);
-                console.log('Feature modified and saved to memory');
+                console.log("Feature modified and saved to memory");
             }
         });
         // Clear the stored geometries
@@ -43741,59 +43745,59 @@ function enableDraw(map, vectorLayer, drawType = 'Polygon', geoserverURL) {
             let res;
             let savedCount = 0;
             if (drawnfeatures.length > 0) try {
-                res = await (0, _geoserverCrudJs.transactWFS)('insert', drawnfeatures, 'ne', 'draw_layer', 'EPSG:3857', 'admin', 'geoserver', geoserverURL);
+                res = await (0, _geoserverCrudJs.transactWFS)("insert", drawnfeatures, "ne", "draw_layer", "EPSG:3857", "admin", "geoserver", geoserverURL);
                 savedCount += drawnfeatures.length;
                 drawnfeatures = [];
             } catch (error) {
-                console.error('Error saving drawn features:', error);
-                (0, _popupMessageJs.showPopupMessage)('Error saving drawn features', 'error');
+                console.error("Error saving drawn features:", error);
+                (0, _popupMessageJs.showPopupMessage)("Error saving drawn features", "error");
             }
             if (modifiedFeatures.length > 0) try {
-                res = await (0, _geoserverCrudJs.transactWFS)('update', modifiedFeatures, 'ne', 'draw_layer', 'EPSG:3857', 'admin', 'geoserver', geoserverURL);
+                res = await (0, _geoserverCrudJs.transactWFS)("update", modifiedFeatures, "ne", "draw_layer", "EPSG:3857", "admin", "geoserver", geoserverURL);
                 savedCount += modifiedFeatures.length;
                 modifiedFeatures = [];
             } catch (error) {
-                console.error('Error saving modified features:', error);
-                (0, _popupMessageJs.showPopupMessage)('Error saving modified features', 'error');
+                console.error("Error saving modified features:", error);
+                (0, _popupMessageJs.showPopupMessage)("Error saving modified features", "error");
             }
-            if (savedCount > 0) (0, _popupMessageJs.showPopupMessage)(`Successfully saved ${savedCount} feature(s)!`, 'success');
-            else if (drawnfeatures.length === 0 && modifiedFeatures.length === 0) (0, _popupMessageJs.showPopupMessage)('No features to save', 'info');
+            if (savedCount > 0) (0, _popupMessageJs.showPopupMessage)(`Successfully saved ${savedCount} feature(s)!`, "success");
+            else if (drawnfeatures.length === 0 && modifiedFeatures.length === 0) (0, _popupMessageJs.showPopupMessage)("No features to save", "info");
             return res;
         },
         delete: async ()=>{
             const source = vectorLayer.getSource();
             const features = source.getFeatures();
             if (features.length > 0) {
-                const autoSave = document.getElementById('auto-save')?.checked || false;
+                const autoSave = document.getElementById("auto-save")?.checked || false;
                 if (autoSave) {
                     // Get all features with FIDs
                     const featuresToDelete = features.filter((f)=>f.getProperties().fid);
                     if (featuresToDelete.length > 0) try {
-                        await (0, _geoserverCrudJs.transactWFS)('delete', featuresToDelete, 'ne', 'draw_layer', 'EPSG:3857', 'admin', 'geoserver', geoserverURL);
+                        await (0, _geoserverCrudJs.transactWFS)("delete", featuresToDelete, "ne", "draw_layer", "EPSG:3857", "admin", "geoserver", geoserverURL);
                     } catch (error) {
-                        console.error('Error deleting features:', error);
-                        (0, _popupMessageJs.showPopupMessage)('Error deleting features from server', 'error');
+                        console.error("Error deleting features:", error);
+                        (0, _popupMessageJs.showPopupMessage)("Error deleting features from server", "error");
                     }
                 }
                 // Clear all features from the source
                 source.clear();
                 drawnfeatures = [];
                 modifiedFeatures = [];
-                (0, _popupMessageJs.showPopupMessage)('All features deleted', 'success');
-            } else (0, _popupMessageJs.showPopupMessage)('No features to delete', 'info');
+                (0, _popupMessageJs.showPopupMessage)("All features deleted", "success");
+            } else (0, _popupMessageJs.showPopupMessage)("No features to delete", "info");
         },
         exportGeoJSON: ()=>{
             const source = vectorLayer.getSource();
             const features = source.getFeatures();
             if (features.length === 0) {
-                (0, _popupMessageJs.showPopupMessage)('No features to export', 'info');
+                (0, _popupMessageJs.showPopupMessage)("No features to export", "info");
                 return null;
             }
             const format = new (0, _geoJSONDefault.default)();
             const geojson = format.writeFeaturesObject(features);
             // Add area properties for polygons
             geojson.features.forEach((feature)=>{
-                if (feature.geometry.type === 'Polygon') {
+                if (feature.geometry.type === "Polygon") {
                     const olFeature = source.getFeatureById(feature.id);
                     const area = calculateArea(olFeature);
                     feature.properties.area_m2 = area.m2;
@@ -43808,40 +43812,40 @@ function createDrawLayer() {
     const drawSource = new (0, _vectorDefault.default)();
     const drawStyle = (feature)=>{
         const type = feature.getGeometry().getType();
-        if (type === 'Point' || type === 'MultiPoint') return new (0, _styleDefault.default)({
+        if (type === "Point" || type === "MultiPoint") return new (0, _styleDefault.default)({
             image: new (0, _circleDefault.default)({
                 radius: 5,
                 fill: new (0, _fillDefault.default)({
-                    color: 'blue'
+                    color: "blue"
                 }),
                 stroke: new (0, _strokeDefault.default)({
-                    color: 'white',
+                    color: "white",
                     width: 1
                 })
             })
         });
-        if (type.includes('Line')) return new (0, _styleDefault.default)({
+        if (type.includes("Line")) return new (0, _styleDefault.default)({
             stroke: new (0, _strokeDefault.default)({
-                color: 'green',
+                color: "green",
                 width: 2
             })
         });
-        if (type.includes('Polygon')) return new (0, _styleDefault.default)({
+        if (type.includes("Polygon")) return new (0, _styleDefault.default)({
             stroke: new (0, _strokeDefault.default)({
-                color: 'orange',
+                color: "orange",
                 width: 1
             }),
             fill: new (0, _fillDefault.default)({
-                color: 'rgba(255,165,0,0.3)'
+                color: "rgba(255,165,0,0.3)"
             })
         });
         return new (0, _styleDefault.default)({
             stroke: new (0, _strokeDefault.default)({
-                color: 'gray',
+                color: "gray",
                 width: 1
             }),
             fill: new (0, _fillDefault.default)({
-                color: 'rgba(200, 200, 200, 0.3)'
+                color: "rgba(200, 200, 200, 0.3)"
             })
         });
     };
@@ -43864,7 +43868,7 @@ function initDrawTools(map) {
     // Get the source from the layer
     const source = drawLayer.getSource();
     // Create draw, modify, and snap interactions
-    const typeSelect = document.getElementById('type');
+    const typeSelect = document.getElementById("type");
     let draw, modify, snap;
     function addInteractions() {
         // Get the GeoServer URL from the global variable or use a default
@@ -43902,16 +43906,16 @@ function initDrawTools(map) {
         save: function() {
             if (drawingTools && drawingTools.save) return drawingTools.save();
             return Promise.resolve({
-                status: 'error',
-                message: 'Drawing tools not initialized'
+                status: "error",
+                message: "Drawing tools not initialized"
             });
         },
         // Method to delete drawings
         delete: function() {
             if (drawingTools && drawingTools.delete) return drawingTools.delete();
             return Promise.resolve({
-                status: 'error',
-                message: 'Drawing tools not initialized'
+                status: "error",
+                message: "Drawing tools not initialized"
             });
         },
         // Method to export drawings as GeoJSON
@@ -43923,8 +43927,59 @@ function initDrawTools(map) {
         source: source
     };
 }
+function unionSelectedFeatures(features, source) {
+    if (!features || features.length < 2) {
+        (0, _popupMessageJs.showPopupMessage)("Select at least two features to union", "warning");
+        return null;
+    }
+    try {
+        // Create a JSTS parser
+        const parser = new (0, _ol3ParserDefault.default)();
+        parser.inject((0, _pointDefault.default), (0, _lineStringDefault.default), (0, _linearRingDefault.default), (0, _polygonDefault.default), (0, _multiPointDefault.default), (0, _multiLineStringDefault.default), (0, _multiPolygonDefault.default), (0, _geometryCollectionDefault.default));
+        // Convert all features to JSTS geometries
+        const jstsGeometries = features.map((feature)=>{
+            const geometry = feature.getGeometry();
+            if (!geometry) {
+                console.warn("Feature has no geometry:", feature);
+                return null;
+            }
+            return parser.read(geometry);
+        }).filter((geom)=>geom !== null);
+        if (jstsGeometries.length < 2) {
+            (0, _popupMessageJs.showPopupMessage)("Not enough valid geometries to union", "warning");
+            return null;
+        }
+        console.log("JSTS geometries for union:", jstsGeometries);
+        // Perform the union operation
+        const unionGeometry = (0, _union.UnaryUnionOp).union(jstsGeometries);
+        console.log("Union result:", unionGeometry);
+        if (!unionGeometry) {
+            (0, _popupMessageJs.showPopupMessage)("Union operation failed", "error");
+            return null;
+        }
+        // Convert back to OpenLayers geometry
+        const olGeometry = parser.write(unionGeometry);
+        // Create a new feature with the union geometry
+        const unionFeature = new (0, _ol.Feature)({
+            geometry: olGeometry
+        });
+        // Remove original features and add the union result
+        if (source) {
+            features.forEach((feature)=>{
+                source.removeFeature(feature);
+            });
+            source.addFeature(unionFeature);
+        }
+        (0, _popupMessageJs.showPopupMessage)("Union operation completed successfully", "success");
+        return unionFeature;
+    } catch (error) {
+        console.error("Error in unionSelectedFeatures:", error);
+        (0, _popupMessageJs.showPopupMessage)("Union operation failed: " + error.message, "error");
+        return null;
+    }
+}
 
-},{"ol/interaction/Modify.js":"cQEIv","ol/interaction/Snap.js":"3IZ3n","@parcel/transformer-js/src/esmodule-helpers.js":"jnFvT","ol/extent.js":"bGUel","ol/interaction/Draw":"aLfQY","./geoserver-crud.js":"7uIM7","ol":"7JF0u","ol/source/Vector":"7wT1g","ol/layer/Vector":"6bOIK","ol/style/Style":"8opjn","ol/style/Circle":"3LBvw","ol/style/Fill":"cHc7U","ol/style/Stroke":"1uQwy","./popup-message.js":"98E40","ol/format/GeoJSON":"9jWnV","ol/sphere":"dCFM7","ol/geom/Point":"6SybV","ol/geom/LineString":"gknRz","ol/geom/LinearRing":"gT85H","ol/geom/Polygon":"8Vwps","ol/geom/MultiPoint":"gXgmP","ol/geom/MultiLineString":"4FjXg","ol/geom/MultiPolygon":"b4GDd","ol/geom/GeometryCollection":"6lIhA","jsts/org/locationtech/jts/io/OL3Parser":"1NdLK","jsts/org/locationtech/jts/operation/relate":"lomLd"}],"cQEIv":[function(require,module,exports,__globalThis) {
+},{"ol/interaction/Modify.js":"cQEIv","ol/interaction/Snap.js":"3IZ3n","@parcel/transformer-js/src/esmodule-helpers.js":"jnFvT","ol/extent.js":"bGUel","ol/interaction/Draw":"aLfQY","./geoserver-crud.js":"7uIM7","ol":"7JF0u","ol/source/Vector":"7wT1g","ol/layer/Vector":"6bOIK","ol/style/Style":"8opjn","ol/style/Circle":"3LBvw","ol/style/Fill":"cHc7U","ol/style/Stroke":"1uQwy","./popup-message.js":"98E40","ol/format/GeoJSON":"9jWnV","ol/sphere":"dCFM7","ol/geom/Point":"6SybV","ol/geom/LineString":"gknRz","ol/geom/LinearRing":"gT85H","ol/geom/Polygon":"8Vwps","ol/geom/MultiPoint":"gXgmP","ol/geom/MultiLineString":"4FjXg","ol/geom/MultiPolygon":"b4GDd","ol/geom/GeometryCollection":"6lIhA","jsts/org/locationtech/jts/io/OL3Parser":"1NdLK","jsts/org/locationtech/jts/operation/relate":"lomLd","jsts/org/locationtech/jts/operation/union":"b4ekL"}],"cQEIv":[function(require,module,exports,__globalThis) {
 /**
  * @module ol/interaction/Modify
  */ var parcelHelpers = require("@parcel/transformer-js/src/esmodule-helpers.js");
@@ -58662,7 +58717,7454 @@ class ShortCircuitedGeometryVisitor {
 }
 exports.default = ShortCircuitedGeometryVisitor;
 
-},{"../GeometryCollection.js":"6RJQO","@parcel/transformer-js/src/esmodule-helpers.js":"jnFvT"}],"cLSxx":[function(require,module,exports,__globalThis) {
+},{"../GeometryCollection.js":"6RJQO","@parcel/transformer-js/src/esmodule-helpers.js":"jnFvT"}],"b4ekL":[function(require,module,exports,__globalThis) {
+var parcelHelpers = require("@parcel/transformer-js/src/esmodule-helpers.js");
+parcelHelpers.defineInteropFlag(exports);
+parcelHelpers.export(exports, "UnaryUnionOp", ()=>(0, _unaryUnionOpJsDefault.default));
+var _unaryUnionOpJs = require("./union/UnaryUnionOp.js");
+var _unaryUnionOpJsDefault = parcelHelpers.interopDefault(_unaryUnionOpJs);
+
+},{"./union/UnaryUnionOp.js":"b5s8c","@parcel/transformer-js/src/esmodule-helpers.js":"jnFvT"}],"b5s8c":[function(require,module,exports,__globalThis) {
+var parcelHelpers = require("@parcel/transformer-js/src/esmodule-helpers.js");
+parcelHelpers.defineInteropFlag(exports);
+var _hasInterfaceJs = require("../../../../../hasInterface.js");
+var _hasInterfaceJsDefault = parcelHelpers.interopDefault(_hasInterfaceJs);
+var _collectionJs = require("../../../../../java/util/Collection.js");
+var _collectionJsDefault = parcelHelpers.interopDefault(_collectionJs);
+var _snapIfNeededOverlayOpJs = require("../overlay/snap/SnapIfNeededOverlayOp.js");
+var _snapIfNeededOverlayOpJsDefault = parcelHelpers.interopDefault(_snapIfNeededOverlayOpJs);
+var _inputExtracterJs = require("./InputExtracter.js");
+var _inputExtracterJsDefault = parcelHelpers.interopDefault(_inputExtracterJs);
+var _geometryJs = require("../../geom/Geometry.js");
+var _geometryJsDefault = parcelHelpers.interopDefault(_geometryJs);
+var _pointGeometryUnionJs = require("./PointGeometryUnion.js");
+var _pointGeometryUnionJsDefault = parcelHelpers.interopDefault(_pointGeometryUnionJs);
+var _overlayOpJs = require("../overlay/OverlayOp.js");
+var _overlayOpJsDefault = parcelHelpers.interopDefault(_overlayOpJs);
+var _cascadedPolygonUnionJs = require("./CascadedPolygonUnion.js");
+var _cascadedPolygonUnionJsDefault = parcelHelpers.interopDefault(_cascadedPolygonUnionJs);
+class UnaryUnionOp {
+    constructor(){
+        UnaryUnionOp.constructor_.apply(this, arguments);
+    }
+    static constructor_() {
+        this._geomFact = null;
+        this._extracter = null;
+        if (arguments.length === 1) {
+            if ((0, _hasInterfaceJsDefault.default)(arguments[0], (0, _collectionJsDefault.default))) {
+                const geoms = arguments[0];
+                this.extract(geoms);
+            } else if (arguments[0] instanceof (0, _geometryJsDefault.default)) {
+                const geom = arguments[0];
+                this.extract(geom);
+            }
+        } else if (arguments.length === 2) {
+            const geoms = arguments[0], geomFact = arguments[1];
+            this._geomFact = geomFact;
+            this.extract(geoms);
+        }
+    }
+    static union() {
+        if (arguments.length === 1) {
+            if ((0, _hasInterfaceJsDefault.default)(arguments[0], (0, _collectionJsDefault.default))) {
+                const geoms = arguments[0];
+                const op = new UnaryUnionOp(geoms);
+                return op.union();
+            } else if (arguments[0] instanceof (0, _geometryJsDefault.default)) {
+                const geom = arguments[0];
+                const op = new UnaryUnionOp(geom);
+                return op.union();
+            }
+        } else if (arguments.length === 2) {
+            const geoms = arguments[0], geomFact = arguments[1];
+            const op = new UnaryUnionOp(geoms, geomFact);
+            return op.union();
+        }
+    }
+    extract() {
+        if ((0, _hasInterfaceJsDefault.default)(arguments[0], (0, _collectionJsDefault.default))) {
+            const geoms = arguments[0];
+            this._extracter = (0, _inputExtracterJsDefault.default).extract(geoms);
+        } else if (arguments[0] instanceof (0, _geometryJsDefault.default)) {
+            const geom = arguments[0];
+            this._extracter = (0, _inputExtracterJsDefault.default).extract(geom);
+        }
+    }
+    unionWithNull(g0, g1) {
+        if (g0 === null && g1 === null) return null;
+        if (g1 === null) return g0;
+        if (g0 === null) return g1;
+        return (0, _overlayOpJsDefault.default).union(g0, g1);
+    }
+    unionNoOpt(g0) {
+        const empty = this._geomFact.createPoint();
+        return (0, _snapIfNeededOverlayOpJsDefault.default).overlayOp(g0, empty, (0, _overlayOpJsDefault.default).UNION);
+    }
+    union() {
+        if (this._geomFact === null) this._geomFact = this._extracter.getFactory();
+        if (this._geomFact === null) return null;
+        if (this._extracter.isEmpty()) return this._geomFact.createEmpty(this._extracter.getDimension());
+        const points = this._extracter.getExtract(0);
+        const lines = this._extracter.getExtract(1);
+        const polygons = this._extracter.getExtract(2);
+        let unionPoints = null;
+        if (points.size() > 0) {
+            const ptGeom = this._geomFact.buildGeometry(points);
+            unionPoints = this.unionNoOpt(ptGeom);
+        }
+        let unionLines = null;
+        if (lines.size() > 0) {
+            const lineGeom = this._geomFact.buildGeometry(lines);
+            unionLines = this.unionNoOpt(lineGeom);
+        }
+        let unionPolygons = null;
+        if (polygons.size() > 0) unionPolygons = (0, _cascadedPolygonUnionJsDefault.default).union(polygons);
+        const unionLA = this.unionWithNull(unionLines, unionPolygons);
+        let union = null;
+        if (unionPoints === null) union = unionLA;
+        else if (unionLA === null) union = unionPoints;
+        else union = (0, _pointGeometryUnionJsDefault.default).union(unionPoints, unionLA);
+        if (union === null) return this._geomFact.createGeometryCollection();
+        return union;
+    }
+}
+exports.default = UnaryUnionOp;
+
+},{"../../../../../hasInterface.js":"5bpze","../../../../../java/util/Collection.js":"cggki","../overlay/snap/SnapIfNeededOverlayOp.js":"gxP36","./InputExtracter.js":"fRnOp","../../geom/Geometry.js":"9DSzO","./PointGeometryUnion.js":"8dfi7","../overlay/OverlayOp.js":"9f5ft","./CascadedPolygonUnion.js":"63KSD","@parcel/transformer-js/src/esmodule-helpers.js":"jnFvT"}],"gxP36":[function(require,module,exports,__globalThis) {
+var parcelHelpers = require("@parcel/transformer-js/src/esmodule-helpers.js");
+parcelHelpers.defineInteropFlag(exports);
+var _snapOverlayOpJs = require("./SnapOverlayOp.js");
+var _snapOverlayOpJsDefault = parcelHelpers.interopDefault(_snapOverlayOpJs);
+var _runtimeExceptionJs = require("../../../../../../java/lang/RuntimeException.js");
+var _runtimeExceptionJsDefault = parcelHelpers.interopDefault(_runtimeExceptionJs);
+var _overlayOpJs = require("../OverlayOp.js");
+var _overlayOpJsDefault = parcelHelpers.interopDefault(_overlayOpJs);
+class SnapIfNeededOverlayOp {
+    constructor(){
+        SnapIfNeededOverlayOp.constructor_.apply(this, arguments);
+    }
+    static constructor_() {
+        this._geom = new Array(2).fill(null);
+        const g1 = arguments[0], g2 = arguments[1];
+        this._geom[0] = g1;
+        this._geom[1] = g2;
+    }
+    static overlayOp(g0, g1, opCode) {
+        const op = new SnapIfNeededOverlayOp(g0, g1);
+        return op.getResultGeometry(opCode);
+    }
+    static union(g0, g1) {
+        return SnapIfNeededOverlayOp.overlayOp(g0, g1, (0, _overlayOpJsDefault.default).UNION);
+    }
+    static intersection(g0, g1) {
+        return SnapIfNeededOverlayOp.overlayOp(g0, g1, (0, _overlayOpJsDefault.default).INTERSECTION);
+    }
+    static symDifference(g0, g1) {
+        return SnapIfNeededOverlayOp.overlayOp(g0, g1, (0, _overlayOpJsDefault.default).SYMDIFFERENCE);
+    }
+    static difference(g0, g1) {
+        return SnapIfNeededOverlayOp.overlayOp(g0, g1, (0, _overlayOpJsDefault.default).DIFFERENCE);
+    }
+    getResultGeometry(opCode) {
+        let result = null;
+        let isSuccess = false;
+        let savedException = null;
+        try {
+            result = (0, _overlayOpJsDefault.default).overlayOp(this._geom[0], this._geom[1], opCode);
+            const isValid = true;
+            if (isValid) isSuccess = true;
+        } catch (ex) {
+            if (ex instanceof (0, _runtimeExceptionJsDefault.default)) savedException = ex;
+            else throw ex;
+        } finally{}
+        if (!isSuccess) try {
+            result = (0, _snapOverlayOpJsDefault.default).overlayOp(this._geom[0], this._geom[1], opCode);
+        } catch (ex) {
+            if (ex instanceof (0, _runtimeExceptionJsDefault.default)) throw savedException;
+            else throw ex;
+        } finally{}
+        return result;
+    }
+}
+exports.default = SnapIfNeededOverlayOp;
+
+},{"./SnapOverlayOp.js":"gpgjQ","../../../../../../java/lang/RuntimeException.js":"3yvnL","../OverlayOp.js":"9f5ft","@parcel/transformer-js/src/esmodule-helpers.js":"jnFvT"}],"gpgjQ":[function(require,module,exports,__globalThis) {
+var parcelHelpers = require("@parcel/transformer-js/src/esmodule-helpers.js");
+parcelHelpers.defineInteropFlag(exports);
+var _geometrySnapperJs = require("./GeometrySnapper.js");
+var _geometrySnapperJsDefault = parcelHelpers.interopDefault(_geometrySnapperJs);
+var _systemJs = require("../../../../../../java/lang/System.js");
+var _systemJsDefault = parcelHelpers.interopDefault(_systemJs);
+var _commonBitsRemoverJs = require("../../../precision/CommonBitsRemover.js");
+var _commonBitsRemoverJsDefault = parcelHelpers.interopDefault(_commonBitsRemoverJs);
+var _overlayOpJs = require("../OverlayOp.js");
+var _overlayOpJsDefault = parcelHelpers.interopDefault(_overlayOpJs);
+class SnapOverlayOp {
+    constructor(){
+        SnapOverlayOp.constructor_.apply(this, arguments);
+    }
+    static constructor_() {
+        this._geom = new Array(2).fill(null);
+        this._snapTolerance = null;
+        this._cbr = null;
+        const g1 = arguments[0], g2 = arguments[1];
+        this._geom[0] = g1;
+        this._geom[1] = g2;
+        this.computeSnapTolerance();
+    }
+    static overlayOp(g0, g1, opCode) {
+        const op = new SnapOverlayOp(g0, g1);
+        return op.getResultGeometry(opCode);
+    }
+    static union(g0, g1) {
+        return SnapOverlayOp.overlayOp(g0, g1, (0, _overlayOpJsDefault.default).UNION);
+    }
+    static intersection(g0, g1) {
+        return SnapOverlayOp.overlayOp(g0, g1, (0, _overlayOpJsDefault.default).INTERSECTION);
+    }
+    static symDifference(g0, g1) {
+        return SnapOverlayOp.overlayOp(g0, g1, (0, _overlayOpJsDefault.default).SYMDIFFERENCE);
+    }
+    static difference(g0, g1) {
+        return SnapOverlayOp.overlayOp(g0, g1, (0, _overlayOpJsDefault.default).DIFFERENCE);
+    }
+    selfSnap(geom) {
+        const snapper0 = new (0, _geometrySnapperJsDefault.default)(geom);
+        const snapGeom = snapper0.snapTo(geom, this._snapTolerance);
+        return snapGeom;
+    }
+    removeCommonBits(geom) {
+        this._cbr = new (0, _commonBitsRemoverJsDefault.default)();
+        this._cbr.add(geom[0]);
+        this._cbr.add(geom[1]);
+        const remGeom = new Array(2).fill(null);
+        remGeom[0] = this._cbr.removeCommonBits(geom[0].copy());
+        remGeom[1] = this._cbr.removeCommonBits(geom[1].copy());
+        return remGeom;
+    }
+    prepareResult(geom) {
+        this._cbr.addCommonBits(geom);
+        return geom;
+    }
+    getResultGeometry(opCode) {
+        const prepGeom = this.snap(this._geom);
+        const result = (0, _overlayOpJsDefault.default).overlayOp(prepGeom[0], prepGeom[1], opCode);
+        return this.prepareResult(result);
+    }
+    checkValid(g) {
+        if (!g.isValid()) (0, _systemJsDefault.default).out.println('Snapped geometry is invalid');
+    }
+    computeSnapTolerance() {
+        this._snapTolerance = (0, _geometrySnapperJsDefault.default).computeOverlaySnapTolerance(this._geom[0], this._geom[1]);
+    }
+    snap(geom) {
+        const remGeom = this.removeCommonBits(geom);
+        const snapGeom = (0, _geometrySnapperJsDefault.default).snap(remGeom[0], remGeom[1], this._snapTolerance);
+        return snapGeom;
+    }
+}
+exports.default = SnapOverlayOp;
+
+},{"./GeometrySnapper.js":"30aKs","../../../../../../java/lang/System.js":"dYmTx","../../../precision/CommonBitsRemover.js":"7y7Cu","../OverlayOp.js":"9f5ft","@parcel/transformer-js/src/esmodule-helpers.js":"jnFvT"}],"30aKs":[function(require,module,exports,__globalThis) {
+var parcelHelpers = require("@parcel/transformer-js/src/esmodule-helpers.js");
+parcelHelpers.defineInteropFlag(exports);
+var _treeSetJs = require("../../../../../../java/util/TreeSet.js");
+var _treeSetJsDefault = parcelHelpers.interopDefault(_treeSetJs);
+var _doubleJs = require("../../../../../../java/lang/Double.js");
+var _doubleJsDefault = parcelHelpers.interopDefault(_doubleJs);
+var _bufferOpJs = require("../../buffer/BufferOp.js");
+var _bufferOpJsDefault = parcelHelpers.interopDefault(_bufferOpJs);
+var _lineStringSnapperJs = require("./LineStringSnapper.js");
+var _lineStringSnapperJsDefault = parcelHelpers.interopDefault(_lineStringSnapperJs);
+var _precisionModelJs = require("../../../geom/PrecisionModel.js");
+var _precisionModelJsDefault = parcelHelpers.interopDefault(_precisionModelJs);
+var _polygonalJs = require("../../../geom/Polygonal.js");
+var _polygonalJsDefault = parcelHelpers.interopDefault(_polygonalJs);
+var _geometryTransformerJs = require("../../../geom/util/GeometryTransformer.js");
+var _geometryTransformerJsDefault = parcelHelpers.interopDefault(_geometryTransformerJs);
+var _hasInterfaceJs = require("../../../../../../hasInterface.js");
+var _hasInterfaceJsDefault = parcelHelpers.interopDefault(_hasInterfaceJs);
+class GeometrySnapper {
+    constructor(){
+        GeometrySnapper.constructor_.apply(this, arguments);
+    }
+    static constructor_() {
+        this._srcGeom = null;
+        const srcGeom = arguments[0];
+        this._srcGeom = srcGeom;
+    }
+    static computeSizeBasedSnapTolerance(g) {
+        const env = g.getEnvelopeInternal();
+        const minDimension = Math.min(env.getHeight(), env.getWidth());
+        const snapTol = minDimension * GeometrySnapper.SNAP_PRECISION_FACTOR;
+        return snapTol;
+    }
+    static computeOverlaySnapTolerance() {
+        if (arguments.length === 1) {
+            const g = arguments[0];
+            let snapTolerance = GeometrySnapper.computeSizeBasedSnapTolerance(g);
+            const pm = g.getPrecisionModel();
+            if (pm.getType() === (0, _precisionModelJsDefault.default).FIXED) {
+                const fixedSnapTol = 1 / pm.getScale() * 2 / 1.415;
+                if (fixedSnapTol > snapTolerance) snapTolerance = fixedSnapTol;
+            }
+            return snapTolerance;
+        } else if (arguments.length === 2) {
+            const g0 = arguments[0], g1 = arguments[1];
+            return Math.min(GeometrySnapper.computeOverlaySnapTolerance(g0), GeometrySnapper.computeOverlaySnapTolerance(g1));
+        }
+    }
+    static snapToSelf(geom, snapTolerance, cleanResult) {
+        const snapper0 = new GeometrySnapper(geom);
+        return snapper0.snapToSelf(snapTolerance, cleanResult);
+    }
+    static snap(g0, g1, snapTolerance) {
+        const snapGeom = new Array(2).fill(null);
+        const snapper0 = new GeometrySnapper(g0);
+        snapGeom[0] = snapper0.snapTo(g1, snapTolerance);
+        const snapper1 = new GeometrySnapper(g1);
+        snapGeom[1] = snapper1.snapTo(snapGeom[0], snapTolerance);
+        return snapGeom;
+    }
+    computeSnapTolerance(ringPts) {
+        const minSegLen = this.computeMinimumSegmentLength(ringPts);
+        const snapTol = minSegLen / 10;
+        return snapTol;
+    }
+    snapTo(snapGeom, snapTolerance) {
+        const snapPts = this.extractTargetCoordinates(snapGeom);
+        const snapTrans = new SnapTransformer(snapTolerance, snapPts);
+        return snapTrans.transform(this._srcGeom);
+    }
+    snapToSelf(snapTolerance, cleanResult) {
+        const snapPts = this.extractTargetCoordinates(this._srcGeom);
+        const snapTrans = new SnapTransformer(snapTolerance, snapPts, true);
+        const snappedGeom = snapTrans.transform(this._srcGeom);
+        let result = snappedGeom;
+        if (cleanResult && (0, _hasInterfaceJsDefault.default)(result, (0, _polygonalJsDefault.default))) result = (0, _bufferOpJsDefault.default).bufferOp(snappedGeom, 0);
+        return result;
+    }
+    extractTargetCoordinates(g) {
+        const ptSet = new (0, _treeSetJsDefault.default)();
+        const pts = g.getCoordinates();
+        for(let i = 0; i < pts.length; i++)ptSet.add(pts[i]);
+        return ptSet.toArray(new Array(0).fill(null));
+    }
+    computeMinimumSegmentLength(pts) {
+        let minSegLen = (0, _doubleJsDefault.default).MAX_VALUE;
+        for(let i = 0; i < pts.length - 1; i++){
+            const segLen = pts[i].distance(pts[i + 1]);
+            if (segLen < minSegLen) minSegLen = segLen;
+        }
+        return minSegLen;
+    }
+}
+exports.default = GeometrySnapper;
+GeometrySnapper.SNAP_PRECISION_FACTOR = 1e-9;
+class SnapTransformer extends (0, _geometryTransformerJsDefault.default) {
+    constructor(){
+        super();
+        SnapTransformer.constructor_.apply(this, arguments);
+    }
+    static constructor_() {
+        this._snapTolerance = null;
+        this._snapPts = null;
+        this._isSelfSnap = false;
+        if (arguments.length === 2) {
+            const snapTolerance = arguments[0], snapPts = arguments[1];
+            this._snapTolerance = snapTolerance;
+            this._snapPts = snapPts;
+        } else if (arguments.length === 3) {
+            const snapTolerance = arguments[0], snapPts = arguments[1], isSelfSnap = arguments[2];
+            this._snapTolerance = snapTolerance;
+            this._snapPts = snapPts;
+            this._isSelfSnap = isSelfSnap;
+        }
+    }
+    transformCoordinates(coords, parent) {
+        const srcPts = coords.toCoordinateArray();
+        const newPts = this.snapLine(srcPts, this._snapPts);
+        return this._factory.getCoordinateSequenceFactory().create(newPts);
+    }
+    snapLine(srcPts, snapPts) {
+        const snapper = new (0, _lineStringSnapperJsDefault.default)(srcPts, this._snapTolerance);
+        snapper.setAllowSnappingToSourceVertices(this._isSelfSnap);
+        return snapper.snapTo(snapPts);
+    }
+}
+
+},{"../../../../../../java/util/TreeSet.js":"is5ah","../../../../../../java/lang/Double.js":"clUxd","../../buffer/BufferOp.js":"1i41m","./LineStringSnapper.js":"3M1zL","../../../geom/PrecisionModel.js":"9XxRL","../../../geom/Polygonal.js":"jIBid","../../../geom/util/GeometryTransformer.js":"d0nTa","../../../../../../hasInterface.js":"5bpze","@parcel/transformer-js/src/esmodule-helpers.js":"jnFvT"}],"1i41m":[function(require,module,exports,__globalThis) {
+var parcelHelpers = require("@parcel/transformer-js/src/esmodule-helpers.js");
+parcelHelpers.defineInteropFlag(exports);
+var _bufferParametersJs = require("./BufferParameters.js");
+var _bufferParametersJsDefault = parcelHelpers.interopDefault(_bufferParametersJs);
+var _scaledNoderJs = require("../../noding/ScaledNoder.js");
+var _scaledNoderJsDefault = parcelHelpers.interopDefault(_scaledNoderJs);
+var _topologyExceptionJs = require("../../geom/TopologyException.js");
+var _topologyExceptionJsDefault = parcelHelpers.interopDefault(_topologyExceptionJs);
+var _mathUtilJs = require("../../math/MathUtil.js");
+var _mathUtilJsDefault = parcelHelpers.interopDefault(_mathUtilJs);
+var _precisionModelJs = require("../../geom/PrecisionModel.js");
+var _precisionModelJsDefault = parcelHelpers.interopDefault(_precisionModelJs);
+var _runtimeExceptionJs = require("../../../../../java/lang/RuntimeException.js");
+var _runtimeExceptionJsDefault = parcelHelpers.interopDefault(_runtimeExceptionJs);
+var _mcindexSnapRounderJs = require("../../noding/snapround/MCIndexSnapRounder.js");
+var _mcindexSnapRounderJsDefault = parcelHelpers.interopDefault(_mcindexSnapRounderJs);
+var _geometryJs = require("../../geom/Geometry.js");
+var _geometryJsDefault = parcelHelpers.interopDefault(_geometryJs);
+var _bufferBuilderJs = require("./BufferBuilder.js");
+var _bufferBuilderJsDefault = parcelHelpers.interopDefault(_bufferBuilderJs);
+class BufferOp {
+    constructor(){
+        BufferOp.constructor_.apply(this, arguments);
+    }
+    static constructor_() {
+        this._argGeom = null;
+        this._distance = null;
+        this._bufParams = new (0, _bufferParametersJsDefault.default)();
+        this._resultGeometry = null;
+        this._saveException = null;
+        if (arguments.length === 1) {
+            const g = arguments[0];
+            this._argGeom = g;
+        } else if (arguments.length === 2) {
+            const g = arguments[0], bufParams = arguments[1];
+            this._argGeom = g;
+            this._bufParams = bufParams;
+        }
+    }
+    static bufferOp() {
+        if (arguments.length === 2) {
+            const g = arguments[0], distance = arguments[1];
+            const gBuf = new BufferOp(g);
+            const geomBuf = gBuf.getResultGeometry(distance);
+            return geomBuf;
+        } else if (arguments.length === 3) {
+            if (Number.isInteger(arguments[2]) && arguments[0] instanceof (0, _geometryJsDefault.default) && typeof arguments[1] === 'number') {
+                const g = arguments[0], distance = arguments[1], quadrantSegments = arguments[2];
+                const bufOp = new BufferOp(g);
+                bufOp.setQuadrantSegments(quadrantSegments);
+                const geomBuf = bufOp.getResultGeometry(distance);
+                return geomBuf;
+            } else if (arguments[2] instanceof (0, _bufferParametersJsDefault.default) && arguments[0] instanceof (0, _geometryJsDefault.default) && typeof arguments[1] === 'number') {
+                const g = arguments[0], distance = arguments[1], params = arguments[2];
+                const bufOp = new BufferOp(g, params);
+                const geomBuf = bufOp.getResultGeometry(distance);
+                return geomBuf;
+            }
+        } else if (arguments.length === 4) {
+            const g = arguments[0], distance = arguments[1], quadrantSegments = arguments[2], endCapStyle = arguments[3];
+            const bufOp = new BufferOp(g);
+            bufOp.setQuadrantSegments(quadrantSegments);
+            bufOp.setEndCapStyle(endCapStyle);
+            const geomBuf = bufOp.getResultGeometry(distance);
+            return geomBuf;
+        }
+    }
+    static precisionScaleFactor(g, distance, maxPrecisionDigits) {
+        const env = g.getEnvelopeInternal();
+        const envMax = (0, _mathUtilJsDefault.default).max(Math.abs(env.getMaxX()), Math.abs(env.getMaxY()), Math.abs(env.getMinX()), Math.abs(env.getMinY()));
+        const expandByDistance = distance > 0.0 ? distance : 0.0;
+        const bufEnvMax = envMax + 2 * expandByDistance;
+        const bufEnvPrecisionDigits = Math.trunc(Math.log(bufEnvMax) / Math.log(10) + 1.0);
+        const minUnitLog10 = maxPrecisionDigits - bufEnvPrecisionDigits;
+        const scaleFactor = Math.pow(10.0, minUnitLog10);
+        return scaleFactor;
+    }
+    bufferFixedPrecision(fixedPM) {
+        const noder = new (0, _scaledNoderJsDefault.default)(new (0, _mcindexSnapRounderJsDefault.default)(new (0, _precisionModelJsDefault.default)(1.0)), fixedPM.getScale());
+        const bufBuilder = new (0, _bufferBuilderJsDefault.default)(this._bufParams);
+        bufBuilder.setWorkingPrecisionModel(fixedPM);
+        bufBuilder.setNoder(noder);
+        this._resultGeometry = bufBuilder.buffer(this._argGeom, this._distance);
+    }
+    bufferReducedPrecision() {
+        if (arguments.length === 0) {
+            for(let precDigits = BufferOp.MAX_PRECISION_DIGITS; precDigits >= 0; precDigits--){
+                try {
+                    this.bufferReducedPrecision(precDigits);
+                } catch (ex) {
+                    if (ex instanceof (0, _topologyExceptionJsDefault.default)) this._saveException = ex;
+                    else throw ex;
+                } finally{}
+                if (this._resultGeometry !== null) return null;
+            }
+            throw this._saveException;
+        } else if (arguments.length === 1) {
+            const precisionDigits = arguments[0];
+            const sizeBasedScaleFactor = BufferOp.precisionScaleFactor(this._argGeom, this._distance, precisionDigits);
+            const fixedPM = new (0, _precisionModelJsDefault.default)(sizeBasedScaleFactor);
+            this.bufferFixedPrecision(fixedPM);
+        }
+    }
+    bufferOriginalPrecision() {
+        try {
+            const bufBuilder = new (0, _bufferBuilderJsDefault.default)(this._bufParams);
+            this._resultGeometry = bufBuilder.buffer(this._argGeom, this._distance);
+        } catch (ex) {
+            if (ex instanceof (0, _runtimeExceptionJsDefault.default)) this._saveException = ex;
+            else throw ex;
+        } finally{}
+    }
+    getResultGeometry(distance) {
+        this._distance = distance;
+        this.computeGeometry();
+        return this._resultGeometry;
+    }
+    setEndCapStyle(endCapStyle) {
+        this._bufParams.setEndCapStyle(endCapStyle);
+    }
+    computeGeometry() {
+        this.bufferOriginalPrecision();
+        if (this._resultGeometry !== null) return null;
+        const argPM = this._argGeom.getFactory().getPrecisionModel();
+        if (argPM.getType() === (0, _precisionModelJsDefault.default).FIXED) this.bufferFixedPrecision(argPM);
+        else this.bufferReducedPrecision();
+    }
+    setQuadrantSegments(quadrantSegments) {
+        this._bufParams.setQuadrantSegments(quadrantSegments);
+    }
+}
+exports.default = BufferOp;
+BufferOp.CAP_ROUND = (0, _bufferParametersJsDefault.default).CAP_ROUND;
+BufferOp.CAP_BUTT = (0, _bufferParametersJsDefault.default).CAP_FLAT;
+BufferOp.CAP_FLAT = (0, _bufferParametersJsDefault.default).CAP_FLAT;
+BufferOp.CAP_SQUARE = (0, _bufferParametersJsDefault.default).CAP_SQUARE;
+BufferOp.MAX_PRECISION_DIGITS = 12;
+
+},{"./BufferParameters.js":"idesX","../../noding/ScaledNoder.js":"XDiPO","../../geom/TopologyException.js":"bOVA5","../../math/MathUtil.js":"432sT","../../geom/PrecisionModel.js":"9XxRL","../../../../../java/lang/RuntimeException.js":"3yvnL","../../noding/snapround/MCIndexSnapRounder.js":"hoOy8","../../geom/Geometry.js":"9DSzO","./BufferBuilder.js":"a6cSc","@parcel/transformer-js/src/esmodule-helpers.js":"jnFvT"}],"idesX":[function(require,module,exports,__globalThis) {
+var parcelHelpers = require("@parcel/transformer-js/src/esmodule-helpers.js");
+parcelHelpers.defineInteropFlag(exports);
+class BufferParameters {
+    constructor(){
+        BufferParameters.constructor_.apply(this, arguments);
+    }
+    static constructor_() {
+        this._quadrantSegments = BufferParameters.DEFAULT_QUADRANT_SEGMENTS;
+        this._endCapStyle = BufferParameters.CAP_ROUND;
+        this._joinStyle = BufferParameters.JOIN_ROUND;
+        this._mitreLimit = BufferParameters.DEFAULT_MITRE_LIMIT;
+        this._isSingleSided = false;
+        this._simplifyFactor = BufferParameters.DEFAULT_SIMPLIFY_FACTOR;
+        if (arguments.length === 0) ;
+        else if (arguments.length === 1) {
+            const quadrantSegments = arguments[0];
+            this.setQuadrantSegments(quadrantSegments);
+        } else if (arguments.length === 2) {
+            const quadrantSegments = arguments[0], endCapStyle = arguments[1];
+            this.setQuadrantSegments(quadrantSegments);
+            this.setEndCapStyle(endCapStyle);
+        } else if (arguments.length === 4) {
+            const quadrantSegments = arguments[0], endCapStyle = arguments[1], joinStyle = arguments[2], mitreLimit = arguments[3];
+            this.setQuadrantSegments(quadrantSegments);
+            this.setEndCapStyle(endCapStyle);
+            this.setJoinStyle(joinStyle);
+            this.setMitreLimit(mitreLimit);
+        }
+    }
+    static bufferDistanceError(quadSegs) {
+        const alpha = Math.PI / 2.0 / quadSegs;
+        return 1 - Math.cos(alpha / 2.0);
+    }
+    getEndCapStyle() {
+        return this._endCapStyle;
+    }
+    isSingleSided() {
+        return this._isSingleSided;
+    }
+    setQuadrantSegments(quadSegs) {
+        this._quadrantSegments = quadSegs;
+        if (this._quadrantSegments === 0) this._joinStyle = BufferParameters.JOIN_BEVEL;
+        if (this._quadrantSegments < 0) {
+            this._joinStyle = BufferParameters.JOIN_MITRE;
+            this._mitreLimit = Math.abs(this._quadrantSegments);
+        }
+        if (quadSegs <= 0) this._quadrantSegments = 1;
+        if (this._joinStyle !== BufferParameters.JOIN_ROUND) this._quadrantSegments = BufferParameters.DEFAULT_QUADRANT_SEGMENTS;
+    }
+    getJoinStyle() {
+        return this._joinStyle;
+    }
+    setJoinStyle(joinStyle) {
+        this._joinStyle = joinStyle;
+    }
+    setSimplifyFactor(simplifyFactor) {
+        this._simplifyFactor = simplifyFactor < 0 ? 0 : simplifyFactor;
+    }
+    getSimplifyFactor() {
+        return this._simplifyFactor;
+    }
+    getQuadrantSegments() {
+        return this._quadrantSegments;
+    }
+    setEndCapStyle(endCapStyle) {
+        this._endCapStyle = endCapStyle;
+    }
+    getMitreLimit() {
+        return this._mitreLimit;
+    }
+    setMitreLimit(mitreLimit) {
+        this._mitreLimit = mitreLimit;
+    }
+    setSingleSided(isSingleSided) {
+        this._isSingleSided = isSingleSided;
+    }
+}
+exports.default = BufferParameters;
+BufferParameters.CAP_ROUND = 1;
+BufferParameters.CAP_FLAT = 2;
+BufferParameters.CAP_SQUARE = 3;
+BufferParameters.JOIN_ROUND = 1;
+BufferParameters.JOIN_MITRE = 2;
+BufferParameters.JOIN_BEVEL = 3;
+BufferParameters.DEFAULT_QUADRANT_SEGMENTS = 8;
+BufferParameters.DEFAULT_MITRE_LIMIT = 5.0;
+BufferParameters.DEFAULT_SIMPLIFY_FACTOR = 0.01;
+
+},{"@parcel/transformer-js/src/esmodule-helpers.js":"jnFvT"}],"XDiPO":[function(require,module,exports,__globalThis) {
+var parcelHelpers = require("@parcel/transformer-js/src/esmodule-helpers.js");
+parcelHelpers.defineInteropFlag(exports);
+var _hasInterfaceJs = require("../../../../hasInterface.js");
+var _hasInterfaceJsDefault = parcelHelpers.interopDefault(_hasInterfaceJs);
+var _coordinateJs = require("../geom/Coordinate.js");
+var _coordinateJsDefault = parcelHelpers.interopDefault(_coordinateJs);
+var _nodedSegmentStringJs = require("./NodedSegmentString.js");
+var _nodedSegmentStringJsDefault = parcelHelpers.interopDefault(_nodedSegmentStringJs);
+var _systemJs = require("../../../../java/lang/System.js");
+var _systemJsDefault = parcelHelpers.interopDefault(_systemJs);
+var _coordinateArraysJs = require("../geom/CoordinateArrays.js");
+var _coordinateArraysJsDefault = parcelHelpers.interopDefault(_coordinateArraysJs);
+var _arrayListJs = require("../../../../java/util/ArrayList.js");
+var _arrayListJsDefault = parcelHelpers.interopDefault(_arrayListJs);
+var _collectionJs = require("../../../../java/util/Collection.js");
+var _collectionJsDefault = parcelHelpers.interopDefault(_collectionJs);
+var _noderJs = require("./Noder.js");
+var _noderJsDefault = parcelHelpers.interopDefault(_noderJs);
+class ScaledNoder {
+    constructor(){
+        ScaledNoder.constructor_.apply(this, arguments);
+    }
+    static constructor_() {
+        this._noder = null;
+        this._scaleFactor = null;
+        this._offsetX = null;
+        this._offsetY = null;
+        this._isScaled = false;
+        if (arguments.length === 2) {
+            const noder = arguments[0], scaleFactor = arguments[1];
+            ScaledNoder.constructor_.call(this, noder, scaleFactor, 0, 0);
+        } else if (arguments.length === 4) {
+            const noder = arguments[0], scaleFactor = arguments[1], offsetX = arguments[2], offsetY = arguments[3];
+            this._noder = noder;
+            this._scaleFactor = scaleFactor;
+            this._isScaled = !this.isIntegerPrecision();
+        }
+    }
+    rescale() {
+        if ((0, _hasInterfaceJsDefault.default)(arguments[0], (0, _collectionJsDefault.default))) {
+            const segStrings = arguments[0];
+            for(let i = segStrings.iterator(); i.hasNext();){
+                const ss = i.next();
+                this.rescale(ss.getCoordinates());
+            }
+        } else if (arguments[0] instanceof Array) {
+            const pts = arguments[0];
+            for(let i = 0; i < pts.length; i++){
+                pts[i].x = pts[i].x / this._scaleFactor + this._offsetX;
+                pts[i].y = pts[i].y / this._scaleFactor + this._offsetY;
+            }
+            if (pts.length === 2 && pts[0].equals2D(pts[1])) (0, _systemJsDefault.default).out.println(pts);
+        }
+    }
+    scale() {
+        if ((0, _hasInterfaceJsDefault.default)(arguments[0], (0, _collectionJsDefault.default))) {
+            const segStrings = arguments[0];
+            const nodedSegmentStrings = new (0, _arrayListJsDefault.default)(segStrings.size());
+            for(let i = segStrings.iterator(); i.hasNext();){
+                const ss = i.next();
+                nodedSegmentStrings.add(new (0, _nodedSegmentStringJsDefault.default)(this.scale(ss.getCoordinates()), ss.getData()));
+            }
+            return nodedSegmentStrings;
+        } else if (arguments[0] instanceof Array) {
+            const pts = arguments[0];
+            const roundPts = new Array(pts.length).fill(null);
+            for(let i = 0; i < pts.length; i++)roundPts[i] = new (0, _coordinateJsDefault.default)(Math.round((pts[i].x - this._offsetX) * this._scaleFactor), Math.round((pts[i].y - this._offsetY) * this._scaleFactor), pts[i].getZ());
+            const roundPtsNoDup = (0, _coordinateArraysJsDefault.default).removeRepeatedPoints(roundPts);
+            return roundPtsNoDup;
+        }
+    }
+    isIntegerPrecision() {
+        return this._scaleFactor === 1.0;
+    }
+    getNodedSubstrings() {
+        const splitSS = this._noder.getNodedSubstrings();
+        if (this._isScaled) this.rescale(splitSS);
+        return splitSS;
+    }
+    computeNodes(inputSegStrings) {
+        let intSegStrings = inputSegStrings;
+        if (this._isScaled) intSegStrings = this.scale(inputSegStrings);
+        this._noder.computeNodes(intSegStrings);
+    }
+    get interfaces_() {
+        return [
+            (0, _noderJsDefault.default)
+        ];
+    }
+}
+exports.default = ScaledNoder;
+
+},{"../../../../hasInterface.js":"5bpze","../geom/Coordinate.js":"ii2fh","./NodedSegmentString.js":"gBLDJ","../../../../java/lang/System.js":"dYmTx","../geom/CoordinateArrays.js":"lncg4","../../../../java/util/ArrayList.js":"gGAQZ","../../../../java/util/Collection.js":"cggki","./Noder.js":"jKC91","@parcel/transformer-js/src/esmodule-helpers.js":"jnFvT"}],"gBLDJ":[function(require,module,exports,__globalThis) {
+var parcelHelpers = require("@parcel/transformer-js/src/esmodule-helpers.js");
+parcelHelpers.defineInteropFlag(exports);
+var _segmentNodeListJs = require("./SegmentNodeList.js");
+var _segmentNodeListJsDefault = parcelHelpers.interopDefault(_segmentNodeListJs);
+var _wktwriterJs = require("../io/WKTWriter.js");
+var _wktwriterJsDefault = parcelHelpers.interopDefault(_wktwriterJs);
+var _coordinateArraySequenceJs = require("../geom/impl/CoordinateArraySequence.js");
+var _coordinateArraySequenceJsDefault = parcelHelpers.interopDefault(_coordinateArraySequenceJs);
+var _coordinateJs = require("../geom/Coordinate.js");
+var _coordinateJsDefault = parcelHelpers.interopDefault(_coordinateJs);
+var _octantJs = require("./Octant.js");
+var _octantJsDefault = parcelHelpers.interopDefault(_octantJs);
+var _arrayListJs = require("../../../../java/util/ArrayList.js");
+var _arrayListJsDefault = parcelHelpers.interopDefault(_arrayListJs);
+var _nodableSegmentStringJs = require("./NodableSegmentString.js");
+var _nodableSegmentStringJsDefault = parcelHelpers.interopDefault(_nodableSegmentStringJs);
+class NodedSegmentString {
+    constructor(){
+        NodedSegmentString.constructor_.apply(this, arguments);
+    }
+    static constructor_() {
+        this._nodeList = new (0, _segmentNodeListJsDefault.default)(this);
+        this._pts = null;
+        this._data = null;
+        const pts = arguments[0], data = arguments[1];
+        this._pts = pts;
+        this._data = data;
+    }
+    static getNodedSubstrings() {
+        if (arguments.length === 1) {
+            const segStrings = arguments[0];
+            const resultEdgelist = new (0, _arrayListJsDefault.default)();
+            NodedSegmentString.getNodedSubstrings(segStrings, resultEdgelist);
+            return resultEdgelist;
+        } else if (arguments.length === 2) {
+            const segStrings = arguments[0], resultEdgelist = arguments[1];
+            for(let i = segStrings.iterator(); i.hasNext();){
+                const ss = i.next();
+                ss.getNodeList().addSplitEdges(resultEdgelist);
+            }
+        }
+    }
+    getCoordinates() {
+        return this._pts;
+    }
+    size() {
+        return this._pts.length;
+    }
+    getCoordinate(i) {
+        return this._pts[i];
+    }
+    isClosed() {
+        return this._pts[0].equals(this._pts[this._pts.length - 1]);
+    }
+    getSegmentOctant(index) {
+        if (index === this._pts.length - 1) return -1;
+        return this.safeOctant(this.getCoordinate(index), this.getCoordinate(index + 1));
+    }
+    toString() {
+        return (0, _wktwriterJsDefault.default).toLineString(new (0, _coordinateArraySequenceJsDefault.default)(this._pts));
+    }
+    getNodeList() {
+        return this._nodeList;
+    }
+    addIntersectionNode(intPt, segmentIndex) {
+        let normalizedSegmentIndex = segmentIndex;
+        const nextSegIndex = normalizedSegmentIndex + 1;
+        if (nextSegIndex < this._pts.length) {
+            const nextPt = this._pts[nextSegIndex];
+            if (intPt.equals2D(nextPt)) normalizedSegmentIndex = nextSegIndex;
+        }
+        const ei = this._nodeList.add(intPt, normalizedSegmentIndex);
+        return ei;
+    }
+    addIntersections(li, segmentIndex, geomIndex) {
+        for(let i = 0; i < li.getIntersectionNum(); i++)this.addIntersection(li, segmentIndex, geomIndex, i);
+    }
+    setData(data) {
+        this._data = data;
+    }
+    safeOctant(p0, p1) {
+        if (p0.equals2D(p1)) return 0;
+        return (0, _octantJsDefault.default).octant(p0, p1);
+    }
+    getData() {
+        return this._data;
+    }
+    addIntersection() {
+        if (arguments.length === 2) {
+            const intPt = arguments[0], segmentIndex = arguments[1];
+            this.addIntersectionNode(intPt, segmentIndex);
+        } else if (arguments.length === 4) {
+            const li = arguments[0], segmentIndex = arguments[1], geomIndex = arguments[2], intIndex = arguments[3];
+            const intPt = new (0, _coordinateJsDefault.default)(li.getIntersection(intIndex));
+            this.addIntersection(intPt, segmentIndex);
+        }
+    }
+    get interfaces_() {
+        return [
+            (0, _nodableSegmentStringJsDefault.default)
+        ];
+    }
+}
+exports.default = NodedSegmentString;
+
+},{"./SegmentNodeList.js":"fBtLO","../io/WKTWriter.js":"1WLaw","../geom/impl/CoordinateArraySequence.js":"grBJo","../geom/Coordinate.js":"ii2fh","./Octant.js":"5OU0v","../../../../java/util/ArrayList.js":"gGAQZ","./NodableSegmentString.js":"dNf4G","@parcel/transformer-js/src/esmodule-helpers.js":"jnFvT"}],"fBtLO":[function(require,module,exports,__globalThis) {
+var parcelHelpers = require("@parcel/transformer-js/src/esmodule-helpers.js");
+parcelHelpers.defineInteropFlag(exports);
+var _coordinateListJs = require("../geom/CoordinateList.js");
+var _coordinateListJsDefault = parcelHelpers.interopDefault(_coordinateListJs);
+var _segmentNodeJs = require("./SegmentNode.js");
+var _segmentNodeJsDefault = parcelHelpers.interopDefault(_segmentNodeJs);
+var _iteratorJs = require("../../../../java/util/Iterator.js");
+var _iteratorJsDefault = parcelHelpers.interopDefault(_iteratorJs);
+var _coordinateJs = require("../geom/Coordinate.js");
+var _coordinateJsDefault = parcelHelpers.interopDefault(_coordinateJs);
+var _nodedSegmentStringJs = require("./NodedSegmentString.js");
+var _nodedSegmentStringJsDefault = parcelHelpers.interopDefault(_nodedSegmentStringJs);
+var _integerJs = require("../../../../java/lang/Integer.js");
+var _integerJsDefault = parcelHelpers.interopDefault(_integerJs);
+var _unsupportedOperationExceptionJs = require("../../../../java/lang/UnsupportedOperationException.js");
+var _unsupportedOperationExceptionJsDefault = parcelHelpers.interopDefault(_unsupportedOperationExceptionJs);
+var _arrayListJs = require("../../../../java/util/ArrayList.js");
+var _arrayListJsDefault = parcelHelpers.interopDefault(_arrayListJs);
+var _treeMapJs = require("../../../../java/util/TreeMap.js");
+var _treeMapJsDefault = parcelHelpers.interopDefault(_treeMapJs);
+var _runtimeExceptionJs = require("../../../../java/lang/RuntimeException.js");
+var _runtimeExceptionJsDefault = parcelHelpers.interopDefault(_runtimeExceptionJs);
+var _assertJs = require("../util/Assert.js");
+var _assertJsDefault = parcelHelpers.interopDefault(_assertJs);
+class SegmentNodeList {
+    constructor(){
+        SegmentNodeList.constructor_.apply(this, arguments);
+    }
+    static constructor_() {
+        this._nodeMap = new (0, _treeMapJsDefault.default)();
+        this._edge = null;
+        const edge = arguments[0];
+        this._edge = edge;
+    }
+    getSplitCoordinates() {
+        const coordList = new (0, _coordinateListJsDefault.default)();
+        this.addEndpoints();
+        const it = this.iterator();
+        let eiPrev = it.next();
+        while(it.hasNext()){
+            const ei = it.next();
+            this.addEdgeCoordinates(eiPrev, ei, coordList);
+            eiPrev = ei;
+        }
+        return coordList.toCoordinateArray();
+    }
+    print(out) {
+        out.println('Intersections:');
+        for(let it = this.iterator(); it.hasNext();){
+            const ei = it.next();
+            ei.print(out);
+        }
+    }
+    findCollapsesFromExistingVertices(collapsedVertexIndexes) {
+        for(let i = 0; i < this._edge.size() - 2; i++){
+            const p0 = this._edge.getCoordinate(i);
+            const p1 = this._edge.getCoordinate(i + 1);
+            const p2 = this._edge.getCoordinate(i + 2);
+            if (p0.equals2D(p2)) collapsedVertexIndexes.add((0, _integerJsDefault.default).valueOf(i + 1));
+        }
+    }
+    addEdgeCoordinates(ei0, ei1, coordList) {
+        const pts = this.createSplitEdgePts(ei0, ei1);
+        coordList.add(pts, false);
+    }
+    findCollapseIndex(ei0, ei1, collapsedVertexIndex) {
+        if (!ei0.coord.equals2D(ei1.coord)) return false;
+        let numVerticesBetween = ei1.segmentIndex - ei0.segmentIndex;
+        if (!ei1.isInterior()) numVerticesBetween--;
+        if (numVerticesBetween === 1) {
+            collapsedVertexIndex[0] = ei0.segmentIndex + 1;
+            return true;
+        }
+        return false;
+    }
+    findCollapsesFromInsertedNodes(collapsedVertexIndexes) {
+        const collapsedVertexIndex = new Array(1).fill(null);
+        const it = this.iterator();
+        let eiPrev = it.next();
+        while(it.hasNext()){
+            const ei = it.next();
+            const isCollapsed = this.findCollapseIndex(eiPrev, ei, collapsedVertexIndex);
+            if (isCollapsed) collapsedVertexIndexes.add((0, _integerJsDefault.default).valueOf(collapsedVertexIndex[0]));
+            eiPrev = ei;
+        }
+    }
+    getEdge() {
+        return this._edge;
+    }
+    addEndpoints() {
+        const maxSegIndex = this._edge.size() - 1;
+        this.add(this._edge.getCoordinate(0), 0);
+        this.add(this._edge.getCoordinate(maxSegIndex), maxSegIndex);
+    }
+    createSplitEdge(ei0, ei1) {
+        const pts = this.createSplitEdgePts(ei0, ei1);
+        return new (0, _nodedSegmentStringJsDefault.default)(pts, this._edge.getData());
+    }
+    add(intPt, segmentIndex) {
+        const eiNew = new (0, _segmentNodeJsDefault.default)(this._edge, intPt, segmentIndex, this._edge.getSegmentOctant(segmentIndex));
+        const ei = this._nodeMap.get(eiNew);
+        if (ei !== null) {
+            (0, _assertJsDefault.default).isTrue(ei.coord.equals2D(intPt), 'Found equal nodes with different coordinates');
+            return ei;
+        }
+        this._nodeMap.put(eiNew, eiNew);
+        return eiNew;
+    }
+    checkSplitEdgesCorrectness(splitEdges) {
+        const edgePts = this._edge.getCoordinates();
+        const split0 = splitEdges.get(0);
+        const pt0 = split0.getCoordinate(0);
+        if (!pt0.equals2D(edgePts[0])) throw new (0, _runtimeExceptionJsDefault.default)('bad split edge start point at ' + pt0);
+        const splitn = splitEdges.get(splitEdges.size() - 1);
+        const splitnPts = splitn.getCoordinates();
+        const ptn = splitnPts[splitnPts.length - 1];
+        if (!ptn.equals2D(edgePts[edgePts.length - 1])) throw new (0, _runtimeExceptionJsDefault.default)('bad split edge end point at ' + ptn);
+    }
+    addCollapsedNodes() {
+        const collapsedVertexIndexes = new (0, _arrayListJsDefault.default)();
+        this.findCollapsesFromInsertedNodes(collapsedVertexIndexes);
+        this.findCollapsesFromExistingVertices(collapsedVertexIndexes);
+        for(let it = collapsedVertexIndexes.iterator(); it.hasNext();){
+            const vertexIndex = it.next().intValue();
+            this.add(this._edge.getCoordinate(vertexIndex), vertexIndex);
+        }
+    }
+    createSplitEdgePts(ei0, ei1) {
+        let npts = ei1.segmentIndex - ei0.segmentIndex + 2;
+        if (npts === 2) return [
+            new (0, _coordinateJsDefault.default)(ei0.coord),
+            new (0, _coordinateJsDefault.default)(ei1.coord)
+        ];
+        const lastSegStartPt = this._edge.getCoordinate(ei1.segmentIndex);
+        const useIntPt1 = ei1.isInterior() || !ei1.coord.equals2D(lastSegStartPt);
+        if (!useIntPt1) npts--;
+        const pts = new Array(npts).fill(null);
+        let ipt = 0;
+        pts[ipt++] = new (0, _coordinateJsDefault.default)(ei0.coord);
+        for(let i = ei0.segmentIndex + 1; i <= ei1.segmentIndex; i++)pts[ipt++] = this._edge.getCoordinate(i);
+        if (useIntPt1) pts[ipt] = new (0, _coordinateJsDefault.default)(ei1.coord);
+        return pts;
+    }
+    iterator() {
+        return this._nodeMap.values().iterator();
+    }
+    addSplitEdges(edgeList) {
+        this.addEndpoints();
+        this.addCollapsedNodes();
+        const it = this.iterator();
+        let eiPrev = it.next();
+        while(it.hasNext()){
+            const ei = it.next();
+            const newEdge = this.createSplitEdge(eiPrev, ei);
+            edgeList.add(newEdge);
+            eiPrev = ei;
+        }
+    }
+}
+exports.default = SegmentNodeList;
+class NodeVertexIterator {
+    constructor(){
+        NodeVertexIterator.constructor_.apply(this, arguments);
+    }
+    static constructor_() {
+        this._nodeList = null;
+        this._edge = null;
+        this._nodeIt = null;
+        this._currNode = null;
+        this._nextNode = null;
+        this._currSegIndex = 0;
+        const nodeList = arguments[0];
+        this._nodeList = nodeList;
+        this._edge = nodeList.getEdge();
+        this._nodeIt = nodeList.iterator();
+        this.readNextNode();
+    }
+    next() {
+        if (this._currNode === null) {
+            this._currNode = this._nextNode;
+            this._currSegIndex = this._currNode.segmentIndex;
+            this.readNextNode();
+            return this._currNode;
+        }
+        if (this._nextNode === null) return null;
+        if (this._nextNode.segmentIndex === this._currNode.segmentIndex) {
+            this._currNode = this._nextNode;
+            this._currSegIndex = this._currNode.segmentIndex;
+            this.readNextNode();
+            return this._currNode;
+        }
+        this._nextNode.segmentIndex, this._currNode.segmentIndex;
+        return null;
+    }
+    readNextNode() {
+        if (this._nodeIt.hasNext()) this._nextNode = this._nodeIt.next();
+        else this._nextNode = null;
+    }
+    hasNext() {
+        if (this._nextNode === null) return false;
+        return true;
+    }
+    remove() {
+        throw new (0, _unsupportedOperationExceptionJsDefault.default)(this.getClass().getName());
+    }
+    get interfaces_() {
+        return [
+            (0, _iteratorJsDefault.default)
+        ];
+    }
+}
+
+},{"../geom/CoordinateList.js":"ibs54","./SegmentNode.js":"i2Y5Z","../../../../java/util/Iterator.js":"zp5SP","../geom/Coordinate.js":"ii2fh","./NodedSegmentString.js":"gBLDJ","../../../../java/lang/Integer.js":"b3mDP","../../../../java/lang/UnsupportedOperationException.js":"dV3kx","../../../../java/util/ArrayList.js":"gGAQZ","../../../../java/util/TreeMap.js":"dQNYS","../../../../java/lang/RuntimeException.js":"3yvnL","../util/Assert.js":"1vSRy","@parcel/transformer-js/src/esmodule-helpers.js":"jnFvT"}],"i2Y5Z":[function(require,module,exports,__globalThis) {
+var parcelHelpers = require("@parcel/transformer-js/src/esmodule-helpers.js");
+parcelHelpers.defineInteropFlag(exports);
+var _coordinateJs = require("../geom/Coordinate.js");
+var _coordinateJsDefault = parcelHelpers.interopDefault(_coordinateJs);
+var _segmentPointComparatorJs = require("./SegmentPointComparator.js");
+var _segmentPointComparatorJsDefault = parcelHelpers.interopDefault(_segmentPointComparatorJs);
+var _comparableJs = require("../../../../java/lang/Comparable.js");
+var _comparableJsDefault = parcelHelpers.interopDefault(_comparableJs);
+class SegmentNode {
+    constructor(){
+        SegmentNode.constructor_.apply(this, arguments);
+    }
+    static constructor_() {
+        this._segString = null;
+        this.coord = null;
+        this.segmentIndex = null;
+        this._segmentOctant = null;
+        this._isInterior = null;
+        const segString = arguments[0], coord = arguments[1], segmentIndex = arguments[2], segmentOctant = arguments[3];
+        this._segString = segString;
+        this.coord = new (0, _coordinateJsDefault.default)(coord);
+        this.segmentIndex = segmentIndex;
+        this._segmentOctant = segmentOctant;
+        this._isInterior = !coord.equals2D(segString.getCoordinate(segmentIndex));
+    }
+    getCoordinate() {
+        return this.coord;
+    }
+    print(out) {
+        out.print(this.coord);
+        out.print(' seg # = ' + this.segmentIndex);
+    }
+    compareTo(obj) {
+        const other = obj;
+        if (this.segmentIndex < other.segmentIndex) return -1;
+        if (this.segmentIndex > other.segmentIndex) return 1;
+        if (this.coord.equals2D(other.coord)) return 0;
+        if (!this._isInterior) return -1;
+        if (!other._isInterior) return 1;
+        return (0, _segmentPointComparatorJsDefault.default).compare(this._segmentOctant, this.coord, other.coord);
+    }
+    isEndPoint(maxSegmentIndex) {
+        if (this.segmentIndex === 0 && !this._isInterior) return true;
+        if (this.segmentIndex === maxSegmentIndex) return true;
+        return false;
+    }
+    toString() {
+        return this.segmentIndex + ':' + this.coord.toString();
+    }
+    isInterior() {
+        return this._isInterior;
+    }
+    get interfaces_() {
+        return [
+            (0, _comparableJsDefault.default)
+        ];
+    }
+}
+exports.default = SegmentNode;
+
+},{"../geom/Coordinate.js":"ii2fh","./SegmentPointComparator.js":"1JLGC","../../../../java/lang/Comparable.js":"WFeEu","@parcel/transformer-js/src/esmodule-helpers.js":"jnFvT"}],"1JLGC":[function(require,module,exports,__globalThis) {
+var parcelHelpers = require("@parcel/transformer-js/src/esmodule-helpers.js");
+parcelHelpers.defineInteropFlag(exports);
+var _assertJs = require("../util/Assert.js");
+var _assertJsDefault = parcelHelpers.interopDefault(_assertJs);
+class SegmentPointComparator {
+    static relativeSign(x0, x1) {
+        if (x0 < x1) return -1;
+        if (x0 > x1) return 1;
+        return 0;
+    }
+    static compareValue(compareSign0, compareSign1) {
+        if (compareSign0 < 0) return -1;
+        if (compareSign0 > 0) return 1;
+        if (compareSign1 < 0) return -1;
+        if (compareSign1 > 0) return 1;
+        return 0;
+    }
+    static compare(octant, p0, p1) {
+        if (p0.equals2D(p1)) return 0;
+        const xSign = SegmentPointComparator.relativeSign(p0.x, p1.x);
+        const ySign = SegmentPointComparator.relativeSign(p0.y, p1.y);
+        switch(octant){
+            case 0:
+                return SegmentPointComparator.compareValue(xSign, ySign);
+            case 1:
+                return SegmentPointComparator.compareValue(ySign, xSign);
+            case 2:
+                return SegmentPointComparator.compareValue(ySign, -xSign);
+            case 3:
+                return SegmentPointComparator.compareValue(-xSign, ySign);
+            case 4:
+                return SegmentPointComparator.compareValue(-xSign, -ySign);
+            case 5:
+                return SegmentPointComparator.compareValue(-ySign, -xSign);
+            case 6:
+                return SegmentPointComparator.compareValue(-ySign, xSign);
+            case 7:
+                return SegmentPointComparator.compareValue(xSign, -ySign);
+        }
+        (0, _assertJsDefault.default).shouldNeverReachHere('invalid octant value');
+        return 0;
+    }
+}
+exports.default = SegmentPointComparator;
+
+},{"../util/Assert.js":"1vSRy","@parcel/transformer-js/src/esmodule-helpers.js":"jnFvT"}],"5OU0v":[function(require,module,exports,__globalThis) {
+var parcelHelpers = require("@parcel/transformer-js/src/esmodule-helpers.js");
+parcelHelpers.defineInteropFlag(exports);
+var _coordinateJs = require("../geom/Coordinate.js");
+var _coordinateJsDefault = parcelHelpers.interopDefault(_coordinateJs);
+var _illegalArgumentExceptionJs = require("../../../../java/lang/IllegalArgumentException.js");
+var _illegalArgumentExceptionJsDefault = parcelHelpers.interopDefault(_illegalArgumentExceptionJs);
+class Octant {
+    static octant() {
+        if (typeof arguments[0] === 'number' && typeof arguments[1] === 'number') {
+            const dx = arguments[0], dy = arguments[1];
+            if (dx === 0.0 && dy === 0.0) throw new (0, _illegalArgumentExceptionJsDefault.default)('Cannot compute the octant for point ( ' + dx + ', ' + dy + ' )');
+            const adx = Math.abs(dx);
+            const ady = Math.abs(dy);
+            if (dx >= 0) {
+                if (dy >= 0) {
+                    if (adx >= ady) return 0;
+                    else return 1;
+                } else if (adx >= ady) return 7;
+                else return 6;
+            } else if (dy >= 0) {
+                if (adx >= ady) return 3;
+                else return 2;
+            } else if (adx >= ady) return 4;
+            else return 5;
+        } else if (arguments[0] instanceof (0, _coordinateJsDefault.default) && arguments[1] instanceof (0, _coordinateJsDefault.default)) {
+            const p0 = arguments[0], p1 = arguments[1];
+            const dx = p1.x - p0.x;
+            const dy = p1.y - p0.y;
+            if (dx === 0.0 && dy === 0.0) throw new (0, _illegalArgumentExceptionJsDefault.default)('Cannot compute the octant for two identical points ' + p0);
+            return Octant.octant(dx, dy);
+        }
+    }
+}
+exports.default = Octant;
+
+},{"../geom/Coordinate.js":"ii2fh","../../../../java/lang/IllegalArgumentException.js":"9ppVW","@parcel/transformer-js/src/esmodule-helpers.js":"jnFvT"}],"dNf4G":[function(require,module,exports,__globalThis) {
+var parcelHelpers = require("@parcel/transformer-js/src/esmodule-helpers.js");
+parcelHelpers.defineInteropFlag(exports);
+var _segmentStringJs = require("./SegmentString.js");
+var _segmentStringJsDefault = parcelHelpers.interopDefault(_segmentStringJs);
+class NodableSegmentString {
+    addIntersection(intPt, segmentIndex) {}
+    get interfaces_() {
+        return [
+            (0, _segmentStringJsDefault.default)
+        ];
+    }
+}
+exports.default = NodableSegmentString;
+
+},{"./SegmentString.js":"isRVw","@parcel/transformer-js/src/esmodule-helpers.js":"jnFvT"}],"isRVw":[function(require,module,exports,__globalThis) {
+var parcelHelpers = require("@parcel/transformer-js/src/esmodule-helpers.js");
+parcelHelpers.defineInteropFlag(exports);
+class SegmentString {
+    getCoordinates() {}
+    size() {}
+    getCoordinate(i) {}
+    isClosed() {}
+    setData(data) {}
+    getData() {}
+}
+exports.default = SegmentString;
+
+},{"@parcel/transformer-js/src/esmodule-helpers.js":"jnFvT"}],"jKC91":[function(require,module,exports,__globalThis) {
+var parcelHelpers = require("@parcel/transformer-js/src/esmodule-helpers.js");
+parcelHelpers.defineInteropFlag(exports);
+class Noder {
+    getNodedSubstrings() {}
+    computeNodes(segStrings) {}
+}
+exports.default = Noder;
+
+},{"@parcel/transformer-js/src/esmodule-helpers.js":"jnFvT"}],"hoOy8":[function(require,module,exports,__globalThis) {
+var parcelHelpers = require("@parcel/transformer-js/src/esmodule-helpers.js");
+parcelHelpers.defineInteropFlag(exports);
+var _nodingValidatorJs = require("../NodingValidator.js");
+var _nodingValidatorJsDefault = parcelHelpers.interopDefault(_nodingValidatorJs);
+var _hasInterfaceJs = require("../../../../../hasInterface.js");
+var _hasInterfaceJsDefault = parcelHelpers.interopDefault(_hasInterfaceJs);
+var _mcindexNoderJs = require("../MCIndexNoder.js");
+var _mcindexNoderJsDefault = parcelHelpers.interopDefault(_mcindexNoderJs);
+var _nodedSegmentStringJs = require("../NodedSegmentString.js");
+var _nodedSegmentStringJsDefault = parcelHelpers.interopDefault(_nodedSegmentStringJs);
+var _hotPixelJs = require("./HotPixel.js");
+var _hotPixelJsDefault = parcelHelpers.interopDefault(_hotPixelJs);
+var _exceptionJs = require("../../../../../java/lang/Exception.js");
+var _exceptionJsDefault = parcelHelpers.interopDefault(_exceptionJs);
+var _mcindexPointSnapperJs = require("./MCIndexPointSnapper.js");
+var _mcindexPointSnapperJsDefault = parcelHelpers.interopDefault(_mcindexPointSnapperJs);
+var _robustLineIntersectorJs = require("../../algorithm/RobustLineIntersector.js");
+var _robustLineIntersectorJsDefault = parcelHelpers.interopDefault(_robustLineIntersectorJs);
+var _interiorIntersectionFinderAdderJs = require("../InteriorIntersectionFinderAdder.js");
+var _interiorIntersectionFinderAdderJsDefault = parcelHelpers.interopDefault(_interiorIntersectionFinderAdderJs);
+var _collectionJs = require("../../../../../java/util/Collection.js");
+var _collectionJsDefault = parcelHelpers.interopDefault(_collectionJs);
+var _noderJs = require("../Noder.js");
+var _noderJsDefault = parcelHelpers.interopDefault(_noderJs);
+class MCIndexSnapRounder {
+    constructor(){
+        MCIndexSnapRounder.constructor_.apply(this, arguments);
+    }
+    static constructor_() {
+        this._pm = null;
+        this._li = null;
+        this._scaleFactor = null;
+        this._noder = null;
+        this._pointSnapper = null;
+        this._nodedSegStrings = null;
+        const pm = arguments[0];
+        this._pm = pm;
+        this._li = new (0, _robustLineIntersectorJsDefault.default)();
+        this._li.setPrecisionModel(pm);
+        this._scaleFactor = pm.getScale();
+    }
+    checkCorrectness(inputSegmentStrings) {
+        const resultSegStrings = (0, _nodedSegmentStringJsDefault.default).getNodedSubstrings(inputSegmentStrings);
+        const nv = new (0, _nodingValidatorJsDefault.default)(resultSegStrings);
+        try {
+            nv.checkValid();
+        } catch (ex) {
+            if (ex instanceof (0, _exceptionJsDefault.default)) ex.printStackTrace();
+            else throw ex;
+        } finally{}
+    }
+    getNodedSubstrings() {
+        return (0, _nodedSegmentStringJsDefault.default).getNodedSubstrings(this._nodedSegStrings);
+    }
+    snapRound(segStrings, li) {
+        const intersections = this.findInteriorIntersections(segStrings, li);
+        this.computeIntersectionSnaps(intersections);
+        this.computeVertexSnaps(segStrings);
+    }
+    findInteriorIntersections(segStrings, li) {
+        const intFinderAdder = new (0, _interiorIntersectionFinderAdderJsDefault.default)(li);
+        this._noder.setSegmentIntersector(intFinderAdder);
+        this._noder.computeNodes(segStrings);
+        return intFinderAdder.getInteriorIntersections();
+    }
+    computeVertexSnaps() {
+        if ((0, _hasInterfaceJsDefault.default)(arguments[0], (0, _collectionJsDefault.default))) {
+            const edges = arguments[0];
+            for(let i0 = edges.iterator(); i0.hasNext();){
+                const edge0 = i0.next();
+                this.computeVertexSnaps(edge0);
+            }
+        } else if (arguments[0] instanceof (0, _nodedSegmentStringJsDefault.default)) {
+            const e = arguments[0];
+            const pts0 = e.getCoordinates();
+            for(let i = 0; i < pts0.length; i++){
+                const hotPixel = new (0, _hotPixelJsDefault.default)(pts0[i], this._scaleFactor, this._li);
+                const isNodeAdded = this._pointSnapper.snap(hotPixel, e, i);
+                if (isNodeAdded) e.addIntersection(pts0[i], i);
+            }
+        }
+    }
+    computeNodes(inputSegmentStrings) {
+        this._nodedSegStrings = inputSegmentStrings;
+        this._noder = new (0, _mcindexNoderJsDefault.default)();
+        this._pointSnapper = new (0, _mcindexPointSnapperJsDefault.default)(this._noder.getIndex());
+        this.snapRound(inputSegmentStrings, this._li);
+    }
+    computeIntersectionSnaps(snapPts) {
+        for(let it = snapPts.iterator(); it.hasNext();){
+            const snapPt = it.next();
+            const hotPixel = new (0, _hotPixelJsDefault.default)(snapPt, this._scaleFactor, this._li);
+            this._pointSnapper.snap(hotPixel);
+        }
+    }
+    get interfaces_() {
+        return [
+            (0, _noderJsDefault.default)
+        ];
+    }
+}
+exports.default = MCIndexSnapRounder;
+
+},{"../NodingValidator.js":"cKZlA","../../../../../hasInterface.js":"5bpze","../MCIndexNoder.js":"1deq0","../NodedSegmentString.js":"gBLDJ","./HotPixel.js":"g53tv","../../../../../java/lang/Exception.js":"8tbsL","./MCIndexPointSnapper.js":"lR2tW","../../algorithm/RobustLineIntersector.js":"kLdG9","../InteriorIntersectionFinderAdder.js":"esmGM","../../../../../java/util/Collection.js":"cggki","../Noder.js":"jKC91","@parcel/transformer-js/src/esmodule-helpers.js":"jnFvT"}],"cKZlA":[function(require,module,exports,__globalThis) {
+var parcelHelpers = require("@parcel/transformer-js/src/esmodule-helpers.js");
+parcelHelpers.defineInteropFlag(exports);
+var _geometryFactoryJs = require("../geom/GeometryFactory.js");
+var _geometryFactoryJsDefault = parcelHelpers.interopDefault(_geometryFactoryJs);
+var _robustLineIntersectorJs = require("../algorithm/RobustLineIntersector.js");
+var _robustLineIntersectorJsDefault = parcelHelpers.interopDefault(_robustLineIntersectorJs);
+var _runtimeExceptionJs = require("../../../../java/lang/RuntimeException.js");
+var _runtimeExceptionJsDefault = parcelHelpers.interopDefault(_runtimeExceptionJs);
+class NodingValidator {
+    constructor(){
+        NodingValidator.constructor_.apply(this, arguments);
+    }
+    static constructor_() {
+        this._li = new (0, _robustLineIntersectorJsDefault.default)();
+        this._segStrings = null;
+        const segStrings = arguments[0];
+        this._segStrings = segStrings;
+    }
+    checkEndPtVertexIntersections() {
+        if (arguments.length === 0) for(let i = this._segStrings.iterator(); i.hasNext();){
+            const ss = i.next();
+            const pts = ss.getCoordinates();
+            this.checkEndPtVertexIntersections(pts[0], this._segStrings);
+            this.checkEndPtVertexIntersections(pts[pts.length - 1], this._segStrings);
+        }
+        else if (arguments.length === 2) {
+            const testPt = arguments[0], segStrings = arguments[1];
+            for(let i = segStrings.iterator(); i.hasNext();){
+                const ss = i.next();
+                const pts = ss.getCoordinates();
+                for(let j = 1; j < pts.length - 1; j++)if (pts[j].equals(testPt)) throw new (0, _runtimeExceptionJsDefault.default)('found endpt/interior pt intersection at index ' + j + ' :pt ' + testPt);
+            }
+        }
+    }
+    checkInteriorIntersections() {
+        if (arguments.length === 0) for(let i = this._segStrings.iterator(); i.hasNext();){
+            const ss0 = i.next();
+            for(let j = this._segStrings.iterator(); j.hasNext();){
+                const ss1 = j.next();
+                this.checkInteriorIntersections(ss0, ss1);
+            }
+        }
+        else if (arguments.length === 2) {
+            const ss0 = arguments[0], ss1 = arguments[1];
+            const pts0 = ss0.getCoordinates();
+            const pts1 = ss1.getCoordinates();
+            for(let i0 = 0; i0 < pts0.length - 1; i0++)for(let i1 = 0; i1 < pts1.length - 1; i1++)this.checkInteriorIntersections(ss0, i0, ss1, i1);
+        } else if (arguments.length === 4) {
+            const e0 = arguments[0], segIndex0 = arguments[1], e1 = arguments[2], segIndex1 = arguments[3];
+            if (e0 === e1 && segIndex0 === segIndex1) return null;
+            const p00 = e0.getCoordinates()[segIndex0];
+            const p01 = e0.getCoordinates()[segIndex0 + 1];
+            const p10 = e1.getCoordinates()[segIndex1];
+            const p11 = e1.getCoordinates()[segIndex1 + 1];
+            this._li.computeIntersection(p00, p01, p10, p11);
+            if (this._li.hasIntersection()) {
+                if (this._li.isProper() || this.hasInteriorIntersection(this._li, p00, p01) || this.hasInteriorIntersection(this._li, p10, p11)) throw new (0, _runtimeExceptionJsDefault.default)('found non-noded intersection at ' + p00 + '-' + p01 + ' and ' + p10 + '-' + p11);
+            }
+        }
+    }
+    checkValid() {
+        this.checkEndPtVertexIntersections();
+        this.checkInteriorIntersections();
+        this.checkCollapses();
+    }
+    checkCollapses() {
+        if (arguments.length === 0) for(let i = this._segStrings.iterator(); i.hasNext();){
+            const ss = i.next();
+            this.checkCollapses(ss);
+        }
+        else if (arguments.length === 1) {
+            const ss = arguments[0];
+            const pts = ss.getCoordinates();
+            for(let i = 0; i < pts.length - 2; i++)this.checkCollapse(pts[i], pts[i + 1], pts[i + 2]);
+        }
+    }
+    hasInteriorIntersection(li, p0, p1) {
+        for(let i = 0; i < li.getIntersectionNum(); i++){
+            const intPt = li.getIntersection(i);
+            if (!(intPt.equals(p0) || intPt.equals(p1))) return true;
+        }
+        return false;
+    }
+    checkCollapse(p0, p1, p2) {
+        if (p0.equals(p2)) throw new (0, _runtimeExceptionJsDefault.default)('found non-noded collapse at ' + NodingValidator.fact.createLineString([
+            p0,
+            p1,
+            p2
+        ]));
+    }
+}
+exports.default = NodingValidator;
+NodingValidator.fact = new (0, _geometryFactoryJsDefault.default)();
+
+},{"../geom/GeometryFactory.js":"cGt0T","../algorithm/RobustLineIntersector.js":"kLdG9","../../../../java/lang/RuntimeException.js":"3yvnL","@parcel/transformer-js/src/esmodule-helpers.js":"jnFvT"}],"1deq0":[function(require,module,exports,__globalThis) {
+var parcelHelpers = require("@parcel/transformer-js/src/esmodule-helpers.js");
+parcelHelpers.defineInteropFlag(exports);
+var _strtreeJs = require("../index/strtree/STRtree.js");
+var _strtreeJsDefault = parcelHelpers.interopDefault(_strtreeJs);
+var _nodedSegmentStringJs = require("./NodedSegmentString.js");
+var _nodedSegmentStringJsDefault = parcelHelpers.interopDefault(_nodedSegmentStringJs);
+var _monotoneChainOverlapActionJs = require("../index/chain/MonotoneChainOverlapAction.js");
+var _monotoneChainOverlapActionJsDefault = parcelHelpers.interopDefault(_monotoneChainOverlapActionJs);
+var _monotoneChainBuilderJs = require("../index/chain/MonotoneChainBuilder.js");
+var _monotoneChainBuilderJsDefault = parcelHelpers.interopDefault(_monotoneChainBuilderJs);
+var _arrayListJs = require("../../../../java/util/ArrayList.js");
+var _arrayListJsDefault = parcelHelpers.interopDefault(_arrayListJs);
+var _singlePassNoderJs = require("./SinglePassNoder.js");
+var _singlePassNoderJsDefault = parcelHelpers.interopDefault(_singlePassNoderJs);
+class MCIndexNoder extends (0, _singlePassNoderJsDefault.default) {
+    constructor(){
+        super();
+        MCIndexNoder.constructor_.apply(this, arguments);
+    }
+    static constructor_() {
+        this._monoChains = new (0, _arrayListJsDefault.default)();
+        this._index = new (0, _strtreeJsDefault.default)();
+        this._idCounter = 0;
+        this._nodedSegStrings = null;
+        this._nOverlaps = 0;
+        if (arguments.length === 0) ;
+        else if (arguments.length === 1) {
+            const si = arguments[0];
+            (0, _singlePassNoderJsDefault.default).constructor_.call(this, si);
+        }
+    }
+    getMonotoneChains() {
+        return this._monoChains;
+    }
+    getNodedSubstrings() {
+        return (0, _nodedSegmentStringJsDefault.default).getNodedSubstrings(this._nodedSegStrings);
+    }
+    getIndex() {
+        return this._index;
+    }
+    add(segStr) {
+        const segChains = (0, _monotoneChainBuilderJsDefault.default).getChains(segStr.getCoordinates(), segStr);
+        for(let i = segChains.iterator(); i.hasNext();){
+            const mc = i.next();
+            mc.setId(this._idCounter++);
+            this._index.insert(mc.getEnvelope(), mc);
+            this._monoChains.add(mc);
+        }
+    }
+    computeNodes(inputSegStrings) {
+        this._nodedSegStrings = inputSegStrings;
+        for(let i = inputSegStrings.iterator(); i.hasNext();)this.add(i.next());
+        this.intersectChains();
+    }
+    intersectChains() {
+        const overlapAction = new SegmentOverlapAction(this._segInt);
+        for(let i = this._monoChains.iterator(); i.hasNext();){
+            const queryChain = i.next();
+            const overlapChains = this._index.query(queryChain.getEnvelope());
+            for(let j = overlapChains.iterator(); j.hasNext();){
+                const testChain = j.next();
+                if (testChain.getId() > queryChain.getId()) {
+                    queryChain.computeOverlaps(testChain, overlapAction);
+                    this._nOverlaps++;
+                }
+                if (this._segInt.isDone()) return null;
+            }
+        }
+    }
+}
+exports.default = MCIndexNoder;
+class SegmentOverlapAction extends (0, _monotoneChainOverlapActionJsDefault.default) {
+    constructor(){
+        super();
+        SegmentOverlapAction.constructor_.apply(this, arguments);
+    }
+    static constructor_() {
+        this._si = null;
+        const si = arguments[0];
+        this._si = si;
+    }
+    overlap() {
+        if (arguments.length === 4) {
+            const mc1 = arguments[0], start1 = arguments[1], mc2 = arguments[2], start2 = arguments[3];
+            const ss1 = mc1.getContext();
+            const ss2 = mc2.getContext();
+            this._si.processIntersections(ss1, start1, ss2, start2);
+        } else return super.overlap.apply(this, arguments);
+    }
+}
+MCIndexNoder.SegmentOverlapAction = SegmentOverlapAction;
+
+},{"../index/strtree/STRtree.js":"2wZHu","./NodedSegmentString.js":"gBLDJ","../index/chain/MonotoneChainOverlapAction.js":"25ZO4","../index/chain/MonotoneChainBuilder.js":"doUZZ","../../../../java/util/ArrayList.js":"gGAQZ","./SinglePassNoder.js":"h7eIw","@parcel/transformer-js/src/esmodule-helpers.js":"jnFvT"}],"2wZHu":[function(require,module,exports,__globalThis) {
+var parcelHelpers = require("@parcel/transformer-js/src/esmodule-helpers.js");
+parcelHelpers.defineInteropFlag(exports);
+var _itemBoundableJs = require("./ItemBoundable.js");
+var _itemBoundableJsDefault = parcelHelpers.interopDefault(_itemBoundableJs);
+var _priorityQueueJs = require("../../../../../java/util/PriorityQueue.js");
+var _priorityQueueJsDefault = parcelHelpers.interopDefault(_priorityQueueJs);
+var _hasInterfaceJs = require("../../../../../hasInterface.js");
+var _hasInterfaceJsDefault = parcelHelpers.interopDefault(_hasInterfaceJs);
+var _doubleJs = require("../../../../../java/lang/Double.js");
+var _doubleJsDefault = parcelHelpers.interopDefault(_doubleJs);
+var _serializableJs = require("../../../../../java/io/Serializable.js");
+var _serializableJsDefault = parcelHelpers.interopDefault(_serializableJs);
+var _spatialIndexJs = require("../SpatialIndex.js");
+var _spatialIndexJsDefault = parcelHelpers.interopDefault(_spatialIndexJs);
+var _abstractNodeJs = require("./AbstractNode.js");
+var _abstractNodeJsDefault = parcelHelpers.interopDefault(_abstractNodeJs);
+var _collectionsJs = require("../../../../../java/util/Collections.js");
+var _collectionsJsDefault = parcelHelpers.interopDefault(_collectionsJs);
+var _boundablePairJs = require("./BoundablePair.js");
+var _boundablePairJsDefault = parcelHelpers.interopDefault(_boundablePairJs);
+var _arrayListJs = require("../../../../../java/util/ArrayList.js");
+var _arrayListJsDefault = parcelHelpers.interopDefault(_arrayListJs);
+var _comparatorJs = require("../../../../../java/util/Comparator.js");
+var _comparatorJsDefault = parcelHelpers.interopDefault(_comparatorJs);
+var _envelopeJs = require("../../geom/Envelope.js");
+var _envelopeJsDefault = parcelHelpers.interopDefault(_envelopeJs);
+var _assertJs = require("../../util/Assert.js");
+var _assertJsDefault = parcelHelpers.interopDefault(_assertJs);
+var _abstractSTRtreeJs = require("./AbstractSTRtree.js");
+var _abstractSTRtreeJsDefault = parcelHelpers.interopDefault(_abstractSTRtreeJs);
+var _itemDistanceJs = require("./ItemDistance.js");
+var _itemDistanceJsDefault = parcelHelpers.interopDefault(_itemDistanceJs);
+class STRtree extends (0, _abstractSTRtreeJsDefault.default) {
+    constructor(){
+        super();
+        STRtree.constructor_.apply(this, arguments);
+    }
+    static constructor_() {
+        if (arguments.length === 0) STRtree.constructor_.call(this, STRtree.DEFAULT_NODE_CAPACITY);
+        else if (arguments.length === 1) {
+            const nodeCapacity = arguments[0];
+            (0, _abstractSTRtreeJsDefault.default).constructor_.call(this, nodeCapacity);
+        }
+    }
+    static getItems(kNearestNeighbors) {
+        const items = new Array(kNearestNeighbors.size()).fill(null);
+        let count = 0;
+        while(!kNearestNeighbors.isEmpty()){
+            const bp = kNearestNeighbors.poll();
+            items[count] = bp.getBoundable(0).getItem();
+            count++;
+        }
+        return items;
+    }
+    static avg(a, b) {
+        return (a + b) / 2;
+    }
+    static centreY(e) {
+        return STRtree.avg(e.getMinY(), e.getMaxY());
+    }
+    static centreX(e) {
+        return STRtree.avg(e.getMinX(), e.getMaxX());
+    }
+    size() {
+        if (arguments.length === 0) return super.size.call(this);
+        else return super.size.apply(this, arguments);
+    }
+    insert() {
+        if (arguments.length === 2 && arguments[1] instanceof Object && arguments[0] instanceof (0, _envelopeJsDefault.default)) {
+            const itemEnv = arguments[0], item = arguments[1];
+            if (itemEnv.isNull()) return null;
+            super.insert.call(this, itemEnv, item);
+        } else return super.insert.apply(this, arguments);
+    }
+    getIntersectsOp() {
+        return STRtree.intersectsOp;
+    }
+    verticalSlices(childBoundables, sliceCount) {
+        const sliceCapacity = Math.trunc(Math.ceil(childBoundables.size() / sliceCount));
+        const slices = new Array(sliceCount).fill(null);
+        const i = childBoundables.iterator();
+        for(let j = 0; j < sliceCount; j++){
+            slices[j] = new (0, _arrayListJsDefault.default)();
+            let boundablesAddedToSlice = 0;
+            while(i.hasNext() && boundablesAddedToSlice < sliceCapacity){
+                const childBoundable = i.next();
+                slices[j].add(childBoundable);
+                boundablesAddedToSlice++;
+            }
+        }
+        return slices;
+    }
+    query() {
+        if (arguments.length === 1) {
+            const searchEnv = arguments[0];
+            return super.query.call(this, searchEnv);
+        } else if (arguments.length === 2) {
+            const searchEnv = arguments[0], visitor = arguments[1];
+            super.query.call(this, searchEnv, visitor);
+        }
+    }
+    getComparator() {
+        return STRtree.yComparator;
+    }
+    createParentBoundablesFromVerticalSlice(childBoundables, newLevel) {
+        return super.createParentBoundables.call(this, childBoundables, newLevel);
+    }
+    remove() {
+        if (arguments.length === 2 && arguments[1] instanceof Object && arguments[0] instanceof (0, _envelopeJsDefault.default)) {
+            const itemEnv = arguments[0], item = arguments[1];
+            return super.remove.call(this, itemEnv, item);
+        } else return super.remove.apply(this, arguments);
+    }
+    depth() {
+        if (arguments.length === 0) return super.depth.call(this);
+        else return super.depth.apply(this, arguments);
+    }
+    createParentBoundables(childBoundables, newLevel) {
+        (0, _assertJsDefault.default).isTrue(!childBoundables.isEmpty());
+        const minLeafCount = Math.trunc(Math.ceil(childBoundables.size() / this.getNodeCapacity()));
+        const sortedChildBoundables = new (0, _arrayListJsDefault.default)(childBoundables);
+        (0, _collectionsJsDefault.default).sort(sortedChildBoundables, STRtree.xComparator);
+        const verticalSlices = this.verticalSlices(sortedChildBoundables, Math.trunc(Math.ceil(Math.sqrt(minLeafCount))));
+        return this.createParentBoundablesFromVerticalSlices(verticalSlices, newLevel);
+    }
+    nearestNeighbour() {
+        if (arguments.length === 1) {
+            if ((0, _hasInterfaceJsDefault.default)(arguments[0], (0, _itemDistanceJsDefault.default))) {
+                const itemDist = arguments[0];
+                if (this.isEmpty()) return null;
+                const bp = new (0, _boundablePairJsDefault.default)(this.getRoot(), this.getRoot(), itemDist);
+                return this.nearestNeighbour(bp);
+            } else if (arguments[0] instanceof (0, _boundablePairJsDefault.default)) {
+                const initBndPair = arguments[0];
+                let distanceLowerBound = (0, _doubleJsDefault.default).POSITIVE_INFINITY;
+                let minPair = null;
+                const priQ = new (0, _priorityQueueJsDefault.default)();
+                priQ.add(initBndPair);
+                while(!priQ.isEmpty() && distanceLowerBound > 0.0){
+                    const bndPair = priQ.poll();
+                    const pairDistance = bndPair.getDistance();
+                    if (pairDistance >= distanceLowerBound) break;
+                    if (bndPair.isLeaves()) {
+                        distanceLowerBound = pairDistance;
+                        minPair = bndPair;
+                    } else bndPair.expandToQueue(priQ, distanceLowerBound);
+                }
+                if (minPair === null) return null;
+                return [
+                    minPair.getBoundable(0).getItem(),
+                    minPair.getBoundable(1).getItem()
+                ];
+            }
+        } else if (arguments.length === 2) {
+            const tree = arguments[0], itemDist = arguments[1];
+            if (this.isEmpty() || tree.isEmpty()) return null;
+            const bp = new (0, _boundablePairJsDefault.default)(this.getRoot(), tree.getRoot(), itemDist);
+            return this.nearestNeighbour(bp);
+        } else if (arguments.length === 3) {
+            const env = arguments[0], item = arguments[1], itemDist = arguments[2];
+            const bnd = new (0, _itemBoundableJsDefault.default)(env, item);
+            const bp = new (0, _boundablePairJsDefault.default)(this.getRoot(), bnd, itemDist);
+            return this.nearestNeighbour(bp)[0];
+        } else if (arguments.length === 4) {
+            const env = arguments[0], item = arguments[1], itemDist = arguments[2], k = arguments[3];
+            const bnd = new (0, _itemBoundableJsDefault.default)(env, item);
+            const bp = new (0, _boundablePairJsDefault.default)(this.getRoot(), bnd, itemDist);
+            return this.nearestNeighbourK(bp, k);
+        }
+    }
+    isWithinDistance() {
+        if (arguments.length === 2) {
+            const initBndPair = arguments[0], maxDistance = arguments[1];
+            let distanceUpperBound = (0, _doubleJsDefault.default).POSITIVE_INFINITY;
+            const priQ = new (0, _priorityQueueJsDefault.default)();
+            priQ.add(initBndPair);
+            while(!priQ.isEmpty()){
+                const bndPair = priQ.poll();
+                const pairDistance = bndPair.getDistance();
+                if (pairDistance > maxDistance) return false;
+                if (bndPair.maximumDistance() <= maxDistance) return true;
+                if (bndPair.isLeaves()) {
+                    distanceUpperBound = pairDistance;
+                    if (distanceUpperBound <= maxDistance) return true;
+                } else bndPair.expandToQueue(priQ, distanceUpperBound);
+            }
+            return false;
+        } else if (arguments.length === 3) {
+            const tree = arguments[0], itemDist = arguments[1], maxDistance = arguments[2];
+            const bp = new (0, _boundablePairJsDefault.default)(this.getRoot(), tree.getRoot(), itemDist);
+            return this.isWithinDistance(bp, maxDistance);
+        }
+    }
+    createParentBoundablesFromVerticalSlices(verticalSlices, newLevel) {
+        (0, _assertJsDefault.default).isTrue(verticalSlices.length > 0);
+        const parentBoundables = new (0, _arrayListJsDefault.default)();
+        for(let i = 0; i < verticalSlices.length; i++)parentBoundables.addAll(this.createParentBoundablesFromVerticalSlice(verticalSlices[i], newLevel));
+        return parentBoundables;
+    }
+    nearestNeighbourK() {
+        if (arguments.length === 2) {
+            const initBndPair = arguments[0], k = arguments[1];
+            return this.nearestNeighbourK(initBndPair, (0, _doubleJsDefault.default).POSITIVE_INFINITY, k);
+        } else if (arguments.length === 3) {
+            const initBndPair = arguments[0], maxDistance = arguments[1], k = arguments[2];
+            let distanceLowerBound = maxDistance;
+            const priQ = new (0, _priorityQueueJsDefault.default)();
+            priQ.add(initBndPair);
+            const kNearestNeighbors = new (0, _priorityQueueJsDefault.default)();
+            while(!priQ.isEmpty() && distanceLowerBound >= 0.0){
+                const bndPair = priQ.poll();
+                const pairDistance = bndPair.getDistance();
+                if (pairDistance >= distanceLowerBound) break;
+                if (bndPair.isLeaves()) {
+                    if (kNearestNeighbors.size() < k) kNearestNeighbors.add(bndPair);
+                    else {
+                        const bp1 = kNearestNeighbors.peek();
+                        if (bp1.getDistance() > pairDistance) {
+                            kNearestNeighbors.poll();
+                            kNearestNeighbors.add(bndPair);
+                        }
+                        const bp2 = kNearestNeighbors.peek();
+                        distanceLowerBound = bp2.getDistance();
+                    }
+                } else bndPair.expandToQueue(priQ, distanceLowerBound);
+            }
+            return STRtree.getItems(kNearestNeighbors);
+        }
+    }
+    createNode(level) {
+        return new STRtreeNode(level);
+    }
+    get interfaces_() {
+        return [
+            (0, _spatialIndexJsDefault.default),
+            (0, _serializableJsDefault.default)
+        ];
+    }
+}
+exports.default = STRtree;
+class STRtreeNode extends (0, _abstractNodeJsDefault.default) {
+    constructor(){
+        super();
+        STRtreeNode.constructor_.apply(this, arguments);
+    }
+    static constructor_() {
+        const level = arguments[0];
+        (0, _abstractNodeJsDefault.default).constructor_.call(this, level);
+    }
+    computeBounds() {
+        let bounds = null;
+        for(let i = this.getChildBoundables().iterator(); i.hasNext();){
+            const childBoundable = i.next();
+            if (bounds === null) bounds = new (0, _envelopeJsDefault.default)(childBoundable.getBounds());
+            else bounds.expandToInclude(childBoundable.getBounds());
+        }
+        return bounds;
+    }
+}
+STRtree.STRtreeNode = STRtreeNode;
+STRtree.xComparator = new class {
+    get interfaces_() {
+        return [
+            (0, _comparatorJsDefault.default)
+        ];
+    }
+    compare(o1, o2) {
+        return (0, _abstractSTRtreeJsDefault.default).compareDoubles(STRtree.centreX(o1.getBounds()), STRtree.centreX(o2.getBounds()));
+    }
+}();
+STRtree.yComparator = new class {
+    get interfaces_() {
+        return [
+            (0, _comparatorJsDefault.default)
+        ];
+    }
+    compare(o1, o2) {
+        return (0, _abstractSTRtreeJsDefault.default).compareDoubles(STRtree.centreY(o1.getBounds()), STRtree.centreY(o2.getBounds()));
+    }
+}();
+STRtree.intersectsOp = new class {
+    get interfaces_() {
+        return [
+            IntersectsOp
+        ];
+    }
+    intersects(aBounds, bBounds) {
+        return aBounds.intersects(bBounds);
+    }
+}();
+STRtree.DEFAULT_NODE_CAPACITY = 10;
+
+},{"./ItemBoundable.js":"eO4jy","../../../../../java/util/PriorityQueue.js":"b2lva","../../../../../hasInterface.js":"5bpze","../../../../../java/lang/Double.js":"clUxd","../../../../../java/io/Serializable.js":"5sRbw","../SpatialIndex.js":"2N5f4","./AbstractNode.js":"1SBma","../../../../../java/util/Collections.js":"c5dcW","./BoundablePair.js":"bUhyu","../../../../../java/util/ArrayList.js":"gGAQZ","../../../../../java/util/Comparator.js":"hcSJ3","../../geom/Envelope.js":"h2zeM","../../util/Assert.js":"1vSRy","./AbstractSTRtree.js":"4MW3s","./ItemDistance.js":"d4XWg","@parcel/transformer-js/src/esmodule-helpers.js":"jnFvT"}],"eO4jy":[function(require,module,exports,__globalThis) {
+var parcelHelpers = require("@parcel/transformer-js/src/esmodule-helpers.js");
+parcelHelpers.defineInteropFlag(exports);
+var _boundableJs = require("./Boundable.js");
+var _boundableJsDefault = parcelHelpers.interopDefault(_boundableJs);
+var _serializableJs = require("../../../../../java/io/Serializable.js");
+var _serializableJsDefault = parcelHelpers.interopDefault(_serializableJs);
+class ItemBoundable {
+    constructor(){
+        ItemBoundable.constructor_.apply(this, arguments);
+    }
+    static constructor_() {
+        this._bounds = null;
+        this._item = null;
+        const bounds = arguments[0], item = arguments[1];
+        this._bounds = bounds;
+        this._item = item;
+    }
+    getItem() {
+        return this._item;
+    }
+    getBounds() {
+        return this._bounds;
+    }
+    get interfaces_() {
+        return [
+            (0, _boundableJsDefault.default),
+            (0, _serializableJsDefault.default)
+        ];
+    }
+}
+exports.default = ItemBoundable;
+
+},{"./Boundable.js":"78kNi","../../../../../java/io/Serializable.js":"5sRbw","@parcel/transformer-js/src/esmodule-helpers.js":"jnFvT"}],"78kNi":[function(require,module,exports,__globalThis) {
+var parcelHelpers = require("@parcel/transformer-js/src/esmodule-helpers.js");
+parcelHelpers.defineInteropFlag(exports);
+class Boundable {
+    getBounds() {}
+}
+exports.default = Boundable;
+
+},{"@parcel/transformer-js/src/esmodule-helpers.js":"jnFvT"}],"b2lva":[function(require,module,exports,__globalThis) {
+var parcelHelpers = require("@parcel/transformer-js/src/esmodule-helpers.js");
+parcelHelpers.defineInteropFlag(exports);
+var _fastpriorityqueue = require("fastpriorityqueue");
+var _fastpriorityqueueDefault = parcelHelpers.interopDefault(_fastpriorityqueue);
+class PriorityQueue {
+    constructor(){
+        this._fpQueue = new (0, _fastpriorityqueueDefault.default)((a, b)=>a.compareTo(b) < 0);
+    }
+    poll() {
+        return this._fpQueue.poll();
+    }
+    size() {
+        return this._fpQueue.size;
+    }
+    clear() {
+        this._fpQueue = new (0, _fastpriorityqueueDefault.default)();
+    }
+    peek() {
+        return this._fpQueue.peek();
+    }
+    remove() {
+        return this._fpQueue.poll();
+    }
+    isEmpty() {
+        return this._fpQueue.isEmpty();
+    }
+    add(x) {
+        this._fpQueue.add(x);
+    }
+}
+exports.default = PriorityQueue;
+
+},{"fastpriorityqueue":"lU7Rc","@parcel/transformer-js/src/esmodule-helpers.js":"jnFvT"}],"lU7Rc":[function(require,module,exports,__globalThis) {
+/**
+ * FastPriorityQueue.js : a fast heap-based priority queue  in JavaScript.
+ * (c) the authors
+ * Licensed under the Apache License, Version 2.0.
+ *
+ * Speed-optimized heap-based priority queue for modern browsers and JavaScript engines.
+ *
+ * Usage :
+         Installation (in shell, if you use node):
+         $ npm install fastpriorityqueue
+
+         Running test program (in JavaScript):
+
+         // var FastPriorityQueue = require("fastpriorityqueue");// in node
+         var x = new FastPriorityQueue();
+         x.add(1);
+         x.add(0);
+         x.add(5);
+         x.add(4);
+         x.add(3);
+         x.peek(); // should return 0, leaves x unchanged
+         x.size; // should return 5, leaves x unchanged
+         while(!x.isEmpty()) {
+           console.log(x.poll());
+         } // will print 0 1 3 4 5
+         x.trim(); // (optional) optimizes memory usage
+ */ 'use strict';
+var defaultcomparator = function(a, b) {
+    return a < b;
+};
+// construct a new priority queue
+// the provided comparator function should take a, b and return *true* when a < b
+function FastPriorityQueue(comparator) {
+    if (!(this instanceof FastPriorityQueue)) return new FastPriorityQueue(comparator);
+    this.array = [];
+    this.size = 0;
+    this.compare = comparator || defaultcomparator;
+}
+// copy the priority queue into another, and return it. Queue items are shallow-copied.
+// Runs in `O(n)` time.
+FastPriorityQueue.prototype.clone = function() {
+    var fpq = new FastPriorityQueue(this.compare);
+    fpq.size = this.size;
+    fpq.array = this.array.slice(0, this.size);
+    return fpq;
+};
+// add an element into the queue
+// runs in `O(log n)` time
+FastPriorityQueue.prototype.add = function(myval) {
+    var i = this.size;
+    this.array[this.size] = myval;
+    this.size += 1;
+    var p;
+    var ap;
+    while(i > 0){
+        p = i - 1 >> 1;
+        ap = this.array[p];
+        if (!this.compare(myval, ap)) break;
+        this.array[i] = ap;
+        i = p;
+    }
+    this.array[i] = myval;
+};
+// replace the content of the heap by provided array and "heapify it"
+FastPriorityQueue.prototype.heapify = function(arr) {
+    this.array = arr;
+    this.size = arr.length;
+    var i;
+    for(i = this.size >> 1; i >= 0; i--)this._percolateDown(i);
+};
+// for internal use
+FastPriorityQueue.prototype._percolateUp = function(i, force) {
+    var myval = this.array[i];
+    var p;
+    var ap;
+    while(i > 0){
+        p = i - 1 >> 1;
+        ap = this.array[p];
+        // force will skip the compare
+        if (!force && !this.compare(myval, ap)) break;
+        this.array[i] = ap;
+        i = p;
+    }
+    this.array[i] = myval;
+};
+// for internal use
+FastPriorityQueue.prototype._percolateDown = function(i) {
+    var size = this.size;
+    var hsize = this.size >>> 1;
+    var ai = this.array[i];
+    var l;
+    var r;
+    var bestc;
+    while(i < hsize){
+        l = (i << 1) + 1;
+        r = l + 1;
+        bestc = this.array[l];
+        if (r < size) {
+            if (this.compare(this.array[r], bestc)) {
+                l = r;
+                bestc = this.array[r];
+            }
+        }
+        if (!this.compare(bestc, ai)) break;
+        this.array[i] = bestc;
+        i = l;
+    }
+    this.array[i] = ai;
+};
+// internal
+// _removeAt(index) will remove the item at the given index from the queue,
+// retaining balance. returns the removed item, or undefined if nothing is removed.
+FastPriorityQueue.prototype._removeAt = function(index) {
+    if (index > this.size - 1 || index < 0) return undefined;
+    // impl1:
+    //this.array.splice(index, 1);
+    //this.heapify(this.array);
+    // impl2:
+    this._percolateUp(index, true);
+    return this.poll();
+};
+// remove(myval) will remove an item matching the provided value from the
+// queue, checked for equality by using the queue's comparator.
+// return true if removed, false otherwise.
+FastPriorityQueue.prototype.remove = function(myval) {
+    for(var i = 0; i < this.size; i++)if (!this.compare(this.array[i], myval) && !this.compare(myval, this.array[i])) {
+        // items match, comparator returns false both ways, remove item
+        this._removeAt(i);
+        return true;
+    }
+    return false;
+};
+// removeOne(callback) will execute the callback function for each item of the queue
+// and will remove the first item for which the callback will return true.
+// return the removed item, or undefined if nothing is removed.
+FastPriorityQueue.prototype.removeOne = function(callback) {
+    if (typeof callback !== "function") return undefined;
+    for(var i = 0; i < this.size; i++){
+        if (callback(this.array[i])) return this._removeAt(i);
+    }
+};
+// remove(callback[, limit]) will execute the callback function for each item of
+// the queue and will remove each item for which the callback returns true, up to
+// a max limit of removed items if specified or no limit if unspecified.
+// return an array containing the removed items.
+// The callback function should be a pure function.
+FastPriorityQueue.prototype.removeMany = function(callback, limit) {
+    // Skip unnecessary processing for edge cases
+    if (typeof callback !== "function" || this.size < 1) return [];
+    limit = limit ? Math.min(limit, this.size) : this.size;
+    // Prepare the results container to hold up to the results limit
+    var resultSize = 0;
+    var result = new Array(limit);
+    // Prepare a temporary array to hold items we'll traverse through and need to keep
+    var tmpSize = 0;
+    var tmp = new Array(this.size);
+    while(resultSize < limit && !this.isEmpty()){
+        // Dequeue items into either the results or our temporary array
+        var item = this.poll();
+        if (callback(item)) result[resultSize++] = item;
+        else tmp[tmpSize++] = item;
+    }
+    // Update the result array with the exact number of results
+    result.length = resultSize;
+    // Re-add all the items we can keep
+    var i = 0;
+    while(i < tmpSize)this.add(tmp[i++]);
+    return result;
+};
+// Look at the top of the queue (one of the smallest elements) without removing it
+// executes in constant time
+//
+// Calling peek on an empty priority queue returns
+// the "undefined" value.
+// https://developer.mozilla.org/en/docs/Web/JavaScript/Reference/Global_Objects/undefined
+//
+FastPriorityQueue.prototype.peek = function() {
+    if (this.size == 0) return undefined;
+    return this.array[0];
+};
+// remove the element on top of the heap (one of the smallest elements)
+// runs in logarithmic time
+//
+// If the priority queue is empty, the function returns the
+// "undefined" value.
+// https://developer.mozilla.org/en/docs/Web/JavaScript/Reference/Global_Objects/undefined
+//
+// For long-running and large priority queues, or priority queues
+// storing large objects, you may  want to call the trim function
+// at strategic times to recover allocated memory.
+FastPriorityQueue.prototype.poll = function() {
+    if (this.size == 0) return undefined;
+    var ans = this.array[0];
+    if (this.size > 1) {
+        this.array[0] = this.array[--this.size];
+        this._percolateDown(0);
+    } else this.size -= 1;
+    return ans;
+};
+// This function adds the provided value to the heap, while removing
+// and returning one of the smallest elements (like poll). The size of the queue
+// thus remains unchanged.
+FastPriorityQueue.prototype.replaceTop = function(myval) {
+    if (this.size == 0) return undefined;
+    var ans = this.array[0];
+    this.array[0] = myval;
+    this._percolateDown(0);
+    return ans;
+};
+// recover unused memory (for long-running priority queues)
+FastPriorityQueue.prototype.trim = function() {
+    this.array = this.array.slice(0, this.size);
+};
+// Check whether the heap is empty
+FastPriorityQueue.prototype.isEmpty = function() {
+    return this.size === 0;
+};
+// iterate over the items in order, pass a callback that receives (item, index) as args.
+// TODO once we transpile, uncomment
+// if (Symbol && Symbol.iterator) {
+//   FastPriorityQueue.prototype[Symbol.iterator] = function*() {
+//     if (this.isEmpty()) return;
+//     var fpq = this.clone();
+//     while (!fpq.isEmpty()) {
+//       yield fpq.poll();
+//     }
+//   };
+// }
+FastPriorityQueue.prototype.forEach = function(callback) {
+    if (this.isEmpty() || typeof callback != 'function') return;
+    var i = 0;
+    var fpq = this.clone();
+    while(!fpq.isEmpty())callback(fpq.poll(), i++);
+};
+// return the k 'smallest' elements of the queue as an array,
+// runs in O(k log k) time, the elements are not removed
+// from the priority queue.
+FastPriorityQueue.prototype.kSmallest = function(k) {
+    if (this.size == 0 || k <= 0) return [];
+    k = Math.min(this.size, k);
+    const newSize = Math.min(this.size, 2 ** (k - 1) + 1);
+    if (newSize < 2) return [
+        this.peek()
+    ];
+    const fpq = new FastPriorityQueue(this.compare);
+    fpq.size = newSize;
+    fpq.array = this.array.slice(0, newSize);
+    const smallest = new Array(k);
+    for(let i = 0; i < k; i++)smallest[i] = fpq.poll();
+    return smallest;
+};
+module.exports = FastPriorityQueue;
+
+},{}],"2N5f4":[function(require,module,exports,__globalThis) {
+var parcelHelpers = require("@parcel/transformer-js/src/esmodule-helpers.js");
+parcelHelpers.defineInteropFlag(exports);
+class SpatialIndex {
+    query() {
+        if (arguments.length === 1) {
+            const searchEnv = arguments[0];
+        } else if (arguments.length === 2) {
+            const searchEnv = arguments[0], visitor = arguments[1];
+        }
+    }
+    insert(itemEnv, item) {}
+    remove(itemEnv, item) {}
+}
+exports.default = SpatialIndex;
+
+},{"@parcel/transformer-js/src/esmodule-helpers.js":"jnFvT"}],"1SBma":[function(require,module,exports,__globalThis) {
+var parcelHelpers = require("@parcel/transformer-js/src/esmodule-helpers.js");
+parcelHelpers.defineInteropFlag(exports);
+var _boundableJs = require("./Boundable.js");
+var _boundableJsDefault = parcelHelpers.interopDefault(_boundableJs);
+var _arrayListJs = require("../../../../../java/util/ArrayList.js");
+var _arrayListJsDefault = parcelHelpers.interopDefault(_arrayListJs);
+var _serializableJs = require("../../../../../java/io/Serializable.js");
+var _serializableJsDefault = parcelHelpers.interopDefault(_serializableJs);
+var _assertJs = require("../../util/Assert.js");
+var _assertJsDefault = parcelHelpers.interopDefault(_assertJs);
+class AbstractNode {
+    constructor(){
+        AbstractNode.constructor_.apply(this, arguments);
+    }
+    static constructor_() {
+        this._childBoundables = new (0, _arrayListJsDefault.default)();
+        this._bounds = null;
+        this._level = null;
+        if (arguments.length === 0) ;
+        else if (arguments.length === 1) {
+            const level = arguments[0];
+            this._level = level;
+        }
+    }
+    getLevel() {
+        return this._level;
+    }
+    addChildBoundable(childBoundable) {
+        (0, _assertJsDefault.default).isTrue(this._bounds === null);
+        this._childBoundables.add(childBoundable);
+    }
+    isEmpty() {
+        return this._childBoundables.isEmpty();
+    }
+    getBounds() {
+        if (this._bounds === null) this._bounds = this.computeBounds();
+        return this._bounds;
+    }
+    size() {
+        return this._childBoundables.size();
+    }
+    getChildBoundables() {
+        return this._childBoundables;
+    }
+    get interfaces_() {
+        return [
+            (0, _boundableJsDefault.default),
+            (0, _serializableJsDefault.default)
+        ];
+    }
+}
+exports.default = AbstractNode;
+
+},{"./Boundable.js":"78kNi","../../../../../java/util/ArrayList.js":"gGAQZ","../../../../../java/io/Serializable.js":"5sRbw","../../util/Assert.js":"1vSRy","@parcel/transformer-js/src/esmodule-helpers.js":"jnFvT"}],"bUhyu":[function(require,module,exports,__globalThis) {
+var parcelHelpers = require("@parcel/transformer-js/src/esmodule-helpers.js");
+parcelHelpers.defineInteropFlag(exports);
+var _illegalArgumentExceptionJs = require("../../../../../java/lang/IllegalArgumentException.js");
+var _illegalArgumentExceptionJsDefault = parcelHelpers.interopDefault(_illegalArgumentExceptionJs);
+var _abstractNodeJs = require("./AbstractNode.js");
+var _abstractNodeJsDefault = parcelHelpers.interopDefault(_abstractNodeJs);
+var _envelopeDistanceJs = require("./EnvelopeDistance.js");
+var _envelopeDistanceJsDefault = parcelHelpers.interopDefault(_envelopeDistanceJs);
+var _comparableJs = require("../../../../../java/lang/Comparable.js");
+var _comparableJsDefault = parcelHelpers.interopDefault(_comparableJs);
+class BoundablePair {
+    constructor(){
+        BoundablePair.constructor_.apply(this, arguments);
+    }
+    static constructor_() {
+        this._boundable1 = null;
+        this._boundable2 = null;
+        this._distance = null;
+        this._itemDistance = null;
+        const boundable1 = arguments[0], boundable2 = arguments[1], itemDistance = arguments[2];
+        this._boundable1 = boundable1;
+        this._boundable2 = boundable2;
+        this._itemDistance = itemDistance;
+        this._distance = this.distance();
+    }
+    static area(b) {
+        return b.getBounds().getArea();
+    }
+    static isComposite(item) {
+        return item instanceof (0, _abstractNodeJsDefault.default);
+    }
+    maximumDistance() {
+        return (0, _envelopeDistanceJsDefault.default).maximumDistance(this._boundable1.getBounds(), this._boundable2.getBounds());
+    }
+    expandToQueue(priQ, minDistance) {
+        const isComp1 = BoundablePair.isComposite(this._boundable1);
+        const isComp2 = BoundablePair.isComposite(this._boundable2);
+        if (isComp1 && isComp2) {
+            if (BoundablePair.area(this._boundable1) > BoundablePair.area(this._boundable2)) {
+                this.expand(this._boundable1, this._boundable2, false, priQ, minDistance);
+                return null;
+            } else {
+                this.expand(this._boundable2, this._boundable1, true, priQ, minDistance);
+                return null;
+            }
+        } else if (isComp1) {
+            this.expand(this._boundable1, this._boundable2, false, priQ, minDistance);
+            return null;
+        } else if (isComp2) {
+            this.expand(this._boundable2, this._boundable1, true, priQ, minDistance);
+            return null;
+        }
+        throw new (0, _illegalArgumentExceptionJsDefault.default)('neither boundable is composite');
+    }
+    isLeaves() {
+        return !(BoundablePair.isComposite(this._boundable1) || BoundablePair.isComposite(this._boundable2));
+    }
+    getBoundable(i) {
+        if (i === 0) return this._boundable1;
+        return this._boundable2;
+    }
+    getDistance() {
+        return this._distance;
+    }
+    distance() {
+        if (this.isLeaves()) return this._itemDistance.distance(this._boundable1, this._boundable2);
+        return this._boundable1.getBounds().distance(this._boundable2.getBounds());
+    }
+    compareTo(o) {
+        const nd = o;
+        if (this._distance < nd._distance) return -1;
+        if (this._distance > nd._distance) return 1;
+        return 0;
+    }
+    expand(bndComposite, bndOther, isFlipped, priQ, minDistance) {
+        const children = bndComposite.getChildBoundables();
+        for(let i = children.iterator(); i.hasNext();){
+            const child = i.next();
+            let bp = null;
+            if (isFlipped) bp = new BoundablePair(bndOther, child, this._itemDistance);
+            else bp = new BoundablePair(child, bndOther, this._itemDistance);
+            if (bp.getDistance() < minDistance) priQ.add(bp);
+        }
+    }
+    get interfaces_() {
+        return [
+            (0, _comparableJsDefault.default)
+        ];
+    }
+}
+exports.default = BoundablePair;
+
+},{"../../../../../java/lang/IllegalArgumentException.js":"9ppVW","./AbstractNode.js":"1SBma","./EnvelopeDistance.js":"aOul4","../../../../../java/lang/Comparable.js":"WFeEu","@parcel/transformer-js/src/esmodule-helpers.js":"jnFvT"}],"aOul4":[function(require,module,exports,__globalThis) {
+var parcelHelpers = require("@parcel/transformer-js/src/esmodule-helpers.js");
+parcelHelpers.defineInteropFlag(exports);
+class EnvelopeDistance {
+    static distance(x1, y1, x2, y2) {
+        const dx = x2 - x1;
+        const dy = y2 - y1;
+        return Math.sqrt(dx * dx + dy * dy);
+    }
+    static maximumDistance(env1, env2) {
+        const minx = Math.min(env1.getMinX(), env2.getMinX());
+        const miny = Math.min(env1.getMinY(), env2.getMinY());
+        const maxx = Math.max(env1.getMaxX(), env2.getMaxX());
+        const maxy = Math.max(env1.getMaxY(), env2.getMaxY());
+        return EnvelopeDistance.distance(minx, miny, maxx, maxy);
+    }
+    static minMaxDistance(a, b) {
+        const aminx = a.getMinX();
+        const aminy = a.getMinY();
+        const amaxx = a.getMaxX();
+        const amaxy = a.getMaxY();
+        const bminx = b.getMinX();
+        const bminy = b.getMinY();
+        const bmaxx = b.getMaxX();
+        const bmaxy = b.getMaxY();
+        let dist = EnvelopeDistance.maxDistance(aminx, aminy, aminx, amaxy, bminx, bminy, bminx, bmaxy);
+        dist = Math.min(dist, EnvelopeDistance.maxDistance(aminx, aminy, aminx, amaxy, bminx, bminy, bmaxx, bminy));
+        dist = Math.min(dist, EnvelopeDistance.maxDistance(aminx, aminy, aminx, amaxy, bmaxx, bmaxy, bminx, bmaxy));
+        dist = Math.min(dist, EnvelopeDistance.maxDistance(aminx, aminy, aminx, amaxy, bmaxx, bmaxy, bmaxx, bminy));
+        dist = Math.min(dist, EnvelopeDistance.maxDistance(aminx, aminy, amaxx, aminy, bminx, bminy, bminx, bmaxy));
+        dist = Math.min(dist, EnvelopeDistance.maxDistance(aminx, aminy, amaxx, aminy, bminx, bminy, bmaxx, bminy));
+        dist = Math.min(dist, EnvelopeDistance.maxDistance(aminx, aminy, amaxx, aminy, bmaxx, bmaxy, bminx, bmaxy));
+        dist = Math.min(dist, EnvelopeDistance.maxDistance(aminx, aminy, amaxx, aminy, bmaxx, bmaxy, bmaxx, bminy));
+        dist = Math.min(dist, EnvelopeDistance.maxDistance(amaxx, amaxy, aminx, amaxy, bminx, bminy, bminx, bmaxy));
+        dist = Math.min(dist, EnvelopeDistance.maxDistance(amaxx, amaxy, aminx, amaxy, bminx, bminy, bmaxx, bminy));
+        dist = Math.min(dist, EnvelopeDistance.maxDistance(amaxx, amaxy, aminx, amaxy, bmaxx, bmaxy, bminx, bmaxy));
+        dist = Math.min(dist, EnvelopeDistance.maxDistance(amaxx, amaxy, aminx, amaxy, bmaxx, bmaxy, bmaxx, bminy));
+        dist = Math.min(dist, EnvelopeDistance.maxDistance(amaxx, amaxy, amaxx, aminy, bminx, bminy, bminx, bmaxy));
+        dist = Math.min(dist, EnvelopeDistance.maxDistance(amaxx, amaxy, amaxx, aminy, bminx, bminy, bmaxx, bminy));
+        dist = Math.min(dist, EnvelopeDistance.maxDistance(amaxx, amaxy, amaxx, aminy, bmaxx, bmaxy, bminx, bmaxy));
+        dist = Math.min(dist, EnvelopeDistance.maxDistance(amaxx, amaxy, amaxx, aminy, bmaxx, bmaxy, bmaxx, bminy));
+        return dist;
+    }
+    static maxDistance(ax1, ay1, ax2, ay2, bx1, by1, bx2, by2) {
+        let dist = EnvelopeDistance.distance(ax1, ay1, bx1, by1);
+        dist = Math.max(dist, EnvelopeDistance.distance(ax1, ay1, bx2, by2));
+        dist = Math.max(dist, EnvelopeDistance.distance(ax2, ay2, bx1, by1));
+        dist = Math.max(dist, EnvelopeDistance.distance(ax2, ay2, bx2, by2));
+        return dist;
+    }
+}
+exports.default = EnvelopeDistance;
+
+},{"@parcel/transformer-js/src/esmodule-helpers.js":"jnFvT"}],"4MW3s":[function(require,module,exports,__globalThis) {
+var parcelHelpers = require("@parcel/transformer-js/src/esmodule-helpers.js");
+parcelHelpers.defineInteropFlag(exports);
+var _itemBoundableJs = require("./ItemBoundable.js");
+var _itemBoundableJsDefault = parcelHelpers.interopDefault(_itemBoundableJs);
+var _hasInterfaceJs = require("../../../../../hasInterface.js");
+var _hasInterfaceJsDefault = parcelHelpers.interopDefault(_hasInterfaceJs);
+var _itemVisitorJs = require("../ItemVisitor.js");
+var _itemVisitorJsDefault = parcelHelpers.interopDefault(_itemVisitorJs);
+var _abstractNodeJs = require("./AbstractNode.js");
+var _abstractNodeJsDefault = parcelHelpers.interopDefault(_abstractNodeJs);
+var _collectionsJs = require("../../../../../java/util/Collections.js");
+var _collectionsJsDefault = parcelHelpers.interopDefault(_collectionsJs);
+var _arrayListJs = require("../../../../../java/util/ArrayList.js");
+var _arrayListJsDefault = parcelHelpers.interopDefault(_arrayListJs);
+var _serializableJs = require("../../../../../java/io/Serializable.js");
+var _serializableJsDefault = parcelHelpers.interopDefault(_serializableJs);
+var _assertJs = require("../../util/Assert.js");
+var _assertJsDefault = parcelHelpers.interopDefault(_assertJs);
+var _listJs = require("../../../../../java/util/List.js");
+var _listJsDefault = parcelHelpers.interopDefault(_listJs);
+class AbstractSTRtree {
+    constructor(){
+        AbstractSTRtree.constructor_.apply(this, arguments);
+    }
+    static constructor_() {
+        this._root = null;
+        this._built = false;
+        this._itemBoundables = new (0, _arrayListJsDefault.default)();
+        this._nodeCapacity = null;
+        if (arguments.length === 0) AbstractSTRtree.constructor_.call(this, AbstractSTRtree.DEFAULT_NODE_CAPACITY);
+        else if (arguments.length === 1) {
+            const nodeCapacity = arguments[0];
+            (0, _assertJsDefault.default).isTrue(nodeCapacity > 1, 'Node capacity must be greater than 1');
+            this._nodeCapacity = nodeCapacity;
+        }
+    }
+    static compareDoubles(a, b) {
+        return a > b ? 1 : a < b ? -1 : 0;
+    }
+    queryInternal() {
+        if ((0, _hasInterfaceJsDefault.default)(arguments[2], (0, _itemVisitorJsDefault.default)) && arguments[0] instanceof Object && arguments[1] instanceof (0, _abstractNodeJsDefault.default)) {
+            const searchBounds = arguments[0], node = arguments[1], visitor = arguments[2];
+            const childBoundables = node.getChildBoundables();
+            for(let i = 0; i < childBoundables.size(); i++){
+                const childBoundable = childBoundables.get(i);
+                if (!this.getIntersectsOp().intersects(childBoundable.getBounds(), searchBounds)) continue;
+                if (childBoundable instanceof (0, _abstractNodeJsDefault.default)) this.queryInternal(searchBounds, childBoundable, visitor);
+                else if (childBoundable instanceof (0, _itemBoundableJsDefault.default)) visitor.visitItem(childBoundable.getItem());
+                else (0, _assertJsDefault.default).shouldNeverReachHere();
+            }
+        } else if ((0, _hasInterfaceJsDefault.default)(arguments[2], (0, _listJsDefault.default)) && arguments[0] instanceof Object && arguments[1] instanceof (0, _abstractNodeJsDefault.default)) {
+            const searchBounds = arguments[0], node = arguments[1], matches = arguments[2];
+            const childBoundables = node.getChildBoundables();
+            for(let i = 0; i < childBoundables.size(); i++){
+                const childBoundable = childBoundables.get(i);
+                if (!this.getIntersectsOp().intersects(childBoundable.getBounds(), searchBounds)) continue;
+                if (childBoundable instanceof (0, _abstractNodeJsDefault.default)) this.queryInternal(searchBounds, childBoundable, matches);
+                else if (childBoundable instanceof (0, _itemBoundableJsDefault.default)) matches.add(childBoundable.getItem());
+                else (0, _assertJsDefault.default).shouldNeverReachHere();
+            }
+        }
+    }
+    insert(bounds, item) {
+        (0, _assertJsDefault.default).isTrue(!this._built, 'Cannot insert items into an STR packed R-tree after it has been built.');
+        this._itemBoundables.add(new (0, _itemBoundableJsDefault.default)(bounds, item));
+    }
+    boundablesAtLevel() {
+        if (arguments.length === 1) {
+            const level = arguments[0];
+            const boundables = new (0, _arrayListJsDefault.default)();
+            this.boundablesAtLevel(level, this._root, boundables);
+            return boundables;
+        } else if (arguments.length === 3) {
+            const level = arguments[0], top = arguments[1], boundables = arguments[2];
+            (0, _assertJsDefault.default).isTrue(level > -2);
+            if (top.getLevel() === level) {
+                boundables.add(top);
+                return null;
+            }
+            for(let i = top.getChildBoundables().iterator(); i.hasNext();){
+                const boundable = i.next();
+                if (boundable instanceof (0, _abstractNodeJsDefault.default)) this.boundablesAtLevel(level, boundable, boundables);
+                else {
+                    (0, _assertJsDefault.default).isTrue(boundable instanceof (0, _itemBoundableJsDefault.default));
+                    if (level === -1) boundables.add(boundable);
+                }
+            }
+            return null;
+        }
+    }
+    getRoot() {
+        this.build();
+        return this._root;
+    }
+    remove() {
+        if (arguments.length === 2) {
+            const searchBounds = arguments[0], item = arguments[1];
+            this.build();
+            if (this.getIntersectsOp().intersects(this._root.getBounds(), searchBounds)) return this.remove(searchBounds, this._root, item);
+            return false;
+        } else if (arguments.length === 3) {
+            const searchBounds = arguments[0], node = arguments[1], item = arguments[2];
+            let found = this.removeItem(node, item);
+            if (found) return true;
+            let childToPrune = null;
+            for(let i = node.getChildBoundables().iterator(); i.hasNext();){
+                const childBoundable = i.next();
+                if (!this.getIntersectsOp().intersects(childBoundable.getBounds(), searchBounds)) continue;
+                if (childBoundable instanceof (0, _abstractNodeJsDefault.default)) {
+                    found = this.remove(searchBounds, childBoundable, item);
+                    if (found) {
+                        childToPrune = childBoundable;
+                        break;
+                    }
+                }
+            }
+            if (childToPrune !== null) {
+                if (childToPrune.getChildBoundables().isEmpty()) node.getChildBoundables().remove(childToPrune);
+            }
+            return found;
+        }
+    }
+    createHigherLevels(boundablesOfALevel, level) {
+        (0, _assertJsDefault.default).isTrue(!boundablesOfALevel.isEmpty());
+        const parentBoundables = this.createParentBoundables(boundablesOfALevel, level + 1);
+        if (parentBoundables.size() === 1) return parentBoundables.get(0);
+        return this.createHigherLevels(parentBoundables, level + 1);
+    }
+    depth() {
+        if (arguments.length === 0) {
+            if (this.isEmpty()) return 0;
+            this.build();
+            return this.depth(this._root);
+        } else if (arguments.length === 1) {
+            const node = arguments[0];
+            let maxChildDepth = 0;
+            for(let i = node.getChildBoundables().iterator(); i.hasNext();){
+                const childBoundable = i.next();
+                if (childBoundable instanceof (0, _abstractNodeJsDefault.default)) {
+                    const childDepth = this.depth(childBoundable);
+                    if (childDepth > maxChildDepth) maxChildDepth = childDepth;
+                }
+            }
+            return maxChildDepth + 1;
+        }
+    }
+    createParentBoundables(childBoundables, newLevel) {
+        (0, _assertJsDefault.default).isTrue(!childBoundables.isEmpty());
+        const parentBoundables = new (0, _arrayListJsDefault.default)();
+        parentBoundables.add(this.createNode(newLevel));
+        const sortedChildBoundables = new (0, _arrayListJsDefault.default)(childBoundables);
+        (0, _collectionsJsDefault.default).sort(sortedChildBoundables, this.getComparator());
+        for(let i = sortedChildBoundables.iterator(); i.hasNext();){
+            const childBoundable = i.next();
+            if (this.lastNode(parentBoundables).getChildBoundables().size() === this.getNodeCapacity()) parentBoundables.add(this.createNode(newLevel));
+            this.lastNode(parentBoundables).addChildBoundable(childBoundable);
+        }
+        return parentBoundables;
+    }
+    isEmpty() {
+        if (!this._built) return this._itemBoundables.isEmpty();
+        return this._root.isEmpty();
+    }
+    getNodeCapacity() {
+        return this._nodeCapacity;
+    }
+    lastNode(nodes) {
+        return nodes.get(nodes.size() - 1);
+    }
+    size() {
+        if (arguments.length === 0) {
+            if (this.isEmpty()) return 0;
+            this.build();
+            return this.size(this._root);
+        } else if (arguments.length === 1) {
+            const node = arguments[0];
+            let size = 0;
+            for(let i = node.getChildBoundables().iterator(); i.hasNext();){
+                const childBoundable = i.next();
+                if (childBoundable instanceof (0, _abstractNodeJsDefault.default)) size += this.size(childBoundable);
+                else if (childBoundable instanceof (0, _itemBoundableJsDefault.default)) size += 1;
+            }
+            return size;
+        }
+    }
+    removeItem(node, item) {
+        let childToRemove = null;
+        for(let i = node.getChildBoundables().iterator(); i.hasNext();){
+            const childBoundable = i.next();
+            if (childBoundable instanceof (0, _itemBoundableJsDefault.default)) {
+                if (childBoundable.getItem() === item) childToRemove = childBoundable;
+            }
+        }
+        if (childToRemove !== null) {
+            node.getChildBoundables().remove(childToRemove);
+            return true;
+        }
+        return false;
+    }
+    itemsTree() {
+        if (arguments.length === 0) {
+            this.build();
+            const valuesTree = this.itemsTree(this._root);
+            if (valuesTree === null) return new (0, _arrayListJsDefault.default)();
+            return valuesTree;
+        } else if (arguments.length === 1) {
+            const node = arguments[0];
+            const valuesTreeForNode = new (0, _arrayListJsDefault.default)();
+            for(let i = node.getChildBoundables().iterator(); i.hasNext();){
+                const childBoundable = i.next();
+                if (childBoundable instanceof (0, _abstractNodeJsDefault.default)) {
+                    const valuesTreeForChild = this.itemsTree(childBoundable);
+                    if (valuesTreeForChild !== null) valuesTreeForNode.add(valuesTreeForChild);
+                } else if (childBoundable instanceof (0, _itemBoundableJsDefault.default)) valuesTreeForNode.add(childBoundable.getItem());
+                else (0, _assertJsDefault.default).shouldNeverReachHere();
+            }
+            if (valuesTreeForNode.size() <= 0) return null;
+            return valuesTreeForNode;
+        }
+    }
+    query() {
+        if (arguments.length === 1) {
+            const searchBounds = arguments[0];
+            this.build();
+            const matches = new (0, _arrayListJsDefault.default)();
+            if (this.isEmpty()) return matches;
+            if (this.getIntersectsOp().intersects(this._root.getBounds(), searchBounds)) this.queryInternal(searchBounds, this._root, matches);
+            return matches;
+        } else if (arguments.length === 2) {
+            const searchBounds = arguments[0], visitor = arguments[1];
+            this.build();
+            if (this.isEmpty()) return null;
+            if (this.getIntersectsOp().intersects(this._root.getBounds(), searchBounds)) this.queryInternal(searchBounds, this._root, visitor);
+        }
+    }
+    build() {
+        if (this._built) return null;
+        this._root = this._itemBoundables.isEmpty() ? this.createNode(0) : this.createHigherLevels(this._itemBoundables, -1);
+        this._itemBoundables = null;
+        this._built = true;
+    }
+    get interfaces_() {
+        return [
+            (0, _serializableJsDefault.default)
+        ];
+    }
+}
+exports.default = AbstractSTRtree;
+function IntersectsOp() {}
+AbstractSTRtree.IntersectsOp = IntersectsOp;
+AbstractSTRtree.DEFAULT_NODE_CAPACITY = 10;
+
+},{"./ItemBoundable.js":"eO4jy","../../../../../hasInterface.js":"5bpze","../ItemVisitor.js":"nuRea","./AbstractNode.js":"1SBma","../../../../../java/util/Collections.js":"c5dcW","../../../../../java/util/ArrayList.js":"gGAQZ","../../../../../java/io/Serializable.js":"5sRbw","../../util/Assert.js":"1vSRy","../../../../../java/util/List.js":"7jAhK","@parcel/transformer-js/src/esmodule-helpers.js":"jnFvT"}],"d4XWg":[function(require,module,exports,__globalThis) {
+var parcelHelpers = require("@parcel/transformer-js/src/esmodule-helpers.js");
+parcelHelpers.defineInteropFlag(exports);
+class ItemDistance {
+    distance(item1, item2) {}
+}
+exports.default = ItemDistance;
+
+},{"@parcel/transformer-js/src/esmodule-helpers.js":"jnFvT"}],"25ZO4":[function(require,module,exports,__globalThis) {
+var parcelHelpers = require("@parcel/transformer-js/src/esmodule-helpers.js");
+parcelHelpers.defineInteropFlag(exports);
+var _lineSegmentJs = require("../../geom/LineSegment.js");
+var _lineSegmentJsDefault = parcelHelpers.interopDefault(_lineSegmentJs);
+class MonotoneChainOverlapAction {
+    constructor(){
+        MonotoneChainOverlapAction.constructor_.apply(this, arguments);
+    }
+    static constructor_() {
+        this._overlapSeg1 = new (0, _lineSegmentJsDefault.default)();
+        this._overlapSeg2 = new (0, _lineSegmentJsDefault.default)();
+    }
+    overlap() {
+        if (arguments.length === 2) {
+            const seg1 = arguments[0], seg2 = arguments[1];
+        } else if (arguments.length === 4) {
+            const mc1 = arguments[0], start1 = arguments[1], mc2 = arguments[2], start2 = arguments[3];
+            mc1.getLineSegment(start1, this._overlapSeg1);
+            mc2.getLineSegment(start2, this._overlapSeg2);
+            this.overlap(this._overlapSeg1, this._overlapSeg2);
+        }
+    }
+}
+exports.default = MonotoneChainOverlapAction;
+
+},{"../../geom/LineSegment.js":"8Ncbv","@parcel/transformer-js/src/esmodule-helpers.js":"jnFvT"}],"doUZZ":[function(require,module,exports,__globalThis) {
+var parcelHelpers = require("@parcel/transformer-js/src/esmodule-helpers.js");
+parcelHelpers.defineInteropFlag(exports);
+var _monotoneChainJs = require("./MonotoneChain.js");
+var _monotoneChainJsDefault = parcelHelpers.interopDefault(_monotoneChainJs);
+var _arrayListJs = require("../../../../../java/util/ArrayList.js");
+var _arrayListJsDefault = parcelHelpers.interopDefault(_arrayListJs);
+var _quadrantJs = require("../../geomgraph/Quadrant.js");
+var _quadrantJsDefault = parcelHelpers.interopDefault(_quadrantJs);
+class MonotoneChainBuilder {
+    static findChainEnd(pts, start) {
+        let safeStart = start;
+        while(safeStart < pts.length - 1 && pts[safeStart].equals2D(pts[safeStart + 1]))safeStart++;
+        if (safeStart >= pts.length - 1) return pts.length - 1;
+        const chainQuad = (0, _quadrantJsDefault.default).quadrant(pts[safeStart], pts[safeStart + 1]);
+        let last = start + 1;
+        while(last < pts.length){
+            if (!pts[last - 1].equals2D(pts[last])) {
+                const quad = (0, _quadrantJsDefault.default).quadrant(pts[last - 1], pts[last]);
+                if (quad !== chainQuad) break;
+            }
+            last++;
+        }
+        return last - 1;
+    }
+    static getChains() {
+        if (arguments.length === 1) {
+            const pts = arguments[0];
+            return MonotoneChainBuilder.getChains(pts, null);
+        } else if (arguments.length === 2) {
+            const pts = arguments[0], context = arguments[1];
+            const mcList = new (0, _arrayListJsDefault.default)();
+            let chainStart = 0;
+            do {
+                const chainEnd = MonotoneChainBuilder.findChainEnd(pts, chainStart);
+                const mc = new (0, _monotoneChainJsDefault.default)(pts, chainStart, chainEnd, context);
+                mcList.add(mc);
+                chainStart = chainEnd;
+            }while (chainStart < pts.length - 1);
+            return mcList;
+        }
+    }
+}
+exports.default = MonotoneChainBuilder;
+
+},{"./MonotoneChain.js":"5SbYX","../../../../../java/util/ArrayList.js":"gGAQZ","../../geomgraph/Quadrant.js":"86Qmh","@parcel/transformer-js/src/esmodule-helpers.js":"jnFvT"}],"5SbYX":[function(require,module,exports,__globalThis) {
+var parcelHelpers = require("@parcel/transformer-js/src/esmodule-helpers.js");
+parcelHelpers.defineInteropFlag(exports);
+var _envelopeJs = require("../../geom/Envelope.js");
+var _envelopeJsDefault = parcelHelpers.interopDefault(_envelopeJs);
+class MonotoneChain {
+    constructor(){
+        MonotoneChain.constructor_.apply(this, arguments);
+    }
+    static constructor_() {
+        this._pts = null;
+        this._start = null;
+        this._end = null;
+        this._env = null;
+        this._context = null;
+        this._id = null;
+        const pts = arguments[0], start = arguments[1], end = arguments[2], context = arguments[3];
+        this._pts = pts;
+        this._start = start;
+        this._end = end;
+        this._context = context;
+    }
+    computeOverlaps() {
+        if (arguments.length === 2) {
+            const mc = arguments[0], mco = arguments[1];
+            this.computeOverlaps(this._start, this._end, mc, mc._start, mc._end, mco);
+        } else if (arguments.length === 6) {
+            const start0 = arguments[0], end0 = arguments[1], mc = arguments[2], start1 = arguments[3], end1 = arguments[4], mco = arguments[5];
+            if (end0 - start0 === 1 && end1 - start1 === 1) {
+                mco.overlap(this, start0, mc, start1);
+                return null;
+            }
+            if (!this.overlaps(start0, end0, mc, start1, end1)) return null;
+            const mid0 = Math.trunc((start0 + end0) / 2);
+            const mid1 = Math.trunc((start1 + end1) / 2);
+            if (start0 < mid0) {
+                if (start1 < mid1) this.computeOverlaps(start0, mid0, mc, start1, mid1, mco);
+                if (mid1 < end1) this.computeOverlaps(start0, mid0, mc, mid1, end1, mco);
+            }
+            if (mid0 < end0) {
+                if (start1 < mid1) this.computeOverlaps(mid0, end0, mc, start1, mid1, mco);
+                if (mid1 < end1) this.computeOverlaps(mid0, end0, mc, mid1, end1, mco);
+            }
+        }
+    }
+    setId(id) {
+        this._id = id;
+    }
+    select(searchEnv, mcs) {
+        this.computeSelect(searchEnv, this._start, this._end, mcs);
+    }
+    getEnvelope() {
+        if (this._env === null) {
+            const p0 = this._pts[this._start];
+            const p1 = this._pts[this._end];
+            this._env = new (0, _envelopeJsDefault.default)(p0, p1);
+        }
+        return this._env;
+    }
+    overlaps(start0, end0, mc, start1, end1) {
+        return (0, _envelopeJsDefault.default).intersects(this._pts[start0], this._pts[end0], mc._pts[start1], mc._pts[end1]);
+    }
+    getEndIndex() {
+        return this._end;
+    }
+    getStartIndex() {
+        return this._start;
+    }
+    getContext() {
+        return this._context;
+    }
+    getId() {
+        return this._id;
+    }
+    getLineSegment(index, ls) {
+        ls.p0 = this._pts[index];
+        ls.p1 = this._pts[index + 1];
+    }
+    computeSelect(searchEnv, start0, end0, mcs) {
+        const p0 = this._pts[start0];
+        const p1 = this._pts[end0];
+        if (end0 - start0 === 1) {
+            mcs.select(this, start0);
+            return null;
+        }
+        if (!searchEnv.intersects(p0, p1)) return null;
+        const mid = Math.trunc((start0 + end0) / 2);
+        if (start0 < mid) this.computeSelect(searchEnv, start0, mid, mcs);
+        if (mid < end0) this.computeSelect(searchEnv, mid, end0, mcs);
+    }
+    getCoordinates() {
+        const coord = new Array(this._end - this._start + 1).fill(null);
+        let index = 0;
+        for(let i = this._start; i <= this._end; i++)coord[index++] = this._pts[i];
+        return coord;
+    }
+}
+exports.default = MonotoneChain;
+
+},{"../../geom/Envelope.js":"h2zeM","@parcel/transformer-js/src/esmodule-helpers.js":"jnFvT"}],"h7eIw":[function(require,module,exports,__globalThis) {
+var parcelHelpers = require("@parcel/transformer-js/src/esmodule-helpers.js");
+parcelHelpers.defineInteropFlag(exports);
+var _noderJs = require("./Noder.js");
+var _noderJsDefault = parcelHelpers.interopDefault(_noderJs);
+class SinglePassNoder {
+    constructor(){
+        SinglePassNoder.constructor_.apply(this, arguments);
+    }
+    static constructor_() {
+        this._segInt = null;
+        if (arguments.length === 0) ;
+        else if (arguments.length === 1) {
+            const segInt = arguments[0];
+            this.setSegmentIntersector(segInt);
+        }
+    }
+    setSegmentIntersector(segInt) {
+        this._segInt = segInt;
+    }
+    get interfaces_() {
+        return [
+            (0, _noderJsDefault.default)
+        ];
+    }
+}
+exports.default = SinglePassNoder;
+
+},{"./Noder.js":"jKC91","@parcel/transformer-js/src/esmodule-helpers.js":"jnFvT"}],"g53tv":[function(require,module,exports,__globalThis) {
+var parcelHelpers = require("@parcel/transformer-js/src/esmodule-helpers.js");
+parcelHelpers.defineInteropFlag(exports);
+var _coordinateJs = require("../../geom/Coordinate.js");
+var _coordinateJsDefault = parcelHelpers.interopDefault(_coordinateJs);
+var _illegalArgumentExceptionJs = require("../../../../../java/lang/IllegalArgumentException.js");
+var _illegalArgumentExceptionJsDefault = parcelHelpers.interopDefault(_illegalArgumentExceptionJs);
+var _envelopeJs = require("../../geom/Envelope.js");
+var _envelopeJsDefault = parcelHelpers.interopDefault(_envelopeJs);
+var _assertJs = require("../../util/Assert.js");
+var _assertJsDefault = parcelHelpers.interopDefault(_assertJs);
+class HotPixel {
+    constructor(){
+        HotPixel.constructor_.apply(this, arguments);
+    }
+    static constructor_() {
+        this._li = null;
+        this._pt = null;
+        this._originalPt = null;
+        this._ptScaled = null;
+        this._p0Scaled = null;
+        this._p1Scaled = null;
+        this._scaleFactor = null;
+        this._minx = null;
+        this._maxx = null;
+        this._miny = null;
+        this._maxy = null;
+        this._corner = new Array(4).fill(null);
+        this._safeEnv = null;
+        const pt = arguments[0], scaleFactor = arguments[1], li = arguments[2];
+        this._originalPt = pt;
+        this._pt = pt;
+        this._scaleFactor = scaleFactor;
+        this._li = li;
+        if (scaleFactor <= 0) throw new (0, _illegalArgumentExceptionJsDefault.default)('Scale factor must be non-zero');
+        if (scaleFactor !== 1.0) {
+            this._pt = new (0, _coordinateJsDefault.default)(this.scale(pt.x), this.scale(pt.y));
+            this._p0Scaled = new (0, _coordinateJsDefault.default)();
+            this._p1Scaled = new (0, _coordinateJsDefault.default)();
+        }
+        this.initCorners(this._pt);
+    }
+    intersectsScaled(p0, p1) {
+        const segMinx = Math.min(p0.x, p1.x);
+        const segMaxx = Math.max(p0.x, p1.x);
+        const segMiny = Math.min(p0.y, p1.y);
+        const segMaxy = Math.max(p0.y, p1.y);
+        const isOutsidePixelEnv = this._maxx < segMinx || this._minx > segMaxx || this._maxy < segMiny || this._miny > segMaxy;
+        if (isOutsidePixelEnv) return false;
+        const intersects = this.intersectsToleranceSquare(p0, p1);
+        (0, _assertJsDefault.default).isTrue(!(isOutsidePixelEnv && intersects), 'Found bad envelope test');
+        return intersects;
+    }
+    copyScaled(p, pScaled) {
+        pScaled.x = this.scale(p.x);
+        pScaled.y = this.scale(p.y);
+    }
+    getSafeEnvelope() {
+        if (this._safeEnv === null) {
+            const safeTolerance = HotPixel.SAFE_ENV_EXPANSION_FACTOR / this._scaleFactor;
+            this._safeEnv = new (0, _envelopeJsDefault.default)(this._originalPt.x - safeTolerance, this._originalPt.x + safeTolerance, this._originalPt.y - safeTolerance, this._originalPt.y + safeTolerance);
+        }
+        return this._safeEnv;
+    }
+    intersectsPixelClosure(p0, p1) {
+        this._li.computeIntersection(p0, p1, this._corner[0], this._corner[1]);
+        if (this._li.hasIntersection()) return true;
+        this._li.computeIntersection(p0, p1, this._corner[1], this._corner[2]);
+        if (this._li.hasIntersection()) return true;
+        this._li.computeIntersection(p0, p1, this._corner[2], this._corner[3]);
+        if (this._li.hasIntersection()) return true;
+        this._li.computeIntersection(p0, p1, this._corner[3], this._corner[0]);
+        if (this._li.hasIntersection()) return true;
+        return false;
+    }
+    intersectsToleranceSquare(p0, p1) {
+        let intersectsLeft = false;
+        let intersectsBottom = false;
+        this._li.computeIntersection(p0, p1, this._corner[0], this._corner[1]);
+        if (this._li.isProper()) return true;
+        this._li.computeIntersection(p0, p1, this._corner[1], this._corner[2]);
+        if (this._li.isProper()) return true;
+        if (this._li.hasIntersection()) intersectsLeft = true;
+        this._li.computeIntersection(p0, p1, this._corner[2], this._corner[3]);
+        if (this._li.isProper()) return true;
+        if (this._li.hasIntersection()) intersectsBottom = true;
+        this._li.computeIntersection(p0, p1, this._corner[3], this._corner[0]);
+        if (this._li.isProper()) return true;
+        if (intersectsLeft && intersectsBottom) return true;
+        if (p0.equals(this._pt)) return true;
+        if (p1.equals(this._pt)) return true;
+        return false;
+    }
+    addSnappedNode(segStr, segIndex) {
+        const p0 = segStr.getCoordinate(segIndex);
+        const p1 = segStr.getCoordinate(segIndex + 1);
+        if (this.intersects(p0, p1)) {
+            segStr.addIntersection(this.getCoordinate(), segIndex);
+            return true;
+        }
+        return false;
+    }
+    initCorners(pt) {
+        const tolerance = 0.5;
+        this._minx = pt.x - tolerance;
+        this._maxx = pt.x + tolerance;
+        this._miny = pt.y - tolerance;
+        this._maxy = pt.y + tolerance;
+        this._corner[0] = new (0, _coordinateJsDefault.default)(this._maxx, this._maxy);
+        this._corner[1] = new (0, _coordinateJsDefault.default)(this._minx, this._maxy);
+        this._corner[2] = new (0, _coordinateJsDefault.default)(this._minx, this._miny);
+        this._corner[3] = new (0, _coordinateJsDefault.default)(this._maxx, this._miny);
+    }
+    intersects(p0, p1) {
+        if (this._scaleFactor === 1.0) return this.intersectsScaled(p0, p1);
+        this.copyScaled(p0, this._p0Scaled);
+        this.copyScaled(p1, this._p1Scaled);
+        return this.intersectsScaled(this._p0Scaled, this._p1Scaled);
+    }
+    scale(val) {
+        return Math.round(val * this._scaleFactor);
+    }
+    getCoordinate() {
+        return this._originalPt;
+    }
+}
+exports.default = HotPixel;
+HotPixel.SAFE_ENV_EXPANSION_FACTOR = 0.75;
+
+},{"../../geom/Coordinate.js":"ii2fh","../../../../../java/lang/IllegalArgumentException.js":"9ppVW","../../geom/Envelope.js":"h2zeM","../../util/Assert.js":"1vSRy","@parcel/transformer-js/src/esmodule-helpers.js":"jnFvT"}],"lR2tW":[function(require,module,exports,__globalThis) {
+var parcelHelpers = require("@parcel/transformer-js/src/esmodule-helpers.js");
+parcelHelpers.defineInteropFlag(exports);
+var _monotoneChainSelectActionJs = require("../../index/chain/MonotoneChainSelectAction.js");
+var _monotoneChainSelectActionJsDefault = parcelHelpers.interopDefault(_monotoneChainSelectActionJs);
+var _monotoneChainJs = require("../../index/chain/MonotoneChain.js");
+var _monotoneChainJsDefault = parcelHelpers.interopDefault(_monotoneChainJs);
+var _itemVisitorJs = require("../../index/ItemVisitor.js");
+var _itemVisitorJsDefault = parcelHelpers.interopDefault(_itemVisitorJs);
+class MCIndexPointSnapper {
+    constructor(){
+        MCIndexPointSnapper.constructor_.apply(this, arguments);
+    }
+    static constructor_() {
+        this._index = null;
+        const index = arguments[0];
+        this._index = index;
+    }
+    snap() {
+        if (arguments.length === 1) {
+            const hotPixel = arguments[0];
+            return this.snap(hotPixel, null, -1);
+        } else if (arguments.length === 3) {
+            const hotPixel = arguments[0], parentEdge = arguments[1], hotPixelVertexIndex = arguments[2];
+            const pixelEnv = hotPixel.getSafeEnvelope();
+            const hotPixelSnapAction = new HotPixelSnapAction(hotPixel, parentEdge, hotPixelVertexIndex);
+            this._index.query(pixelEnv, new class {
+                get interfaces_() {
+                    return [
+                        (0, _itemVisitorJsDefault.default)
+                    ];
+                }
+                visitItem(item) {
+                    const testChain = item;
+                    testChain.select(pixelEnv, hotPixelSnapAction);
+                }
+            }());
+            return hotPixelSnapAction.isNodeAdded();
+        }
+    }
+}
+exports.default = MCIndexPointSnapper;
+class HotPixelSnapAction extends (0, _monotoneChainSelectActionJsDefault.default) {
+    constructor(){
+        super();
+        HotPixelSnapAction.constructor_.apply(this, arguments);
+    }
+    static constructor_() {
+        this._hotPixel = null;
+        this._parentEdge = null;
+        this._hotPixelVertexIndex = null;
+        this._isNodeAdded = false;
+        const hotPixel = arguments[0], parentEdge = arguments[1], hotPixelVertexIndex = arguments[2];
+        this._hotPixel = hotPixel;
+        this._parentEdge = parentEdge;
+        this._hotPixelVertexIndex = hotPixelVertexIndex;
+    }
+    select() {
+        if (arguments.length === 2 && Number.isInteger(arguments[1]) && arguments[0] instanceof (0, _monotoneChainJsDefault.default)) {
+            const mc = arguments[0], startIndex = arguments[1];
+            const ss = mc.getContext();
+            if (this._parentEdge === ss) {
+                if (startIndex === this._hotPixelVertexIndex || startIndex + 1 === this._hotPixelVertexIndex) return null;
+            }
+            this._isNodeAdded |= this._hotPixel.addSnappedNode(ss, startIndex);
+        } else return super.select.apply(this, arguments);
+    }
+    isNodeAdded() {
+        return this._isNodeAdded;
+    }
+}
+MCIndexPointSnapper.HotPixelSnapAction = HotPixelSnapAction;
+
+},{"../../index/chain/MonotoneChainSelectAction.js":"il549","../../index/chain/MonotoneChain.js":"5SbYX","../../index/ItemVisitor.js":"nuRea","@parcel/transformer-js/src/esmodule-helpers.js":"jnFvT"}],"il549":[function(require,module,exports,__globalThis) {
+var parcelHelpers = require("@parcel/transformer-js/src/esmodule-helpers.js");
+parcelHelpers.defineInteropFlag(exports);
+var _lineSegmentJs = require("../../geom/LineSegment.js");
+var _lineSegmentJsDefault = parcelHelpers.interopDefault(_lineSegmentJs);
+class MonotoneChainSelectAction {
+    constructor(){
+        MonotoneChainSelectAction.constructor_.apply(this, arguments);
+    }
+    static constructor_() {
+        this.selectedSegment = new (0, _lineSegmentJsDefault.default)();
+    }
+    select() {
+        if (arguments.length === 1) {
+            const seg = arguments[0];
+        } else if (arguments.length === 2) {
+            const mc = arguments[0], startIndex = arguments[1];
+            mc.getLineSegment(startIndex, this.selectedSegment);
+            this.select(this.selectedSegment);
+        }
+    }
+}
+exports.default = MonotoneChainSelectAction;
+
+},{"../../geom/LineSegment.js":"8Ncbv","@parcel/transformer-js/src/esmodule-helpers.js":"jnFvT"}],"esmGM":[function(require,module,exports,__globalThis) {
+var parcelHelpers = require("@parcel/transformer-js/src/esmodule-helpers.js");
+parcelHelpers.defineInteropFlag(exports);
+var _segmentIntersectorJs = require("./SegmentIntersector.js");
+var _segmentIntersectorJsDefault = parcelHelpers.interopDefault(_segmentIntersectorJs);
+var _arrayListJs = require("../../../../java/util/ArrayList.js");
+var _arrayListJsDefault = parcelHelpers.interopDefault(_arrayListJs);
+class InteriorIntersectionFinderAdder {
+    constructor(){
+        InteriorIntersectionFinderAdder.constructor_.apply(this, arguments);
+    }
+    static constructor_() {
+        this._li = null;
+        this._interiorIntersections = null;
+        const li = arguments[0];
+        this._li = li;
+        this._interiorIntersections = new (0, _arrayListJsDefault.default)();
+    }
+    isDone() {
+        return false;
+    }
+    processIntersections(e0, segIndex0, e1, segIndex1) {
+        if (e0 === e1 && segIndex0 === segIndex1) return null;
+        const p00 = e0.getCoordinates()[segIndex0];
+        const p01 = e0.getCoordinates()[segIndex0 + 1];
+        const p10 = e1.getCoordinates()[segIndex1];
+        const p11 = e1.getCoordinates()[segIndex1 + 1];
+        this._li.computeIntersection(p00, p01, p10, p11);
+        if (this._li.hasIntersection()) {
+            if (this._li.isInteriorIntersection()) {
+                for(let intIndex = 0; intIndex < this._li.getIntersectionNum(); intIndex++)this._interiorIntersections.add(this._li.getIntersection(intIndex));
+                e0.addIntersections(this._li, segIndex0, 0);
+                e1.addIntersections(this._li, segIndex1, 1);
+            }
+        }
+    }
+    getInteriorIntersections() {
+        return this._interiorIntersections;
+    }
+    get interfaces_() {
+        return [
+            (0, _segmentIntersectorJsDefault.default)
+        ];
+    }
+}
+exports.default = InteriorIntersectionFinderAdder;
+
+},{"./SegmentIntersector.js":"jNast","../../../../java/util/ArrayList.js":"gGAQZ","@parcel/transformer-js/src/esmodule-helpers.js":"jnFvT"}],"jNast":[function(require,module,exports,__globalThis) {
+var parcelHelpers = require("@parcel/transformer-js/src/esmodule-helpers.js");
+parcelHelpers.defineInteropFlag(exports);
+class SegmentIntersector {
+    isDone() {}
+    processIntersections(e0, segIndex0, e1, segIndex1) {}
+}
+exports.default = SegmentIntersector;
+
+},{"@parcel/transformer-js/src/esmodule-helpers.js":"jnFvT"}],"a6cSc":[function(require,module,exports,__globalThis) {
+var parcelHelpers = require("@parcel/transformer-js/src/esmodule-helpers.js");
+parcelHelpers.defineInteropFlag(exports);
+var _locationJs = require("../../geom/Location.js");
+var _locationJsDefault = parcelHelpers.interopDefault(_locationJs);
+var _bufferSubgraphJs = require("./BufferSubgraph.js");
+var _bufferSubgraphJsDefault = parcelHelpers.interopDefault(_bufferSubgraphJs);
+var _positionJs = require("../../geomgraph/Position.js");
+var _positionJsDefault = parcelHelpers.interopDefault(_positionJs);
+var _mcindexNoderJs = require("../../noding/MCIndexNoder.js");
+var _mcindexNoderJsDefault = parcelHelpers.interopDefault(_mcindexNoderJs);
+var _offsetCurveBuilderJs = require("./OffsetCurveBuilder.js");
+var _offsetCurveBuilderJsDefault = parcelHelpers.interopDefault(_offsetCurveBuilderJs);
+var _collectionsJs = require("../../../../../java/util/Collections.js");
+var _collectionsJsDefault = parcelHelpers.interopDefault(_collectionsJs);
+var _labelJs = require("../../geomgraph/Label.js");
+var _labelJsDefault = parcelHelpers.interopDefault(_labelJs);
+var _planarGraphJs = require("../../geomgraph/PlanarGraph.js");
+var _planarGraphJsDefault = parcelHelpers.interopDefault(_planarGraphJs);
+var _polygonBuilderJs = require("../overlay/PolygonBuilder.js");
+var _polygonBuilderJsDefault = parcelHelpers.interopDefault(_polygonBuilderJs);
+var _geometryFactoryJs = require("../../geom/GeometryFactory.js");
+var _geometryFactoryJsDefault = parcelHelpers.interopDefault(_geometryFactoryJs);
+var _subgraphDepthLocaterJs = require("./SubgraphDepthLocater.js");
+var _subgraphDepthLocaterJsDefault = parcelHelpers.interopDefault(_subgraphDepthLocaterJs);
+var _offsetCurveSetBuilderJs = require("./OffsetCurveSetBuilder.js");
+var _offsetCurveSetBuilderJsDefault = parcelHelpers.interopDefault(_offsetCurveSetBuilderJs);
+var _overlayNodeFactoryJs = require("../overlay/OverlayNodeFactory.js");
+var _overlayNodeFactoryJsDefault = parcelHelpers.interopDefault(_overlayNodeFactoryJs);
+var _edgeListJs = require("../../geomgraph/EdgeList.js");
+var _edgeListJsDefault = parcelHelpers.interopDefault(_edgeListJs);
+var _arrayListJs = require("../../../../../java/util/ArrayList.js");
+var _arrayListJsDefault = parcelHelpers.interopDefault(_arrayListJs);
+var _robustLineIntersectorJs = require("../../algorithm/RobustLineIntersector.js");
+var _robustLineIntersectorJsDefault = parcelHelpers.interopDefault(_robustLineIntersectorJs);
+var _intersectionAdderJs = require("../../noding/IntersectionAdder.js");
+var _intersectionAdderJsDefault = parcelHelpers.interopDefault(_intersectionAdderJs);
+var _edgeJs = require("../../geomgraph/Edge.js");
+var _edgeJsDefault = parcelHelpers.interopDefault(_edgeJs);
+class BufferBuilder {
+    constructor(){
+        BufferBuilder.constructor_.apply(this, arguments);
+    }
+    static constructor_() {
+        this._bufParams = null;
+        this._workingPrecisionModel = null;
+        this._workingNoder = null;
+        this._geomFact = null;
+        this._graph = null;
+        this._edgeList = new (0, _edgeListJsDefault.default)();
+        const bufParams = arguments[0];
+        this._bufParams = bufParams;
+    }
+    static convertSegStrings(it) {
+        const fact = new (0, _geometryFactoryJsDefault.default)();
+        const lines = new (0, _arrayListJsDefault.default)();
+        while(it.hasNext()){
+            const ss = it.next();
+            const line = fact.createLineString(ss.getCoordinates());
+            lines.add(line);
+        }
+        return fact.buildGeometry(lines);
+    }
+    static depthDelta(label) {
+        const lLoc = label.getLocation(0, (0, _positionJsDefault.default).LEFT);
+        const rLoc = label.getLocation(0, (0, _positionJsDefault.default).RIGHT);
+        if (lLoc === (0, _locationJsDefault.default).INTERIOR && rLoc === (0, _locationJsDefault.default).EXTERIOR) return 1;
+        else if (lLoc === (0, _locationJsDefault.default).EXTERIOR && rLoc === (0, _locationJsDefault.default).INTERIOR) return -1;
+        return 0;
+    }
+    createEmptyResultGeometry() {
+        const emptyGeom = this._geomFact.createPolygon();
+        return emptyGeom;
+    }
+    getNoder(precisionModel) {
+        if (this._workingNoder !== null) return this._workingNoder;
+        const noder = new (0, _mcindexNoderJsDefault.default)();
+        const li = new (0, _robustLineIntersectorJsDefault.default)();
+        li.setPrecisionModel(precisionModel);
+        noder.setSegmentIntersector(new (0, _intersectionAdderJsDefault.default)(li));
+        return noder;
+    }
+    buffer(g, distance) {
+        let precisionModel = this._workingPrecisionModel;
+        if (precisionModel === null) precisionModel = g.getPrecisionModel();
+        this._geomFact = g.getFactory();
+        const curveBuilder = new (0, _offsetCurveBuilderJsDefault.default)(precisionModel, this._bufParams);
+        const curveSetBuilder = new (0, _offsetCurveSetBuilderJsDefault.default)(g, distance, curveBuilder);
+        const bufferSegStrList = curveSetBuilder.getCurves();
+        if (bufferSegStrList.size() <= 0) return this.createEmptyResultGeometry();
+        this.computeNodedEdges(bufferSegStrList, precisionModel);
+        this._graph = new (0, _planarGraphJsDefault.default)(new (0, _overlayNodeFactoryJsDefault.default)());
+        this._graph.addEdges(this._edgeList.getEdges());
+        const subgraphList = this.createSubgraphs(this._graph);
+        const polyBuilder = new (0, _polygonBuilderJsDefault.default)(this._geomFact);
+        this.buildSubgraphs(subgraphList, polyBuilder);
+        const resultPolyList = polyBuilder.getPolygons();
+        if (resultPolyList.size() <= 0) return this.createEmptyResultGeometry();
+        const resultGeom = this._geomFact.buildGeometry(resultPolyList);
+        return resultGeom;
+    }
+    computeNodedEdges(bufferSegStrList, precisionModel) {
+        const noder = this.getNoder(precisionModel);
+        noder.computeNodes(bufferSegStrList);
+        const nodedSegStrings = noder.getNodedSubstrings();
+        for(let i = nodedSegStrings.iterator(); i.hasNext();){
+            const segStr = i.next();
+            const pts = segStr.getCoordinates();
+            if (pts.length === 2 && pts[0].equals2D(pts[1])) continue;
+            const oldLabel = segStr.getData();
+            const edge = new (0, _edgeJsDefault.default)(segStr.getCoordinates(), new (0, _labelJsDefault.default)(oldLabel));
+            this.insertUniqueEdge(edge);
+        }
+    }
+    setNoder(noder) {
+        this._workingNoder = noder;
+    }
+    setWorkingPrecisionModel(pm) {
+        this._workingPrecisionModel = pm;
+    }
+    insertUniqueEdge(e) {
+        const existingEdge = this._edgeList.findEqualEdge(e);
+        if (existingEdge !== null) {
+            const existingLabel = existingEdge.getLabel();
+            let labelToMerge = e.getLabel();
+            if (!existingEdge.isPointwiseEqual(e)) {
+                labelToMerge = new (0, _labelJsDefault.default)(e.getLabel());
+                labelToMerge.flip();
+            }
+            existingLabel.merge(labelToMerge);
+            const mergeDelta = BufferBuilder.depthDelta(labelToMerge);
+            const existingDelta = existingEdge.getDepthDelta();
+            const newDelta = existingDelta + mergeDelta;
+            existingEdge.setDepthDelta(newDelta);
+        } else {
+            this._edgeList.add(e);
+            e.setDepthDelta(BufferBuilder.depthDelta(e.getLabel()));
+        }
+    }
+    buildSubgraphs(subgraphList, polyBuilder) {
+        const processedGraphs = new (0, _arrayListJsDefault.default)();
+        for(let i = subgraphList.iterator(); i.hasNext();){
+            const subgraph = i.next();
+            const p = subgraph.getRightmostCoordinate();
+            const locater = new (0, _subgraphDepthLocaterJsDefault.default)(processedGraphs);
+            const outsideDepth = locater.getDepth(p);
+            subgraph.computeDepth(outsideDepth);
+            subgraph.findResultEdges();
+            processedGraphs.add(subgraph);
+            polyBuilder.add(subgraph.getDirectedEdges(), subgraph.getNodes());
+        }
+    }
+    createSubgraphs(graph) {
+        const subgraphList = new (0, _arrayListJsDefault.default)();
+        for(let i = graph.getNodes().iterator(); i.hasNext();){
+            const node = i.next();
+            if (!node.isVisited()) {
+                const subgraph = new (0, _bufferSubgraphJsDefault.default)();
+                subgraph.create(node);
+                subgraphList.add(subgraph);
+            }
+        }
+        (0, _collectionsJsDefault.default).sort(subgraphList, (0, _collectionsJsDefault.default).reverseOrder());
+        return subgraphList;
+    }
+}
+exports.default = BufferBuilder;
+
+},{"../../geom/Location.js":"9aPCX","./BufferSubgraph.js":"8yllK","../../geomgraph/Position.js":"13raO","../../noding/MCIndexNoder.js":"1deq0","./OffsetCurveBuilder.js":"aBCRI","../../../../../java/util/Collections.js":"c5dcW","../../geomgraph/Label.js":"dJJOo","../../geomgraph/PlanarGraph.js":"etG4v","../overlay/PolygonBuilder.js":"crM1Q","../../geom/GeometryFactory.js":"cGt0T","./SubgraphDepthLocater.js":"9iVKl","./OffsetCurveSetBuilder.js":"elu3d","../overlay/OverlayNodeFactory.js":"2jxBb","../../geomgraph/EdgeList.js":"cqdlm","../../../../../java/util/ArrayList.js":"gGAQZ","../../algorithm/RobustLineIntersector.js":"kLdG9","../../noding/IntersectionAdder.js":"dL4Dk","../../geomgraph/Edge.js":"gQhhu","@parcel/transformer-js/src/esmodule-helpers.js":"jnFvT"}],"8yllK":[function(require,module,exports,__globalThis) {
+var parcelHelpers = require("@parcel/transformer-js/src/esmodule-helpers.js");
+parcelHelpers.defineInteropFlag(exports);
+var _hashSetJs = require("../../../../../java/util/HashSet.js");
+var _hashSetJsDefault = parcelHelpers.interopDefault(_hashSetJs);
+var _positionJs = require("../../geomgraph/Position.js");
+var _positionJsDefault = parcelHelpers.interopDefault(_positionJs);
+var _stackJs = require("../../../../../java/util/Stack.js");
+var _stackJsDefault = parcelHelpers.interopDefault(_stackJs);
+var _rightmostEdgeFinderJs = require("./RightmostEdgeFinder.js");
+var _rightmostEdgeFinderJsDefault = parcelHelpers.interopDefault(_rightmostEdgeFinderJs);
+var _topologyExceptionJs = require("../../geom/TopologyException.js");
+var _topologyExceptionJsDefault = parcelHelpers.interopDefault(_topologyExceptionJs);
+var _linkedListJs = require("../../../../../java/util/LinkedList.js");
+var _linkedListJsDefault = parcelHelpers.interopDefault(_linkedListJs);
+var _comparableJs = require("../../../../../java/lang/Comparable.js");
+var _comparableJsDefault = parcelHelpers.interopDefault(_comparableJs);
+var _arrayListJs = require("../../../../../java/util/ArrayList.js");
+var _arrayListJsDefault = parcelHelpers.interopDefault(_arrayListJs);
+var _envelopeJs = require("../../geom/Envelope.js");
+var _envelopeJsDefault = parcelHelpers.interopDefault(_envelopeJs);
+class BufferSubgraph {
+    constructor(){
+        BufferSubgraph.constructor_.apply(this, arguments);
+    }
+    static constructor_() {
+        this._finder = null;
+        this._dirEdgeList = new (0, _arrayListJsDefault.default)();
+        this._nodes = new (0, _arrayListJsDefault.default)();
+        this._rightMostCoord = null;
+        this._env = null;
+        this._finder = new (0, _rightmostEdgeFinderJsDefault.default)();
+    }
+    clearVisitedEdges() {
+        for(let it = this._dirEdgeList.iterator(); it.hasNext();){
+            const de = it.next();
+            de.setVisited(false);
+        }
+    }
+    compareTo(o) {
+        const graph = o;
+        if (this._rightMostCoord.x < graph._rightMostCoord.x) return -1;
+        if (this._rightMostCoord.x > graph._rightMostCoord.x) return 1;
+        return 0;
+    }
+    getEnvelope() {
+        if (this._env === null) {
+            const edgeEnv = new (0, _envelopeJsDefault.default)();
+            for(let it = this._dirEdgeList.iterator(); it.hasNext();){
+                const dirEdge = it.next();
+                const pts = dirEdge.getEdge().getCoordinates();
+                for(let i = 0; i < pts.length - 1; i++)edgeEnv.expandToInclude(pts[i]);
+            }
+            this._env = edgeEnv;
+        }
+        return this._env;
+    }
+    addReachable(startNode) {
+        const nodeStack = new (0, _stackJsDefault.default)();
+        nodeStack.add(startNode);
+        while(!nodeStack.empty()){
+            const node = nodeStack.pop();
+            this.add(node, nodeStack);
+        }
+    }
+    copySymDepths(de) {
+        const sym = de.getSym();
+        sym.setDepth((0, _positionJsDefault.default).LEFT, de.getDepth((0, _positionJsDefault.default).RIGHT));
+        sym.setDepth((0, _positionJsDefault.default).RIGHT, de.getDepth((0, _positionJsDefault.default).LEFT));
+    }
+    add(node, nodeStack) {
+        node.setVisited(true);
+        this._nodes.add(node);
+        for(let i = node.getEdges().iterator(); i.hasNext();){
+            const de = i.next();
+            this._dirEdgeList.add(de);
+            const sym = de.getSym();
+            const symNode = sym.getNode();
+            if (!symNode.isVisited()) nodeStack.push(symNode);
+        }
+    }
+    getRightmostCoordinate() {
+        return this._rightMostCoord;
+    }
+    computeNodeDepth(n) {
+        let startEdge = null;
+        for(let i = n.getEdges().iterator(); i.hasNext();){
+            const de = i.next();
+            if (de.isVisited() || de.getSym().isVisited()) {
+                startEdge = de;
+                break;
+            }
+        }
+        if (startEdge === null) throw new (0, _topologyExceptionJsDefault.default)('unable to find edge to compute depths at ' + n.getCoordinate());
+        n.getEdges().computeDepths(startEdge);
+        for(let i = n.getEdges().iterator(); i.hasNext();){
+            const de = i.next();
+            de.setVisited(true);
+            this.copySymDepths(de);
+        }
+    }
+    computeDepth(outsideDepth) {
+        this.clearVisitedEdges();
+        const de = this._finder.getEdge();
+        const n = de.getNode();
+        const label = de.getLabel();
+        de.setEdgeDepths((0, _positionJsDefault.default).RIGHT, outsideDepth);
+        this.copySymDepths(de);
+        this.computeDepths(de);
+    }
+    create(node) {
+        this.addReachable(node);
+        this._finder.findEdge(this._dirEdgeList);
+        this._rightMostCoord = this._finder.getCoordinate();
+    }
+    findResultEdges() {
+        for(let it = this._dirEdgeList.iterator(); it.hasNext();){
+            const de = it.next();
+            if (de.getDepth((0, _positionJsDefault.default).RIGHT) >= 1 && de.getDepth((0, _positionJsDefault.default).LEFT) <= 0 && !de.isInteriorAreaEdge()) de.setInResult(true);
+        }
+    }
+    computeDepths(startEdge) {
+        const nodesVisited = new (0, _hashSetJsDefault.default)();
+        const nodeQueue = new (0, _linkedListJsDefault.default)();
+        const startNode = startEdge.getNode();
+        nodeQueue.addLast(startNode);
+        nodesVisited.add(startNode);
+        startEdge.setVisited(true);
+        while(!nodeQueue.isEmpty()){
+            const n = nodeQueue.removeFirst();
+            nodesVisited.add(n);
+            this.computeNodeDepth(n);
+            for(let i = n.getEdges().iterator(); i.hasNext();){
+                const de = i.next();
+                const sym = de.getSym();
+                if (sym.isVisited()) continue;
+                const adjNode = sym.getNode();
+                if (!nodesVisited.contains(adjNode)) {
+                    nodeQueue.addLast(adjNode);
+                    nodesVisited.add(adjNode);
+                }
+            }
+        }
+    }
+    getNodes() {
+        return this._nodes;
+    }
+    getDirectedEdges() {
+        return this._dirEdgeList;
+    }
+    get interfaces_() {
+        return [
+            (0, _comparableJsDefault.default)
+        ];
+    }
+}
+exports.default = BufferSubgraph;
+
+},{"../../../../../java/util/HashSet.js":"a1U62","../../geomgraph/Position.js":"13raO","../../../../../java/util/Stack.js":"7AeBO","./RightmostEdgeFinder.js":"1uf1p","../../geom/TopologyException.js":"bOVA5","../../../../../java/util/LinkedList.js":"iokEz","../../../../../java/lang/Comparable.js":"WFeEu","../../../../../java/util/ArrayList.js":"gGAQZ","../../geom/Envelope.js":"h2zeM","@parcel/transformer-js/src/esmodule-helpers.js":"jnFvT"}],"7AeBO":[function(require,module,exports,__globalThis) {
+var parcelHelpers = require("@parcel/transformer-js/src/esmodule-helpers.js");
+parcelHelpers.defineInteropFlag(exports);
+var _emptyStackExceptionJs = require("./EmptyStackException.js");
+var _emptyStackExceptionJsDefault = parcelHelpers.interopDefault(_emptyStackExceptionJs);
+var _indexOutOfBoundsExceptionJs = require("../lang/IndexOutOfBoundsException.js");
+var _indexOutOfBoundsExceptionJsDefault = parcelHelpers.interopDefault(_indexOutOfBoundsExceptionJs);
+var _listJs = require("./List.js");
+var _listJsDefault = parcelHelpers.interopDefault(_listJs);
+class Stack extends (0, _listJsDefault.default) {
+    constructor(){
+        super();
+        this.array = [];
+    }
+    add(e) {
+        this.array.push(e);
+        return true;
+    }
+    get(index) {
+        if (index < 0 || index >= this.size()) throw new (0, _indexOutOfBoundsExceptionJsDefault.default)();
+        return this.array[index];
+    }
+    /**
+   * Pushes an item onto the top of this stack.
+   * @param {Object} e
+   * @return {Object}
+   */ push(e) {
+        this.array.push(e);
+        return e;
+    }
+    /**
+   * Removes the object at the top of this stack and returns that object as the value of this function.
+   * @return {Object}
+   */ pop() {
+        if (this.array.length === 0) throw new (0, _emptyStackExceptionJsDefault.default)();
+        return this.array.pop();
+    }
+    /**
+   * Looks at the object at the top of this stack without removing it from the
+   * stack.
+   * @return {Object}
+   */ peek() {
+        if (this.array.length === 0) throw new (0, _emptyStackExceptionJsDefault.default)();
+        return this.array[this.array.length - 1];
+    }
+    /**
+   * Tests if this stack is empty.
+   * @return {boolean} true if and only if this stack contains no items; false
+   *         otherwise.
+   */ empty() {
+        return this.array.length === 0;
+    }
+    /**
+   * @return {boolean}
+   */ isEmpty() {
+        return this.empty();
+    }
+    /**
+   * Returns the 1-based position where an object is on this stack. If the object
+   * o occurs as an item in this stack, this method returns the distance from the
+   * top of the stack of the occurrence nearest the top of the stack; the topmost
+   * item on the stack is considered to be at distance 1. The equals method is
+   * used to compare o to the items in this stack.
+   *
+   * NOTE: does not currently actually use equals. (=== is used)
+   *
+   * @param {Object} o
+   * @return {number} the 1-based position from the top of the stack where the
+   *         object is located; the return value -1 indicates that the object is
+   *         not on the stack.
+   */ search(o) {
+        return this.array.indexOf(o);
+    }
+    /**
+   * @return {number}
+   */ size() {
+        return this.array.length;
+    }
+    /**
+   * @return {Array}
+   */ toArray() {
+        return this.array.slice();
+    }
+}
+exports.default = Stack;
+
+},{"./EmptyStackException.js":"lzH4a","../lang/IndexOutOfBoundsException.js":"bQ4AR","./List.js":"7jAhK","@parcel/transformer-js/src/esmodule-helpers.js":"jnFvT"}],"lzH4a":[function(require,module,exports,__globalThis) {
+var parcelHelpers = require("@parcel/transformer-js/src/esmodule-helpers.js");
+parcelHelpers.defineInteropFlag(exports);
+var _exceptionJs = require("../lang/Exception.js");
+var _exceptionJsDefault = parcelHelpers.interopDefault(_exceptionJs);
+class EmptyStackException extends (0, _exceptionJsDefault.default) {
+    constructor(message){
+        super(message);
+        this.name = Object.keys({
+            EmptyStackException
+        })[0];
+    }
+}
+exports.default = EmptyStackException;
+
+},{"../lang/Exception.js":"8tbsL","@parcel/transformer-js/src/esmodule-helpers.js":"jnFvT"}],"1uf1p":[function(require,module,exports,__globalThis) {
+var parcelHelpers = require("@parcel/transformer-js/src/esmodule-helpers.js");
+parcelHelpers.defineInteropFlag(exports);
+var _positionJs = require("../../geomgraph/Position.js");
+var _positionJsDefault = parcelHelpers.interopDefault(_positionJs);
+var _orientationJs = require("../../algorithm/Orientation.js");
+var _orientationJsDefault = parcelHelpers.interopDefault(_orientationJs);
+var _assertJs = require("../../util/Assert.js");
+var _assertJsDefault = parcelHelpers.interopDefault(_assertJs);
+class RightmostEdgeFinder {
+    constructor(){
+        RightmostEdgeFinder.constructor_.apply(this, arguments);
+    }
+    static constructor_() {
+        this._minIndex = -1;
+        this._minCoord = null;
+        this._minDe = null;
+        this._orientedDe = null;
+    }
+    getCoordinate() {
+        return this._minCoord;
+    }
+    getRightmostSide(de, index) {
+        let side = this.getRightmostSideOfSegment(de, index);
+        if (side < 0) side = this.getRightmostSideOfSegment(de, index - 1);
+        if (side < 0) {
+            this._minCoord = null;
+            this.checkForRightmostCoordinate(de);
+        }
+        return side;
+    }
+    findRightmostEdgeAtVertex() {
+        const pts = this._minDe.getEdge().getCoordinates();
+        (0, _assertJsDefault.default).isTrue(this._minIndex > 0 && this._minIndex < pts.length, 'rightmost point expected to be interior vertex of edge');
+        const pPrev = pts[this._minIndex - 1];
+        const pNext = pts[this._minIndex + 1];
+        const orientation = (0, _orientationJsDefault.default).index(this._minCoord, pNext, pPrev);
+        let usePrev = false;
+        if (pPrev.y < this._minCoord.y && pNext.y < this._minCoord.y && orientation === (0, _orientationJsDefault.default).COUNTERCLOCKWISE) usePrev = true;
+        else if (pPrev.y > this._minCoord.y && pNext.y > this._minCoord.y && orientation === (0, _orientationJsDefault.default).CLOCKWISE) usePrev = true;
+        if (usePrev) this._minIndex = this._minIndex - 1;
+    }
+    getRightmostSideOfSegment(de, i) {
+        const e = de.getEdge();
+        const coord = e.getCoordinates();
+        if (i < 0 || i + 1 >= coord.length) return -1;
+        if (coord[i].y === coord[i + 1].y) return -1;
+        let pos = (0, _positionJsDefault.default).LEFT;
+        if (coord[i].y < coord[i + 1].y) pos = (0, _positionJsDefault.default).RIGHT;
+        return pos;
+    }
+    getEdge() {
+        return this._orientedDe;
+    }
+    checkForRightmostCoordinate(de) {
+        const coord = de.getEdge().getCoordinates();
+        for(let i = 0; i < coord.length - 1; i++)if (this._minCoord === null || coord[i].x > this._minCoord.x) {
+            this._minDe = de;
+            this._minIndex = i;
+            this._minCoord = coord[i];
+        }
+    }
+    findRightmostEdgeAtNode() {
+        const node = this._minDe.getNode();
+        const star = node.getEdges();
+        this._minDe = star.getRightmostEdge();
+        if (!this._minDe.isForward()) {
+            this._minDe = this._minDe.getSym();
+            this._minIndex = this._minDe.getEdge().getCoordinates().length - 1;
+        }
+    }
+    findEdge(dirEdgeList) {
+        for(let i = dirEdgeList.iterator(); i.hasNext();){
+            const de = i.next();
+            if (!de.isForward()) continue;
+            this.checkForRightmostCoordinate(de);
+        }
+        (0, _assertJsDefault.default).isTrue(this._minIndex !== 0 || this._minCoord.equals(this._minDe.getCoordinate()), 'inconsistency in rightmost processing');
+        if (this._minIndex === 0) this.findRightmostEdgeAtNode();
+        else this.findRightmostEdgeAtVertex();
+        this._orientedDe = this._minDe;
+        const rightmostSide = this.getRightmostSide(this._minDe, this._minIndex);
+        if (rightmostSide === (0, _positionJsDefault.default).LEFT) this._orientedDe = this._minDe.getSym();
+    }
+}
+exports.default = RightmostEdgeFinder;
+
+},{"../../geomgraph/Position.js":"13raO","../../algorithm/Orientation.js":"avl08","../../util/Assert.js":"1vSRy","@parcel/transformer-js/src/esmodule-helpers.js":"jnFvT"}],"iokEz":[function(require,module,exports,__globalThis) {
+var parcelHelpers = require("@parcel/transformer-js/src/esmodule-helpers.js");
+parcelHelpers.defineInteropFlag(exports);
+class LinkedList {
+    constructor(){
+        this.array = [];
+    }
+    addLast(e) {
+        this.array.push(e);
+    }
+    removeFirst() {
+        return this.array.shift();
+    }
+    isEmpty() {
+        return this.array.length === 0;
+    }
+}
+exports.default = LinkedList;
+
+},{"@parcel/transformer-js/src/esmodule-helpers.js":"jnFvT"}],"aBCRI":[function(require,module,exports,__globalThis) {
+var parcelHelpers = require("@parcel/transformer-js/src/esmodule-helpers.js");
+parcelHelpers.defineInteropFlag(exports);
+var _bufferParametersJs = require("./BufferParameters.js");
+var _bufferParametersJsDefault = parcelHelpers.interopDefault(_bufferParametersJs);
+var _positionJs = require("../../geomgraph/Position.js");
+var _positionJsDefault = parcelHelpers.interopDefault(_positionJs);
+var _coordinateJs = require("../../geom/Coordinate.js");
+var _coordinateJsDefault = parcelHelpers.interopDefault(_coordinateJs);
+var _bufferInputLineSimplifierJs = require("./BufferInputLineSimplifier.js");
+var _bufferInputLineSimplifierJsDefault = parcelHelpers.interopDefault(_bufferInputLineSimplifierJs);
+var _coordinateArraysJs = require("../../geom/CoordinateArrays.js");
+var _coordinateArraysJsDefault = parcelHelpers.interopDefault(_coordinateArraysJs);
+var _offsetSegmentGeneratorJs = require("./OffsetSegmentGenerator.js");
+var _offsetSegmentGeneratorJsDefault = parcelHelpers.interopDefault(_offsetSegmentGeneratorJs);
+class OffsetCurveBuilder {
+    constructor(){
+        OffsetCurveBuilder.constructor_.apply(this, arguments);
+    }
+    static constructor_() {
+        this._distance = 0.0;
+        this._precisionModel = null;
+        this._bufParams = null;
+        const precisionModel = arguments[0], bufParams = arguments[1];
+        this._precisionModel = precisionModel;
+        this._bufParams = bufParams;
+    }
+    static copyCoordinates(pts) {
+        const copy = new Array(pts.length).fill(null);
+        for(let i = 0; i < copy.length; i++)copy[i] = new (0, _coordinateJsDefault.default)(pts[i]);
+        return copy;
+    }
+    getOffsetCurve(inputPts, distance) {
+        this._distance = distance;
+        if (distance === 0.0) return null;
+        const isRightSide = distance < 0.0;
+        const posDistance = Math.abs(distance);
+        const segGen = this.getSegGen(posDistance);
+        if (inputPts.length <= 1) this.computePointCurve(inputPts[0], segGen);
+        else this.computeOffsetCurve(inputPts, isRightSide, segGen);
+        const curvePts = segGen.getCoordinates();
+        if (isRightSide) (0, _coordinateArraysJsDefault.default).reverse(curvePts);
+        return curvePts;
+    }
+    computeSingleSidedBufferCurve(inputPts, isRightSide, segGen) {
+        const distTol = this.simplifyTolerance(this._distance);
+        if (isRightSide) {
+            segGen.addSegments(inputPts, true);
+            const simp2 = (0, _bufferInputLineSimplifierJsDefault.default).simplify(inputPts, -distTol);
+            const n2 = simp2.length - 1;
+            segGen.initSideSegments(simp2[n2], simp2[n2 - 1], (0, _positionJsDefault.default).LEFT);
+            segGen.addFirstSegment();
+            for(let i = n2 - 2; i >= 0; i--)segGen.addNextSegment(simp2[i], true);
+        } else {
+            segGen.addSegments(inputPts, false);
+            const simp1 = (0, _bufferInputLineSimplifierJsDefault.default).simplify(inputPts, distTol);
+            const n1 = simp1.length - 1;
+            segGen.initSideSegments(simp1[0], simp1[1], (0, _positionJsDefault.default).LEFT);
+            segGen.addFirstSegment();
+            for(let i = 2; i <= n1; i++)segGen.addNextSegment(simp1[i], true);
+        }
+        segGen.addLastSegment();
+        segGen.closeRing();
+    }
+    computeRingBufferCurve(inputPts, side, segGen) {
+        let distTol = this.simplifyTolerance(this._distance);
+        if (side === (0, _positionJsDefault.default).RIGHT) distTol = -distTol;
+        const simp = (0, _bufferInputLineSimplifierJsDefault.default).simplify(inputPts, distTol);
+        const n = simp.length - 1;
+        segGen.initSideSegments(simp[n - 1], simp[0], side);
+        for(let i = 1; i <= n; i++){
+            const addStartPoint = i !== 1;
+            segGen.addNextSegment(simp[i], addStartPoint);
+        }
+        segGen.closeRing();
+    }
+    computeLineBufferCurve(inputPts, segGen) {
+        const distTol = this.simplifyTolerance(this._distance);
+        const simp1 = (0, _bufferInputLineSimplifierJsDefault.default).simplify(inputPts, distTol);
+        const n1 = simp1.length - 1;
+        segGen.initSideSegments(simp1[0], simp1[1], (0, _positionJsDefault.default).LEFT);
+        for(let i = 2; i <= n1; i++)segGen.addNextSegment(simp1[i], true);
+        segGen.addLastSegment();
+        segGen.addLineEndCap(simp1[n1 - 1], simp1[n1]);
+        const simp2 = (0, _bufferInputLineSimplifierJsDefault.default).simplify(inputPts, -distTol);
+        const n2 = simp2.length - 1;
+        segGen.initSideSegments(simp2[n2], simp2[n2 - 1], (0, _positionJsDefault.default).LEFT);
+        for(let i = n2 - 2; i >= 0; i--)segGen.addNextSegment(simp2[i], true);
+        segGen.addLastSegment();
+        segGen.addLineEndCap(simp2[1], simp2[0]);
+        segGen.closeRing();
+    }
+    computePointCurve(pt, segGen) {
+        switch(this._bufParams.getEndCapStyle()){
+            case (0, _bufferParametersJsDefault.default).CAP_ROUND:
+                segGen.createCircle(pt);
+                break;
+            case (0, _bufferParametersJsDefault.default).CAP_SQUARE:
+                segGen.createSquare(pt);
+                break;
+        }
+    }
+    getLineCurve(inputPts, distance) {
+        this._distance = distance;
+        if (this.isLineOffsetEmpty(distance)) return null;
+        const posDistance = Math.abs(distance);
+        const segGen = this.getSegGen(posDistance);
+        if (inputPts.length <= 1) this.computePointCurve(inputPts[0], segGen);
+        else if (this._bufParams.isSingleSided()) {
+            const isRightSide = distance < 0.0;
+            this.computeSingleSidedBufferCurve(inputPts, isRightSide, segGen);
+        } else this.computeLineBufferCurve(inputPts, segGen);
+        const lineCoord = segGen.getCoordinates();
+        return lineCoord;
+    }
+    getBufferParameters() {
+        return this._bufParams;
+    }
+    simplifyTolerance(bufDistance) {
+        return bufDistance * this._bufParams.getSimplifyFactor();
+    }
+    getRingCurve(inputPts, side, distance) {
+        this._distance = distance;
+        if (inputPts.length <= 2) return this.getLineCurve(inputPts, distance);
+        if (distance === 0.0) return OffsetCurveBuilder.copyCoordinates(inputPts);
+        const segGen = this.getSegGen(distance);
+        this.computeRingBufferCurve(inputPts, side, segGen);
+        return segGen.getCoordinates();
+    }
+    computeOffsetCurve(inputPts, isRightSide, segGen) {
+        const distTol = this.simplifyTolerance(this._distance);
+        if (isRightSide) {
+            const simp2 = (0, _bufferInputLineSimplifierJsDefault.default).simplify(inputPts, -distTol);
+            const n2 = simp2.length - 1;
+            segGen.initSideSegments(simp2[n2], simp2[n2 - 1], (0, _positionJsDefault.default).LEFT);
+            segGen.addFirstSegment();
+            for(let i = n2 - 2; i >= 0; i--)segGen.addNextSegment(simp2[i], true);
+        } else {
+            const simp1 = (0, _bufferInputLineSimplifierJsDefault.default).simplify(inputPts, distTol);
+            const n1 = simp1.length - 1;
+            segGen.initSideSegments(simp1[0], simp1[1], (0, _positionJsDefault.default).LEFT);
+            segGen.addFirstSegment();
+            for(let i = 2; i <= n1; i++)segGen.addNextSegment(simp1[i], true);
+        }
+        segGen.addLastSegment();
+    }
+    isLineOffsetEmpty(distance) {
+        if (distance === 0.0) return true;
+        if (distance < 0.0 && !this._bufParams.isSingleSided()) return true;
+        return false;
+    }
+    getSegGen(distance) {
+        return new (0, _offsetSegmentGeneratorJsDefault.default)(this._precisionModel, this._bufParams, distance);
+    }
+}
+exports.default = OffsetCurveBuilder;
+
+},{"./BufferParameters.js":"idesX","../../geomgraph/Position.js":"13raO","../../geom/Coordinate.js":"ii2fh","./BufferInputLineSimplifier.js":"3wzkz","../../geom/CoordinateArrays.js":"lncg4","./OffsetSegmentGenerator.js":"dVlaz","@parcel/transformer-js/src/esmodule-helpers.js":"jnFvT"}],"3wzkz":[function(require,module,exports,__globalThis) {
+var parcelHelpers = require("@parcel/transformer-js/src/esmodule-helpers.js");
+parcelHelpers.defineInteropFlag(exports);
+var _coordinateListJs = require("../../geom/CoordinateList.js");
+var _coordinateListJsDefault = parcelHelpers.interopDefault(_coordinateListJs);
+var _orientationJs = require("../../algorithm/Orientation.js");
+var _orientationJsDefault = parcelHelpers.interopDefault(_orientationJs);
+var _distanceJs = require("../../algorithm/Distance.js");
+var _distanceJsDefault = parcelHelpers.interopDefault(_distanceJs);
+class BufferInputLineSimplifier {
+    constructor(){
+        BufferInputLineSimplifier.constructor_.apply(this, arguments);
+    }
+    static constructor_() {
+        this._inputLine = null;
+        this._distanceTol = null;
+        this._isDeleted = null;
+        this._angleOrientation = (0, _orientationJsDefault.default).COUNTERCLOCKWISE;
+        const inputLine = arguments[0];
+        this._inputLine = inputLine;
+    }
+    static simplify(inputLine, distanceTol) {
+        const simp = new BufferInputLineSimplifier(inputLine);
+        return simp.simplify(distanceTol);
+    }
+    isDeletable(i0, i1, i2, distanceTol) {
+        const p0 = this._inputLine[i0];
+        const p1 = this._inputLine[i1];
+        const p2 = this._inputLine[i2];
+        if (!this.isConcave(p0, p1, p2)) return false;
+        if (!this.isShallow(p0, p1, p2, distanceTol)) return false;
+        return this.isShallowSampled(p0, p1, i0, i2, distanceTol);
+    }
+    deleteShallowConcavities() {
+        let index = 1;
+        let midIndex = this.findNextNonDeletedIndex(index);
+        let lastIndex = this.findNextNonDeletedIndex(midIndex);
+        let isChanged = false;
+        while(lastIndex < this._inputLine.length){
+            let isMiddleVertexDeleted = false;
+            if (this.isDeletable(index, midIndex, lastIndex, this._distanceTol)) {
+                this._isDeleted[midIndex] = BufferInputLineSimplifier.DELETE;
+                isMiddleVertexDeleted = true;
+                isChanged = true;
+            }
+            if (isMiddleVertexDeleted) index = lastIndex;
+            else index = midIndex;
+            midIndex = this.findNextNonDeletedIndex(index);
+            lastIndex = this.findNextNonDeletedIndex(midIndex);
+        }
+        return isChanged;
+    }
+    isShallowConcavity(p0, p1, p2, distanceTol) {
+        const orientation = (0, _orientationJsDefault.default).index(p0, p1, p2);
+        const isAngleToSimplify = orientation === this._angleOrientation;
+        if (!isAngleToSimplify) return false;
+        const dist = (0, _distanceJsDefault.default).pointToSegment(p1, p0, p2);
+        return dist < distanceTol;
+    }
+    isShallowSampled(p0, p2, i0, i2, distanceTol) {
+        let inc = Math.trunc((i2 - i0) / BufferInputLineSimplifier.NUM_PTS_TO_CHECK);
+        if (inc <= 0) inc = 1;
+        for(let i = i0; i < i2; i += inc)if (!this.isShallow(p0, p2, this._inputLine[i], distanceTol)) return false;
+        return true;
+    }
+    isConcave(p0, p1, p2) {
+        const orientation = (0, _orientationJsDefault.default).index(p0, p1, p2);
+        const isConcave = orientation === this._angleOrientation;
+        return isConcave;
+    }
+    simplify(distanceTol) {
+        this._distanceTol = Math.abs(distanceTol);
+        if (distanceTol < 0) this._angleOrientation = (0, _orientationJsDefault.default).CLOCKWISE;
+        this._isDeleted = new Array(this._inputLine.length).fill(null);
+        let isChanged = false;
+        do isChanged = this.deleteShallowConcavities();
+        while (isChanged);
+        return this.collapseLine();
+    }
+    findNextNonDeletedIndex(index) {
+        let next = index + 1;
+        while(next < this._inputLine.length && this._isDeleted[next] === BufferInputLineSimplifier.DELETE)next++;
+        return next;
+    }
+    isShallow(p0, p1, p2, distanceTol) {
+        const dist = (0, _distanceJsDefault.default).pointToSegment(p1, p0, p2);
+        return dist < distanceTol;
+    }
+    collapseLine() {
+        const coordList = new (0, _coordinateListJsDefault.default)();
+        for(let i = 0; i < this._inputLine.length; i++)if (this._isDeleted[i] !== BufferInputLineSimplifier.DELETE) coordList.add(this._inputLine[i]);
+        return coordList.toCoordinateArray();
+    }
+}
+exports.default = BufferInputLineSimplifier;
+BufferInputLineSimplifier.INIT = 0;
+BufferInputLineSimplifier.DELETE = 1;
+BufferInputLineSimplifier.KEEP = 1;
+BufferInputLineSimplifier.NUM_PTS_TO_CHECK = 10;
+
+},{"../../geom/CoordinateList.js":"ibs54","../../algorithm/Orientation.js":"avl08","../../algorithm/Distance.js":"4ZaWr","@parcel/transformer-js/src/esmodule-helpers.js":"jnFvT"}],"dVlaz":[function(require,module,exports,__globalThis) {
+var parcelHelpers = require("@parcel/transformer-js/src/esmodule-helpers.js");
+parcelHelpers.defineInteropFlag(exports);
+var _bufferParametersJs = require("./BufferParameters.js");
+var _bufferParametersJsDefault = parcelHelpers.interopDefault(_bufferParametersJs);
+var _positionJs = require("../../geomgraph/Position.js");
+var _positionJsDefault = parcelHelpers.interopDefault(_positionJs);
+var _coordinateJs = require("../../geom/Coordinate.js");
+var _coordinateJsDefault = parcelHelpers.interopDefault(_coordinateJs);
+var _lineSegmentJs = require("../../geom/LineSegment.js");
+var _lineSegmentJsDefault = parcelHelpers.interopDefault(_lineSegmentJs);
+var _offsetSegmentStringJs = require("./OffsetSegmentString.js");
+var _offsetSegmentStringJsDefault = parcelHelpers.interopDefault(_offsetSegmentStringJs);
+var _orientationJs = require("../../algorithm/Orientation.js");
+var _orientationJsDefault = parcelHelpers.interopDefault(_orientationJs);
+var _intersectionJs = require("../../algorithm/Intersection.js");
+var _intersectionJsDefault = parcelHelpers.interopDefault(_intersectionJs);
+var _angleJs = require("../../algorithm/Angle.js");
+var _angleJsDefault = parcelHelpers.interopDefault(_angleJs);
+var _robustLineIntersectorJs = require("../../algorithm/RobustLineIntersector.js");
+var _robustLineIntersectorJsDefault = parcelHelpers.interopDefault(_robustLineIntersectorJs);
+class OffsetSegmentGenerator {
+    constructor(){
+        OffsetSegmentGenerator.constructor_.apply(this, arguments);
+    }
+    static constructor_() {
+        this._maxCurveSegmentError = 0.0;
+        this._filletAngleQuantum = null;
+        this._closingSegLengthFactor = 1;
+        this._segList = null;
+        this._distance = 0.0;
+        this._precisionModel = null;
+        this._bufParams = null;
+        this._li = null;
+        this._s0 = null;
+        this._s1 = null;
+        this._s2 = null;
+        this._seg0 = new (0, _lineSegmentJsDefault.default)();
+        this._seg1 = new (0, _lineSegmentJsDefault.default)();
+        this._offset0 = new (0, _lineSegmentJsDefault.default)();
+        this._offset1 = new (0, _lineSegmentJsDefault.default)();
+        this._side = 0;
+        this._hasNarrowConcaveAngle = false;
+        const precisionModel = arguments[0], bufParams = arguments[1], distance = arguments[2];
+        this._precisionModel = precisionModel;
+        this._bufParams = bufParams;
+        this._li = new (0, _robustLineIntersectorJsDefault.default)();
+        this._filletAngleQuantum = Math.PI / 2.0 / bufParams.getQuadrantSegments();
+        if (bufParams.getQuadrantSegments() >= 8 && bufParams.getJoinStyle() === (0, _bufferParametersJsDefault.default).JOIN_ROUND) this._closingSegLengthFactor = OffsetSegmentGenerator.MAX_CLOSING_SEG_LEN_FACTOR;
+        this.init(distance);
+    }
+    getCoordinates() {
+        const pts = this._segList.getCoordinates();
+        return pts;
+    }
+    addMitreJoin(p, offset0, offset1, distance) {
+        const intPt = (0, _intersectionJsDefault.default).intersection(offset0.p0, offset0.p1, offset1.p0, offset1.p1);
+        if (intPt !== null) {
+            const mitreRatio = distance <= 0.0 ? 1.0 : intPt.distance(p) / Math.abs(distance);
+            if (mitreRatio <= this._bufParams.getMitreLimit()) {
+                this._segList.addPt(intPt);
+                return null;
+            }
+        }
+        this.addLimitedMitreJoin(offset0, offset1, distance, this._bufParams.getMitreLimit());
+    }
+    addLastSegment() {
+        this._segList.addPt(this._offset1.p1);
+    }
+    initSideSegments(s1, s2, side) {
+        this._s1 = s1;
+        this._s2 = s2;
+        this._side = side;
+        this._seg1.setCoordinates(s1, s2);
+        this.computeOffsetSegment(this._seg1, side, this._distance, this._offset1);
+    }
+    addLimitedMitreJoin(offset0, offset1, distance, mitreLimit) {
+        const basePt = this._seg0.p1;
+        const ang0 = (0, _angleJsDefault.default).angle(basePt, this._seg0.p0);
+        const angDiff = (0, _angleJsDefault.default).angleBetweenOriented(this._seg0.p0, basePt, this._seg1.p1);
+        const angDiffHalf = angDiff / 2;
+        const midAng = (0, _angleJsDefault.default).normalize(ang0 + angDiffHalf);
+        const mitreMidAng = (0, _angleJsDefault.default).normalize(midAng + Math.PI);
+        const mitreDist = mitreLimit * distance;
+        const bevelDelta = mitreDist * Math.abs(Math.sin(angDiffHalf));
+        const bevelHalfLen = distance - bevelDelta;
+        const bevelMidX = basePt.x + mitreDist * Math.cos(mitreMidAng);
+        const bevelMidY = basePt.y + mitreDist * Math.sin(mitreMidAng);
+        const bevelMidPt = new (0, _coordinateJsDefault.default)(bevelMidX, bevelMidY);
+        const mitreMidLine = new (0, _lineSegmentJsDefault.default)(basePt, bevelMidPt);
+        const bevelEndLeft = mitreMidLine.pointAlongOffset(1.0, bevelHalfLen);
+        const bevelEndRight = mitreMidLine.pointAlongOffset(1.0, -bevelHalfLen);
+        if (this._side === (0, _positionJsDefault.default).LEFT) {
+            this._segList.addPt(bevelEndLeft);
+            this._segList.addPt(bevelEndRight);
+        } else {
+            this._segList.addPt(bevelEndRight);
+            this._segList.addPt(bevelEndLeft);
+        }
+    }
+    addDirectedFillet(p, startAngle, endAngle, direction, radius) {
+        const directionFactor = direction === (0, _orientationJsDefault.default).CLOCKWISE ? -1 : 1;
+        const totalAngle = Math.abs(startAngle - endAngle);
+        const nSegs = Math.trunc(totalAngle / this._filletAngleQuantum + 0.5);
+        if (nSegs < 1) return null;
+        const angleInc = totalAngle / nSegs;
+        const pt = new (0, _coordinateJsDefault.default)();
+        for(let i = 0; i < nSegs; i++){
+            const angle = startAngle + directionFactor * i * angleInc;
+            pt.x = p.x + radius * Math.cos(angle);
+            pt.y = p.y + radius * Math.sin(angle);
+            this._segList.addPt(pt);
+        }
+    }
+    computeOffsetSegment(seg, side, distance, offset) {
+        const sideSign = side === (0, _positionJsDefault.default).LEFT ? 1 : -1;
+        const dx = seg.p1.x - seg.p0.x;
+        const dy = seg.p1.y - seg.p0.y;
+        const len = Math.sqrt(dx * dx + dy * dy);
+        const ux = sideSign * distance * dx / len;
+        const uy = sideSign * distance * dy / len;
+        offset.p0.x = seg.p0.x - uy;
+        offset.p0.y = seg.p0.y + ux;
+        offset.p1.x = seg.p1.x - uy;
+        offset.p1.y = seg.p1.y + ux;
+    }
+    addInsideTurn(orientation, addStartPoint) {
+        this._li.computeIntersection(this._offset0.p0, this._offset0.p1, this._offset1.p0, this._offset1.p1);
+        if (this._li.hasIntersection()) this._segList.addPt(this._li.getIntersection(0));
+        else {
+            this._hasNarrowConcaveAngle = true;
+            if (this._offset0.p1.distance(this._offset1.p0) < this._distance * OffsetSegmentGenerator.INSIDE_TURN_VERTEX_SNAP_DISTANCE_FACTOR) this._segList.addPt(this._offset0.p1);
+            else {
+                this._segList.addPt(this._offset0.p1);
+                if (this._closingSegLengthFactor > 0) {
+                    const mid0 = new (0, _coordinateJsDefault.default)((this._closingSegLengthFactor * this._offset0.p1.x + this._s1.x) / (this._closingSegLengthFactor + 1), (this._closingSegLengthFactor * this._offset0.p1.y + this._s1.y) / (this._closingSegLengthFactor + 1));
+                    this._segList.addPt(mid0);
+                    const mid1 = new (0, _coordinateJsDefault.default)((this._closingSegLengthFactor * this._offset1.p0.x + this._s1.x) / (this._closingSegLengthFactor + 1), (this._closingSegLengthFactor * this._offset1.p0.y + this._s1.y) / (this._closingSegLengthFactor + 1));
+                    this._segList.addPt(mid1);
+                } else this._segList.addPt(this._s1);
+                this._segList.addPt(this._offset1.p0);
+            }
+        }
+    }
+    createCircle(p) {
+        const pt = new (0, _coordinateJsDefault.default)(p.x + this._distance, p.y);
+        this._segList.addPt(pt);
+        this.addDirectedFillet(p, 0.0, 2.0 * Math.PI, -1, this._distance);
+        this._segList.closeRing();
+    }
+    addBevelJoin(offset0, offset1) {
+        this._segList.addPt(offset0.p1);
+        this._segList.addPt(offset1.p0);
+    }
+    init(distance) {
+        this._distance = distance;
+        this._maxCurveSegmentError = distance * (1 - Math.cos(this._filletAngleQuantum / 2.0));
+        this._segList = new (0, _offsetSegmentStringJsDefault.default)();
+        this._segList.setPrecisionModel(this._precisionModel);
+        this._segList.setMinimumVertexDistance(distance * OffsetSegmentGenerator.CURVE_VERTEX_SNAP_DISTANCE_FACTOR);
+    }
+    addCollinear(addStartPoint) {
+        this._li.computeIntersection(this._s0, this._s1, this._s1, this._s2);
+        const numInt = this._li.getIntersectionNum();
+        if (numInt >= 2) {
+            if (this._bufParams.getJoinStyle() === (0, _bufferParametersJsDefault.default).JOIN_BEVEL || this._bufParams.getJoinStyle() === (0, _bufferParametersJsDefault.default).JOIN_MITRE) {
+                if (addStartPoint) this._segList.addPt(this._offset0.p1);
+                this._segList.addPt(this._offset1.p0);
+            } else this.addCornerFillet(this._s1, this._offset0.p1, this._offset1.p0, (0, _orientationJsDefault.default).CLOCKWISE, this._distance);
+        }
+    }
+    addNextSegment(p, addStartPoint) {
+        this._s0 = this._s1;
+        this._s1 = this._s2;
+        this._s2 = p;
+        this._seg0.setCoordinates(this._s0, this._s1);
+        this.computeOffsetSegment(this._seg0, this._side, this._distance, this._offset0);
+        this._seg1.setCoordinates(this._s1, this._s2);
+        this.computeOffsetSegment(this._seg1, this._side, this._distance, this._offset1);
+        if (this._s1.equals(this._s2)) return null;
+        const orientation = (0, _orientationJsDefault.default).index(this._s0, this._s1, this._s2);
+        const outsideTurn = orientation === (0, _orientationJsDefault.default).CLOCKWISE && this._side === (0, _positionJsDefault.default).LEFT || orientation === (0, _orientationJsDefault.default).COUNTERCLOCKWISE && this._side === (0, _positionJsDefault.default).RIGHT;
+        if (orientation === 0) this.addCollinear(addStartPoint);
+        else if (outsideTurn) this.addOutsideTurn(orientation, addStartPoint);
+        else this.addInsideTurn(orientation, addStartPoint);
+    }
+    addLineEndCap(p0, p1) {
+        const seg = new (0, _lineSegmentJsDefault.default)(p0, p1);
+        const offsetL = new (0, _lineSegmentJsDefault.default)();
+        this.computeOffsetSegment(seg, (0, _positionJsDefault.default).LEFT, this._distance, offsetL);
+        const offsetR = new (0, _lineSegmentJsDefault.default)();
+        this.computeOffsetSegment(seg, (0, _positionJsDefault.default).RIGHT, this._distance, offsetR);
+        const dx = p1.x - p0.x;
+        const dy = p1.y - p0.y;
+        const angle = Math.atan2(dy, dx);
+        switch(this._bufParams.getEndCapStyle()){
+            case (0, _bufferParametersJsDefault.default).CAP_ROUND:
+                this._segList.addPt(offsetL.p1);
+                this.addDirectedFillet(p1, angle + Math.PI / 2, angle - Math.PI / 2, (0, _orientationJsDefault.default).CLOCKWISE, this._distance);
+                this._segList.addPt(offsetR.p1);
+                break;
+            case (0, _bufferParametersJsDefault.default).CAP_FLAT:
+                this._segList.addPt(offsetL.p1);
+                this._segList.addPt(offsetR.p1);
+                break;
+            case (0, _bufferParametersJsDefault.default).CAP_SQUARE:
+                const squareCapSideOffset = new (0, _coordinateJsDefault.default)();
+                squareCapSideOffset.x = Math.abs(this._distance) * Math.cos(angle);
+                squareCapSideOffset.y = Math.abs(this._distance) * Math.sin(angle);
+                const squareCapLOffset = new (0, _coordinateJsDefault.default)(offsetL.p1.x + squareCapSideOffset.x, offsetL.p1.y + squareCapSideOffset.y);
+                const squareCapROffset = new (0, _coordinateJsDefault.default)(offsetR.p1.x + squareCapSideOffset.x, offsetR.p1.y + squareCapSideOffset.y);
+                this._segList.addPt(squareCapLOffset);
+                this._segList.addPt(squareCapROffset);
+                break;
+        }
+    }
+    addOutsideTurn(orientation, addStartPoint) {
+        if (this._offset0.p1.distance(this._offset1.p0) < this._distance * OffsetSegmentGenerator.OFFSET_SEGMENT_SEPARATION_FACTOR) {
+            this._segList.addPt(this._offset0.p1);
+            return null;
+        }
+        if (this._bufParams.getJoinStyle() === (0, _bufferParametersJsDefault.default).JOIN_MITRE) this.addMitreJoin(this._s1, this._offset0, this._offset1, this._distance);
+        else if (this._bufParams.getJoinStyle() === (0, _bufferParametersJsDefault.default).JOIN_BEVEL) this.addBevelJoin(this._offset0, this._offset1);
+        else {
+            if (addStartPoint) this._segList.addPt(this._offset0.p1);
+            this.addCornerFillet(this._s1, this._offset0.p1, this._offset1.p0, orientation, this._distance);
+            this._segList.addPt(this._offset1.p0);
+        }
+    }
+    createSquare(p) {
+        this._segList.addPt(new (0, _coordinateJsDefault.default)(p.x + this._distance, p.y + this._distance));
+        this._segList.addPt(new (0, _coordinateJsDefault.default)(p.x + this._distance, p.y - this._distance));
+        this._segList.addPt(new (0, _coordinateJsDefault.default)(p.x - this._distance, p.y - this._distance));
+        this._segList.addPt(new (0, _coordinateJsDefault.default)(p.x - this._distance, p.y + this._distance));
+        this._segList.closeRing();
+    }
+    addSegments(pt, isForward) {
+        this._segList.addPts(pt, isForward);
+    }
+    addFirstSegment() {
+        this._segList.addPt(this._offset1.p0);
+    }
+    addCornerFillet(p, p0, p1, direction, radius) {
+        const dx0 = p0.x - p.x;
+        const dy0 = p0.y - p.y;
+        let startAngle = Math.atan2(dy0, dx0);
+        const dx1 = p1.x - p.x;
+        const dy1 = p1.y - p.y;
+        const endAngle = Math.atan2(dy1, dx1);
+        if (direction === (0, _orientationJsDefault.default).CLOCKWISE) {
+            if (startAngle <= endAngle) startAngle += 2.0 * Math.PI;
+        } else if (startAngle >= endAngle) startAngle -= 2.0 * Math.PI;
+        this._segList.addPt(p0);
+        this.addDirectedFillet(p, startAngle, endAngle, direction, radius);
+        this._segList.addPt(p1);
+    }
+    closeRing() {
+        this._segList.closeRing();
+    }
+    hasNarrowConcaveAngle() {
+        return this._hasNarrowConcaveAngle;
+    }
+}
+exports.default = OffsetSegmentGenerator;
+OffsetSegmentGenerator.OFFSET_SEGMENT_SEPARATION_FACTOR = 1.0E-3;
+OffsetSegmentGenerator.INSIDE_TURN_VERTEX_SNAP_DISTANCE_FACTOR = 1.0E-3;
+OffsetSegmentGenerator.CURVE_VERTEX_SNAP_DISTANCE_FACTOR = 1.0E-6;
+OffsetSegmentGenerator.MAX_CLOSING_SEG_LEN_FACTOR = 80;
+
+},{"./BufferParameters.js":"idesX","../../geomgraph/Position.js":"13raO","../../geom/Coordinate.js":"ii2fh","../../geom/LineSegment.js":"8Ncbv","./OffsetSegmentString.js":"dQ6jS","../../algorithm/Orientation.js":"avl08","../../algorithm/Intersection.js":"bynFG","../../algorithm/Angle.js":"61NBK","../../algorithm/RobustLineIntersector.js":"kLdG9","@parcel/transformer-js/src/esmodule-helpers.js":"jnFvT"}],"dQ6jS":[function(require,module,exports,__globalThis) {
+var parcelHelpers = require("@parcel/transformer-js/src/esmodule-helpers.js");
+parcelHelpers.defineInteropFlag(exports);
+var _geometryFactoryJs = require("../../geom/GeometryFactory.js");
+var _geometryFactoryJsDefault = parcelHelpers.interopDefault(_geometryFactoryJs);
+var _coordinateJs = require("../../geom/Coordinate.js");
+var _coordinateJsDefault = parcelHelpers.interopDefault(_coordinateJs);
+var _arrayListJs = require("../../../../../java/util/ArrayList.js");
+var _arrayListJsDefault = parcelHelpers.interopDefault(_arrayListJs);
+class OffsetSegmentString {
+    constructor(){
+        OffsetSegmentString.constructor_.apply(this, arguments);
+    }
+    static constructor_() {
+        this._ptList = null;
+        this._precisionModel = null;
+        this._minimimVertexDistance = 0.0;
+        this._ptList = new (0, _arrayListJsDefault.default)();
+    }
+    getCoordinates() {
+        const coord = this._ptList.toArray(OffsetSegmentString.COORDINATE_ARRAY_TYPE);
+        return coord;
+    }
+    setPrecisionModel(precisionModel) {
+        this._precisionModel = precisionModel;
+    }
+    addPt(pt) {
+        const bufPt = new (0, _coordinateJsDefault.default)(pt);
+        this._precisionModel.makePrecise(bufPt);
+        if (this.isRedundant(bufPt)) return null;
+        this._ptList.add(bufPt);
+    }
+    reverse() {}
+    addPts(pt, isForward) {
+        if (isForward) for(let i = 0; i < pt.length; i++)this.addPt(pt[i]);
+        else for(let i = pt.length - 1; i >= 0; i--)this.addPt(pt[i]);
+    }
+    isRedundant(pt) {
+        if (this._ptList.size() < 1) return false;
+        const lastPt = this._ptList.get(this._ptList.size() - 1);
+        const ptDist = pt.distance(lastPt);
+        if (ptDist < this._minimimVertexDistance) return true;
+        return false;
+    }
+    toString() {
+        const fact = new (0, _geometryFactoryJsDefault.default)();
+        const line = fact.createLineString(this.getCoordinates());
+        return line.toString();
+    }
+    closeRing() {
+        if (this._ptList.size() < 1) return null;
+        const startPt = new (0, _coordinateJsDefault.default)(this._ptList.get(0));
+        const lastPt = this._ptList.get(this._ptList.size() - 1);
+        if (startPt.equals(lastPt)) return null;
+        this._ptList.add(startPt);
+    }
+    setMinimumVertexDistance(minimimVertexDistance) {
+        this._minimimVertexDistance = minimimVertexDistance;
+    }
+}
+exports.default = OffsetSegmentString;
+OffsetSegmentString.COORDINATE_ARRAY_TYPE = new Array(0).fill(null);
+
+},{"../../geom/GeometryFactory.js":"cGt0T","../../geom/Coordinate.js":"ii2fh","../../../../../java/util/ArrayList.js":"gGAQZ","@parcel/transformer-js/src/esmodule-helpers.js":"jnFvT"}],"61NBK":[function(require,module,exports,__globalThis) {
+var parcelHelpers = require("@parcel/transformer-js/src/esmodule-helpers.js");
+parcelHelpers.defineInteropFlag(exports);
+var _orientationJs = require("./Orientation.js");
+var _orientationJsDefault = parcelHelpers.interopDefault(_orientationJs);
+class Angle {
+    static toDegrees(radians) {
+        return radians * 180 / Math.PI;
+    }
+    static isAcute(p0, p1, p2) {
+        const dx0 = p0.x - p1.x;
+        const dy0 = p0.y - p1.y;
+        const dx1 = p2.x - p1.x;
+        const dy1 = p2.y - p1.y;
+        const dotprod = dx0 * dx1 + dy0 * dy1;
+        return dotprod > 0;
+    }
+    static isObtuse(p0, p1, p2) {
+        const dx0 = p0.x - p1.x;
+        const dy0 = p0.y - p1.y;
+        const dx1 = p2.x - p1.x;
+        const dy1 = p2.y - p1.y;
+        const dotprod = dx0 * dx1 + dy0 * dy1;
+        return dotprod < 0;
+    }
+    static interiorAngle(p0, p1, p2) {
+        const anglePrev = Angle.angle(p1, p0);
+        const angleNext = Angle.angle(p1, p2);
+        return Math.abs(angleNext - anglePrev);
+    }
+    static normalizePositive(angle) {
+        if (angle < 0.0) {
+            while(angle < 0.0)angle += Angle.PI_TIMES_2;
+            if (angle >= Angle.PI_TIMES_2) angle = 0.0;
+        } else {
+            while(angle >= Angle.PI_TIMES_2)angle -= Angle.PI_TIMES_2;
+            if (angle < 0.0) angle = 0.0;
+        }
+        return angle;
+    }
+    static angleBetween(tip1, tail, tip2) {
+        const a1 = Angle.angle(tail, tip1);
+        const a2 = Angle.angle(tail, tip2);
+        return Angle.diff(a1, a2);
+    }
+    static diff(ang1, ang2) {
+        let delAngle = null;
+        if (ang1 < ang2) delAngle = ang2 - ang1;
+        else delAngle = ang1 - ang2;
+        if (delAngle > Math.PI) delAngle = 2 * Math.PI - delAngle;
+        return delAngle;
+    }
+    static toRadians(angleDegrees) {
+        return angleDegrees * Math.PI / 180.0;
+    }
+    static normalize(angle) {
+        while(angle > Math.PI)angle -= Angle.PI_TIMES_2;
+        while(angle <= -Math.PI)angle += Angle.PI_TIMES_2;
+        return angle;
+    }
+    static angle() {
+        if (arguments.length === 1) {
+            const p = arguments[0];
+            return Math.atan2(p.y, p.x);
+        } else if (arguments.length === 2) {
+            const p0 = arguments[0], p1 = arguments[1];
+            const dx = p1.x - p0.x;
+            const dy = p1.y - p0.y;
+            return Math.atan2(dy, dx);
+        }
+    }
+    static getTurn(ang1, ang2) {
+        const crossproduct = Math.sin(ang2 - ang1);
+        if (crossproduct > 0) return Angle.COUNTERCLOCKWISE;
+        if (crossproduct < 0) return Angle.CLOCKWISE;
+        return Angle.NONE;
+    }
+    static angleBetweenOriented(tip1, tail, tip2) {
+        const a1 = Angle.angle(tail, tip1);
+        const a2 = Angle.angle(tail, tip2);
+        const angDel = a2 - a1;
+        if (angDel <= -Math.PI) return angDel + Angle.PI_TIMES_2;
+        if (angDel > Math.PI) return angDel - Angle.PI_TIMES_2;
+        return angDel;
+    }
+}
+exports.default = Angle;
+Angle.PI_TIMES_2 = 2.0 * Math.PI;
+Angle.PI_OVER_2 = Math.PI / 2.0;
+Angle.PI_OVER_4 = Math.PI / 4.0;
+Angle.COUNTERCLOCKWISE = (0, _orientationJsDefault.default).COUNTERCLOCKWISE;
+Angle.CLOCKWISE = (0, _orientationJsDefault.default).CLOCKWISE;
+Angle.NONE = (0, _orientationJsDefault.default).COLLINEAR;
+
+},{"./Orientation.js":"avl08","@parcel/transformer-js/src/esmodule-helpers.js":"jnFvT"}],"crM1Q":[function(require,module,exports,__globalThis) {
+var parcelHelpers = require("@parcel/transformer-js/src/esmodule-helpers.js");
+parcelHelpers.defineInteropFlag(exports);
+var _pointLocationJs = require("../../algorithm/PointLocation.js");
+var _pointLocationJsDefault = parcelHelpers.interopDefault(_pointLocationJs);
+var _topologyExceptionJs = require("../../geom/TopologyException.js");
+var _topologyExceptionJsDefault = parcelHelpers.interopDefault(_topologyExceptionJs);
+var _maximalEdgeRingJs = require("./MaximalEdgeRing.js");
+var _maximalEdgeRingJsDefault = parcelHelpers.interopDefault(_maximalEdgeRingJs);
+var _coordinateArraysJs = require("../../geom/CoordinateArrays.js");
+var _coordinateArraysJsDefault = parcelHelpers.interopDefault(_coordinateArraysJs);
+var _arrayListJs = require("../../../../../java/util/ArrayList.js");
+var _arrayListJsDefault = parcelHelpers.interopDefault(_arrayListJs);
+var _assertJs = require("../../util/Assert.js");
+var _assertJsDefault = parcelHelpers.interopDefault(_assertJs);
+var _planarGraphJs = require("../../geomgraph/PlanarGraph.js");
+var _planarGraphJsDefault = parcelHelpers.interopDefault(_planarGraphJs);
+class PolygonBuilder {
+    constructor(){
+        PolygonBuilder.constructor_.apply(this, arguments);
+    }
+    static constructor_() {
+        this._geometryFactory = null;
+        this._shellList = new (0, _arrayListJsDefault.default)();
+        const geometryFactory = arguments[0];
+        this._geometryFactory = geometryFactory;
+    }
+    static findEdgeRingContaining(testEr, shellList) {
+        const testRing = testEr.getLinearRing();
+        const testEnv = testRing.getEnvelopeInternal();
+        let testPt = testRing.getCoordinateN(0);
+        let minShell = null;
+        let minShellEnv = null;
+        for(let it = shellList.iterator(); it.hasNext();){
+            const tryShell = it.next();
+            const tryShellRing = tryShell.getLinearRing();
+            const tryShellEnv = tryShellRing.getEnvelopeInternal();
+            if (tryShellEnv.equals(testEnv)) continue;
+            if (!tryShellEnv.contains(testEnv)) continue;
+            testPt = (0, _coordinateArraysJsDefault.default).ptNotInList(testRing.getCoordinates(), tryShellRing.getCoordinates());
+            let isContained = false;
+            if ((0, _pointLocationJsDefault.default).isInRing(testPt, tryShellRing.getCoordinates())) isContained = true;
+            if (isContained) {
+                if (minShell === null || minShellEnv.contains(tryShellEnv)) {
+                    minShell = tryShell;
+                    minShellEnv = minShell.getLinearRing().getEnvelopeInternal();
+                }
+            }
+        }
+        return minShell;
+    }
+    sortShellsAndHoles(edgeRings, shellList, freeHoleList) {
+        for(let it = edgeRings.iterator(); it.hasNext();){
+            const er = it.next();
+            if (er.isHole()) freeHoleList.add(er);
+            else shellList.add(er);
+        }
+    }
+    computePolygons(shellList) {
+        const resultPolyList = new (0, _arrayListJsDefault.default)();
+        for(let it = shellList.iterator(); it.hasNext();){
+            const er = it.next();
+            const poly = er.toPolygon(this._geometryFactory);
+            resultPolyList.add(poly);
+        }
+        return resultPolyList;
+    }
+    placeFreeHoles(shellList, freeHoleList) {
+        for(let it = freeHoleList.iterator(); it.hasNext();){
+            const hole = it.next();
+            if (hole.getShell() === null) {
+                const shell = PolygonBuilder.findEdgeRingContaining(hole, shellList);
+                if (shell === null) throw new (0, _topologyExceptionJsDefault.default)('unable to assign hole to a shell', hole.getCoordinate(0));
+                hole.setShell(shell);
+            }
+        }
+    }
+    buildMinimalEdgeRings(maxEdgeRings, shellList, freeHoleList) {
+        const edgeRings = new (0, _arrayListJsDefault.default)();
+        for(let it = maxEdgeRings.iterator(); it.hasNext();){
+            const er = it.next();
+            if (er.getMaxNodeDegree() > 2) {
+                er.linkDirectedEdgesForMinimalEdgeRings();
+                const minEdgeRings = er.buildMinimalRings();
+                const shell = this.findShell(minEdgeRings);
+                if (shell !== null) {
+                    this.placePolygonHoles(shell, minEdgeRings);
+                    shellList.add(shell);
+                } else freeHoleList.addAll(minEdgeRings);
+            } else edgeRings.add(er);
+        }
+        return edgeRings;
+    }
+    buildMaximalEdgeRings(dirEdges) {
+        const maxEdgeRings = new (0, _arrayListJsDefault.default)();
+        for(let it = dirEdges.iterator(); it.hasNext();){
+            const de = it.next();
+            if (de.isInResult() && de.getLabel().isArea()) {
+                if (de.getEdgeRing() === null) {
+                    const er = new (0, _maximalEdgeRingJsDefault.default)(de, this._geometryFactory);
+                    maxEdgeRings.add(er);
+                    er.setInResult();
+                }
+            }
+        }
+        return maxEdgeRings;
+    }
+    placePolygonHoles(shell, minEdgeRings) {
+        for(let it = minEdgeRings.iterator(); it.hasNext();){
+            const er = it.next();
+            if (er.isHole()) er.setShell(shell);
+        }
+    }
+    getPolygons() {
+        const resultPolyList = this.computePolygons(this._shellList);
+        return resultPolyList;
+    }
+    findShell(minEdgeRings) {
+        let shellCount = 0;
+        let shell = null;
+        for(let it = minEdgeRings.iterator(); it.hasNext();){
+            const er = it.next();
+            if (!er.isHole()) {
+                shell = er;
+                shellCount++;
+            }
+        }
+        (0, _assertJsDefault.default).isTrue(shellCount <= 1, 'found two shells in MinimalEdgeRing list');
+        return shell;
+    }
+    add() {
+        if (arguments.length === 1) {
+            const graph = arguments[0];
+            this.add(graph.getEdgeEnds(), graph.getNodes());
+        } else if (arguments.length === 2) {
+            const dirEdges = arguments[0], nodes = arguments[1];
+            (0, _planarGraphJsDefault.default).linkResultDirectedEdges(nodes);
+            const maxEdgeRings = this.buildMaximalEdgeRings(dirEdges);
+            const freeHoleList = new (0, _arrayListJsDefault.default)();
+            const edgeRings = this.buildMinimalEdgeRings(maxEdgeRings, this._shellList, freeHoleList);
+            this.sortShellsAndHoles(edgeRings, this._shellList, freeHoleList);
+            this.placeFreeHoles(this._shellList, freeHoleList);
+        }
+    }
+}
+exports.default = PolygonBuilder;
+
+},{"../../algorithm/PointLocation.js":"l7FlP","../../geom/TopologyException.js":"bOVA5","./MaximalEdgeRing.js":"4ayjA","../../geom/CoordinateArrays.js":"lncg4","../../../../../java/util/ArrayList.js":"gGAQZ","../../util/Assert.js":"1vSRy","../../geomgraph/PlanarGraph.js":"etG4v","@parcel/transformer-js/src/esmodule-helpers.js":"jnFvT"}],"4ayjA":[function(require,module,exports,__globalThis) {
+var parcelHelpers = require("@parcel/transformer-js/src/esmodule-helpers.js");
+parcelHelpers.defineInteropFlag(exports);
+var _minimalEdgeRingJs = require("./MinimalEdgeRing.js");
+var _minimalEdgeRingJsDefault = parcelHelpers.interopDefault(_minimalEdgeRingJs);
+var _edgeRingJs = require("../../geomgraph/EdgeRing.js");
+var _edgeRingJsDefault = parcelHelpers.interopDefault(_edgeRingJs);
+var _arrayListJs = require("../../../../../java/util/ArrayList.js");
+var _arrayListJsDefault = parcelHelpers.interopDefault(_arrayListJs);
+class MaximalEdgeRing extends (0, _edgeRingJsDefault.default) {
+    constructor(){
+        super();
+        MaximalEdgeRing.constructor_.apply(this, arguments);
+    }
+    static constructor_() {
+        const start = arguments[0], geometryFactory = arguments[1];
+        (0, _edgeRingJsDefault.default).constructor_.call(this, start, geometryFactory);
+    }
+    linkDirectedEdgesForMinimalEdgeRings() {
+        let de = this._startDe;
+        do {
+            const node = de.getNode();
+            node.getEdges().linkMinimalDirectedEdges(this);
+            de = de.getNext();
+        }while (de !== this._startDe);
+    }
+    buildMinimalRings() {
+        const minEdgeRings = new (0, _arrayListJsDefault.default)();
+        let de = this._startDe;
+        do {
+            if (de.getMinEdgeRing() === null) {
+                const minEr = new (0, _minimalEdgeRingJsDefault.default)(de, this._geometryFactory);
+                minEdgeRings.add(minEr);
+            }
+            de = de.getNext();
+        }while (de !== this._startDe);
+        return minEdgeRings;
+    }
+    getNext(de) {
+        return de.getNext();
+    }
+    setEdgeRing(de, er) {
+        de.setEdgeRing(er);
+    }
+}
+exports.default = MaximalEdgeRing;
+
+},{"./MinimalEdgeRing.js":"jJ8Uz","../../geomgraph/EdgeRing.js":"bsyLp","../../../../../java/util/ArrayList.js":"gGAQZ","@parcel/transformer-js/src/esmodule-helpers.js":"jnFvT"}],"jJ8Uz":[function(require,module,exports,__globalThis) {
+var parcelHelpers = require("@parcel/transformer-js/src/esmodule-helpers.js");
+parcelHelpers.defineInteropFlag(exports);
+var _edgeRingJs = require("../../geomgraph/EdgeRing.js");
+var _edgeRingJsDefault = parcelHelpers.interopDefault(_edgeRingJs);
+class MinimalEdgeRing extends (0, _edgeRingJsDefault.default) {
+    constructor(){
+        super();
+        MinimalEdgeRing.constructor_.apply(this, arguments);
+    }
+    static constructor_() {
+        const start = arguments[0], geometryFactory = arguments[1];
+        (0, _edgeRingJsDefault.default).constructor_.call(this, start, geometryFactory);
+    }
+    getNext(de) {
+        return de.getNextMin();
+    }
+    setEdgeRing(de, er) {
+        de.setMinEdgeRing(er);
+    }
+}
+exports.default = MinimalEdgeRing;
+
+},{"../../geomgraph/EdgeRing.js":"bsyLp","@parcel/transformer-js/src/esmodule-helpers.js":"jnFvT"}],"bsyLp":[function(require,module,exports,__globalThis) {
+var parcelHelpers = require("@parcel/transformer-js/src/esmodule-helpers.js");
+parcelHelpers.defineInteropFlag(exports);
+var _locationJs = require("../geom/Location.js");
+var _locationJsDefault = parcelHelpers.interopDefault(_locationJs);
+var _positionJs = require("./Position.js");
+var _positionJsDefault = parcelHelpers.interopDefault(_positionJs);
+var _pointLocationJs = require("../algorithm/PointLocation.js");
+var _pointLocationJsDefault = parcelHelpers.interopDefault(_pointLocationJs);
+var _topologyExceptionJs = require("../geom/TopologyException.js");
+var _topologyExceptionJsDefault = parcelHelpers.interopDefault(_topologyExceptionJs);
+var _orientationJs = require("../algorithm/Orientation.js");
+var _orientationJsDefault = parcelHelpers.interopDefault(_orientationJs);
+var _labelJs = require("./Label.js");
+var _labelJsDefault = parcelHelpers.interopDefault(_labelJs);
+var _arrayListJs = require("../../../../java/util/ArrayList.js");
+var _arrayListJsDefault = parcelHelpers.interopDefault(_arrayListJs);
+var _assertJs = require("../util/Assert.js");
+var _assertJsDefault = parcelHelpers.interopDefault(_assertJs);
+class EdgeRing {
+    constructor(){
+        EdgeRing.constructor_.apply(this, arguments);
+    }
+    static constructor_() {
+        this._startDe = null;
+        this._maxNodeDegree = -1;
+        this._edges = new (0, _arrayListJsDefault.default)();
+        this._pts = new (0, _arrayListJsDefault.default)();
+        this._label = new (0, _labelJsDefault.default)((0, _locationJsDefault.default).NONE);
+        this._ring = null;
+        this._isHole = null;
+        this._shell = null;
+        this._holes = new (0, _arrayListJsDefault.default)();
+        this._geometryFactory = null;
+        if (arguments.length === 0) ;
+        else if (arguments.length === 2) {
+            const start = arguments[0], geometryFactory = arguments[1];
+            this._geometryFactory = geometryFactory;
+            this.computePoints(start);
+            this.computeRing();
+        }
+    }
+    computeRing() {
+        if (this._ring !== null) return null;
+        const coord = new Array(this._pts.size()).fill(null);
+        for(let i = 0; i < this._pts.size(); i++)coord[i] = this._pts.get(i);
+        this._ring = this._geometryFactory.createLinearRing(coord);
+        this._isHole = (0, _orientationJsDefault.default).isCCW(this._ring.getCoordinates());
+    }
+    isIsolated() {
+        return this._label.getGeometryCount() === 1;
+    }
+    computePoints(start) {
+        this._startDe = start;
+        let de = start;
+        let isFirstEdge = true;
+        do {
+            if (de === null) throw new (0, _topologyExceptionJsDefault.default)('Found null DirectedEdge');
+            if (de.getEdgeRing() === this) throw new (0, _topologyExceptionJsDefault.default)('Directed Edge visited twice during ring-building at ' + de.getCoordinate());
+            this._edges.add(de);
+            const label = de.getLabel();
+            (0, _assertJsDefault.default).isTrue(label.isArea());
+            this.mergeLabel(label);
+            this.addPoints(de.getEdge(), de.isForward(), isFirstEdge);
+            isFirstEdge = false;
+            this.setEdgeRing(de, this);
+            de = this.getNext(de);
+        }while (de !== this._startDe);
+    }
+    getLinearRing() {
+        return this._ring;
+    }
+    getCoordinate(i) {
+        return this._pts.get(i);
+    }
+    computeMaxNodeDegree() {
+        this._maxNodeDegree = 0;
+        let de = this._startDe;
+        do {
+            const node = de.getNode();
+            const degree = node.getEdges().getOutgoingDegree(this);
+            if (degree > this._maxNodeDegree) this._maxNodeDegree = degree;
+            de = this.getNext(de);
+        }while (de !== this._startDe);
+        this._maxNodeDegree *= 2;
+    }
+    addPoints(edge, isForward, isFirstEdge) {
+        const edgePts = edge.getCoordinates();
+        if (isForward) {
+            let startIndex = 1;
+            if (isFirstEdge) startIndex = 0;
+            for(let i = startIndex; i < edgePts.length; i++)this._pts.add(edgePts[i]);
+        } else {
+            let startIndex = edgePts.length - 2;
+            if (isFirstEdge) startIndex = edgePts.length - 1;
+            for(let i = startIndex; i >= 0; i--)this._pts.add(edgePts[i]);
+        }
+    }
+    containsPoint(p) {
+        const shell = this.getLinearRing();
+        const env = shell.getEnvelopeInternal();
+        if (!env.contains(p)) return false;
+        if (!(0, _pointLocationJsDefault.default).isInRing(p, shell.getCoordinates())) return false;
+        for(let i = this._holes.iterator(); i.hasNext();){
+            const hole = i.next();
+            if (hole.containsPoint(p)) return false;
+        }
+        return true;
+    }
+    getMaxNodeDegree() {
+        if (this._maxNodeDegree < 0) this.computeMaxNodeDegree();
+        return this._maxNodeDegree;
+    }
+    setShell(shell) {
+        this._shell = shell;
+        if (shell !== null) shell.addHole(this);
+    }
+    toPolygon(geometryFactory) {
+        const holeLR = new Array(this._holes.size()).fill(null);
+        for(let i = 0; i < this._holes.size(); i++)holeLR[i] = this._holes.get(i).getLinearRing();
+        const poly = geometryFactory.createPolygon(this.getLinearRing(), holeLR);
+        return poly;
+    }
+    isHole() {
+        return this._isHole;
+    }
+    setInResult() {
+        let de = this._startDe;
+        do {
+            de.getEdge().setInResult(true);
+            de = de.getNext();
+        }while (de !== this._startDe);
+    }
+    addHole(ring) {
+        this._holes.add(ring);
+    }
+    isShell() {
+        return this._shell === null;
+    }
+    getLabel() {
+        return this._label;
+    }
+    getEdges() {
+        return this._edges;
+    }
+    getShell() {
+        return this._shell;
+    }
+    mergeLabel() {
+        if (arguments.length === 1) {
+            const deLabel = arguments[0];
+            this.mergeLabel(deLabel, 0);
+            this.mergeLabel(deLabel, 1);
+        } else if (arguments.length === 2) {
+            const deLabel = arguments[0], geomIndex = arguments[1];
+            const loc = deLabel.getLocation(geomIndex, (0, _positionJsDefault.default).RIGHT);
+            if (loc === (0, _locationJsDefault.default).NONE) return null;
+            if (this._label.getLocation(geomIndex) === (0, _locationJsDefault.default).NONE) {
+                this._label.setLocation(geomIndex, loc);
+                return null;
+            }
+        }
+    }
+}
+exports.default = EdgeRing;
+
+},{"../geom/Location.js":"9aPCX","./Position.js":"13raO","../algorithm/PointLocation.js":"l7FlP","../geom/TopologyException.js":"bOVA5","../algorithm/Orientation.js":"avl08","./Label.js":"dJJOo","../../../../java/util/ArrayList.js":"gGAQZ","../util/Assert.js":"1vSRy","@parcel/transformer-js/src/esmodule-helpers.js":"jnFvT"}],"9iVKl":[function(require,module,exports,__globalThis) {
+var parcelHelpers = require("@parcel/transformer-js/src/esmodule-helpers.js");
+parcelHelpers.defineInteropFlag(exports);
+var _hasInterfaceJs = require("../../../../../hasInterface.js");
+var _hasInterfaceJsDefault = parcelHelpers.interopDefault(_hasInterfaceJs);
+var _positionJs = require("../../geomgraph/Position.js");
+var _positionJsDefault = parcelHelpers.interopDefault(_positionJs);
+var _coordinateJs = require("../../geom/Coordinate.js");
+var _coordinateJsDefault = parcelHelpers.interopDefault(_coordinateJs);
+var _lineSegmentJs = require("../../geom/LineSegment.js");
+var _lineSegmentJsDefault = parcelHelpers.interopDefault(_lineSegmentJs);
+var _comparableJs = require("../../../../../java/lang/Comparable.js");
+var _comparableJsDefault = parcelHelpers.interopDefault(_comparableJs);
+var _arrayListJs = require("../../../../../java/util/ArrayList.js");
+var _arrayListJsDefault = parcelHelpers.interopDefault(_arrayListJs);
+var _listJs = require("../../../../../java/util/List.js");
+var _listJsDefault = parcelHelpers.interopDefault(_listJs);
+var _directedEdgeJs = require("../../geomgraph/DirectedEdge.js");
+var _directedEdgeJsDefault = parcelHelpers.interopDefault(_directedEdgeJs);
+var _orientationJs = require("../../algorithm/Orientation.js");
+var _orientationJsDefault = parcelHelpers.interopDefault(_orientationJs);
+var _collectionsJs = require("../../../../../java/util/Collections.js");
+var _collectionsJsDefault = parcelHelpers.interopDefault(_collectionsJs);
+class SubgraphDepthLocater {
+    constructor(){
+        SubgraphDepthLocater.constructor_.apply(this, arguments);
+    }
+    static constructor_() {
+        this._subgraphs = null;
+        this._seg = new (0, _lineSegmentJsDefault.default)();
+        const subgraphs = arguments[0];
+        this._subgraphs = subgraphs;
+    }
+    findStabbedSegments() {
+        if (arguments.length === 1) {
+            const stabbingRayLeftPt = arguments[0];
+            const stabbedSegments = new (0, _arrayListJsDefault.default)();
+            for(let i = this._subgraphs.iterator(); i.hasNext();){
+                const bsg = i.next();
+                const env = bsg.getEnvelope();
+                if (stabbingRayLeftPt.y < env.getMinY() || stabbingRayLeftPt.y > env.getMaxY()) continue;
+                this.findStabbedSegments(stabbingRayLeftPt, bsg.getDirectedEdges(), stabbedSegments);
+            }
+            return stabbedSegments;
+        } else if (arguments.length === 3) {
+            if ((0, _hasInterfaceJsDefault.default)(arguments[2], (0, _listJsDefault.default)) && arguments[0] instanceof (0, _coordinateJsDefault.default) && arguments[1] instanceof (0, _directedEdgeJsDefault.default)) {
+                const stabbingRayLeftPt = arguments[0], dirEdge = arguments[1], stabbedSegments = arguments[2];
+                const pts = dirEdge.getEdge().getCoordinates();
+                for(let i = 0; i < pts.length - 1; i++){
+                    this._seg.p0 = pts[i];
+                    this._seg.p1 = pts[i + 1];
+                    if (this._seg.p0.y > this._seg.p1.y) this._seg.reverse();
+                    const maxx = Math.max(this._seg.p0.x, this._seg.p1.x);
+                    if (maxx < stabbingRayLeftPt.x) continue;
+                    if (this._seg.isHorizontal()) continue;
+                    if (stabbingRayLeftPt.y < this._seg.p0.y || stabbingRayLeftPt.y > this._seg.p1.y) continue;
+                    if ((0, _orientationJsDefault.default).index(this._seg.p0, this._seg.p1, stabbingRayLeftPt) === (0, _orientationJsDefault.default).RIGHT) continue;
+                    let depth = dirEdge.getDepth((0, _positionJsDefault.default).LEFT);
+                    if (!this._seg.p0.equals(pts[i])) depth = dirEdge.getDepth((0, _positionJsDefault.default).RIGHT);
+                    const ds = new DepthSegment(this._seg, depth);
+                    stabbedSegments.add(ds);
+                }
+            } else if ((0, _hasInterfaceJsDefault.default)(arguments[2], (0, _listJsDefault.default)) && arguments[0] instanceof (0, _coordinateJsDefault.default) && (0, _hasInterfaceJsDefault.default)(arguments[1], (0, _listJsDefault.default))) {
+                const stabbingRayLeftPt = arguments[0], dirEdges = arguments[1], stabbedSegments = arguments[2];
+                for(let i = dirEdges.iterator(); i.hasNext();){
+                    const de = i.next();
+                    if (!de.isForward()) continue;
+                    this.findStabbedSegments(stabbingRayLeftPt, de, stabbedSegments);
+                }
+            }
+        }
+    }
+    getDepth(p) {
+        const stabbedSegments = this.findStabbedSegments(p);
+        if (stabbedSegments.size() === 0) return 0;
+        const ds = (0, _collectionsJsDefault.default).min(stabbedSegments);
+        return ds._leftDepth;
+    }
+}
+exports.default = SubgraphDepthLocater;
+class DepthSegment {
+    constructor(){
+        DepthSegment.constructor_.apply(this, arguments);
+    }
+    static constructor_() {
+        this._upwardSeg = null;
+        this._leftDepth = null;
+        const seg = arguments[0], depth = arguments[1];
+        this._upwardSeg = new (0, _lineSegmentJsDefault.default)(seg);
+        this._leftDepth = depth;
+    }
+    compareX(seg0, seg1) {
+        const compare0 = seg0.p0.compareTo(seg1.p0);
+        if (compare0 !== 0) return compare0;
+        return seg0.p1.compareTo(seg1.p1);
+    }
+    toString() {
+        return this._upwardSeg.toString();
+    }
+    compareTo(obj) {
+        const other = obj;
+        if (this._upwardSeg.minX() >= other._upwardSeg.maxX()) return 1;
+        if (this._upwardSeg.maxX() <= other._upwardSeg.minX()) return -1;
+        let orientIndex = this._upwardSeg.orientationIndex(other._upwardSeg);
+        if (orientIndex !== 0) return orientIndex;
+        orientIndex = -1 * other._upwardSeg.orientationIndex(this._upwardSeg);
+        if (orientIndex !== 0) return orientIndex;
+        return this._upwardSeg.compareTo(other._upwardSeg);
+    }
+    get interfaces_() {
+        return [
+            (0, _comparableJsDefault.default)
+        ];
+    }
+}
+SubgraphDepthLocater.DepthSegment = DepthSegment;
+
+},{"../../../../../hasInterface.js":"5bpze","../../geomgraph/Position.js":"13raO","../../geom/Coordinate.js":"ii2fh","../../geom/LineSegment.js":"8Ncbv","../../../../../java/lang/Comparable.js":"WFeEu","../../../../../java/util/ArrayList.js":"gGAQZ","../../../../../java/util/List.js":"7jAhK","../../geomgraph/DirectedEdge.js":"aFTwO","../../algorithm/Orientation.js":"avl08","../../../../../java/util/Collections.js":"c5dcW","@parcel/transformer-js/src/esmodule-helpers.js":"jnFvT"}],"elu3d":[function(require,module,exports,__globalThis) {
+var parcelHelpers = require("@parcel/transformer-js/src/esmodule-helpers.js");
+parcelHelpers.defineInteropFlag(exports);
+var _locationJs = require("../../geom/Location.js");
+var _locationJsDefault = parcelHelpers.interopDefault(_locationJs);
+var _lineStringJs = require("../../geom/LineString.js");
+var _lineStringJsDefault = parcelHelpers.interopDefault(_lineStringJs);
+var _positionJs = require("../../geomgraph/Position.js");
+var _positionJsDefault = parcelHelpers.interopDefault(_positionJs);
+var _pointJs = require("../../geom/Point.js");
+var _pointJsDefault = parcelHelpers.interopDefault(_pointJs);
+var _linearRingJs = require("../../geom/LinearRing.js");
+var _linearRingJsDefault = parcelHelpers.interopDefault(_linearRingJs);
+var _orientationJs = require("../../algorithm/Orientation.js");
+var _orientationJsDefault = parcelHelpers.interopDefault(_orientationJs);
+var _multiPolygonJs = require("../../geom/MultiPolygon.js");
+var _multiPolygonJsDefault = parcelHelpers.interopDefault(_multiPolygonJs);
+var _labelJs = require("../../geomgraph/Label.js");
+var _labelJsDefault = parcelHelpers.interopDefault(_labelJs);
+var _coordinateArraysJs = require("../../geom/CoordinateArrays.js");
+var _coordinateArraysJsDefault = parcelHelpers.interopDefault(_coordinateArraysJs);
+var _arrayListJs = require("../../../../../java/util/ArrayList.js");
+var _arrayListJsDefault = parcelHelpers.interopDefault(_arrayListJs);
+var _distanceJs = require("../../algorithm/Distance.js");
+var _distanceJsDefault = parcelHelpers.interopDefault(_distanceJs);
+var _multiLineStringJs = require("../../geom/MultiLineString.js");
+var _multiLineStringJsDefault = parcelHelpers.interopDefault(_multiLineStringJs);
+var _triangleJs = require("../../geom/Triangle.js");
+var _triangleJsDefault = parcelHelpers.interopDefault(_triangleJs);
+var _nodedSegmentStringJs = require("../../noding/NodedSegmentString.js");
+var _nodedSegmentStringJsDefault = parcelHelpers.interopDefault(_nodedSegmentStringJs);
+var _polygonJs = require("../../geom/Polygon.js");
+var _polygonJsDefault = parcelHelpers.interopDefault(_polygonJs);
+var _multiPointJs = require("../../geom/MultiPoint.js");
+var _multiPointJsDefault = parcelHelpers.interopDefault(_multiPointJs);
+var _geometryCollectionJs = require("../../geom/GeometryCollection.js");
+var _geometryCollectionJsDefault = parcelHelpers.interopDefault(_geometryCollectionJs);
+var _unsupportedOperationExceptionJs = require("../../../../../java/lang/UnsupportedOperationException.js");
+var _unsupportedOperationExceptionJsDefault = parcelHelpers.interopDefault(_unsupportedOperationExceptionJs);
+class OffsetCurveSetBuilder {
+    constructor(){
+        OffsetCurveSetBuilder.constructor_.apply(this, arguments);
+    }
+    static constructor_() {
+        this._inputGeom = null;
+        this._distance = null;
+        this._curveBuilder = null;
+        this._curveList = new (0, _arrayListJsDefault.default)();
+        const inputGeom = arguments[0], distance = arguments[1], curveBuilder = arguments[2];
+        this._inputGeom = inputGeom;
+        this._distance = distance;
+        this._curveBuilder = curveBuilder;
+    }
+    addRingSide(coord, offsetDistance, side, cwLeftLoc, cwRightLoc) {
+        if (offsetDistance === 0.0 && coord.length < (0, _linearRingJsDefault.default).MINIMUM_VALID_SIZE) return null;
+        let leftLoc = cwLeftLoc;
+        let rightLoc = cwRightLoc;
+        if (coord.length >= (0, _linearRingJsDefault.default).MINIMUM_VALID_SIZE && (0, _orientationJsDefault.default).isCCW(coord)) {
+            leftLoc = cwRightLoc;
+            rightLoc = cwLeftLoc;
+            side = (0, _positionJsDefault.default).opposite(side);
+        }
+        const curve = this._curveBuilder.getRingCurve(coord, side, offsetDistance);
+        this.addCurve(curve, leftLoc, rightLoc);
+    }
+    addRingBothSides(coord, distance) {
+        this.addRingSide(coord, distance, (0, _positionJsDefault.default).LEFT, (0, _locationJsDefault.default).EXTERIOR, (0, _locationJsDefault.default).INTERIOR);
+        this.addRingSide(coord, distance, (0, _positionJsDefault.default).RIGHT, (0, _locationJsDefault.default).INTERIOR, (0, _locationJsDefault.default).EXTERIOR);
+    }
+    addPoint(p) {
+        if (this._distance <= 0.0) return null;
+        const coord = p.getCoordinates();
+        const curve = this._curveBuilder.getLineCurve(coord, this._distance);
+        this.addCurve(curve, (0, _locationJsDefault.default).EXTERIOR, (0, _locationJsDefault.default).INTERIOR);
+    }
+    addPolygon(p) {
+        let offsetDistance = this._distance;
+        let offsetSide = (0, _positionJsDefault.default).LEFT;
+        if (this._distance < 0.0) {
+            offsetDistance = -this._distance;
+            offsetSide = (0, _positionJsDefault.default).RIGHT;
+        }
+        const shell = p.getExteriorRing();
+        const shellCoord = (0, _coordinateArraysJsDefault.default).removeRepeatedPoints(shell.getCoordinates());
+        if (this._distance < 0.0 && this.isErodedCompletely(shell, this._distance)) return null;
+        if (this._distance <= 0.0 && shellCoord.length < 3) return null;
+        this.addRingSide(shellCoord, offsetDistance, offsetSide, (0, _locationJsDefault.default).EXTERIOR, (0, _locationJsDefault.default).INTERIOR);
+        for(let i = 0; i < p.getNumInteriorRing(); i++){
+            const hole = p.getInteriorRingN(i);
+            const holeCoord = (0, _coordinateArraysJsDefault.default).removeRepeatedPoints(hole.getCoordinates());
+            if (this._distance > 0.0 && this.isErodedCompletely(hole, -this._distance)) continue;
+            this.addRingSide(holeCoord, offsetDistance, (0, _positionJsDefault.default).opposite(offsetSide), (0, _locationJsDefault.default).INTERIOR, (0, _locationJsDefault.default).EXTERIOR);
+        }
+    }
+    isTriangleErodedCompletely(triangleCoord, bufferDistance) {
+        const tri = new (0, _triangleJsDefault.default)(triangleCoord[0], triangleCoord[1], triangleCoord[2]);
+        const inCentre = tri.inCentre();
+        const distToCentre = (0, _distanceJsDefault.default).pointToSegment(inCentre, tri.p0, tri.p1);
+        return distToCentre < Math.abs(bufferDistance);
+    }
+    addLineString(line) {
+        if (this._curveBuilder.isLineOffsetEmpty(this._distance)) return null;
+        const coord = (0, _coordinateArraysJsDefault.default).removeRepeatedPoints(line.getCoordinates());
+        if ((0, _coordinateArraysJsDefault.default).isRing(coord) && !this._curveBuilder.getBufferParameters().isSingleSided()) this.addRingBothSides(coord, this._distance);
+        else {
+            const curve = this._curveBuilder.getLineCurve(coord, this._distance);
+            this.addCurve(curve, (0, _locationJsDefault.default).EXTERIOR, (0, _locationJsDefault.default).INTERIOR);
+        }
+    }
+    add(g) {
+        if (g.isEmpty()) return null;
+        if (g instanceof (0, _polygonJsDefault.default)) this.addPolygon(g);
+        else if (g instanceof (0, _lineStringJsDefault.default)) this.addLineString(g);
+        else if (g instanceof (0, _pointJsDefault.default)) this.addPoint(g);
+        else if (g instanceof (0, _multiPointJsDefault.default)) this.addCollection(g);
+        else if (g instanceof (0, _multiLineStringJsDefault.default)) this.addCollection(g);
+        else if (g instanceof (0, _multiPolygonJsDefault.default)) this.addCollection(g);
+        else if (g instanceof (0, _geometryCollectionJsDefault.default)) this.addCollection(g);
+        else throw new (0, _unsupportedOperationExceptionJsDefault.default)(g.getGeometryType());
+    }
+    addCurve(coord, leftLoc, rightLoc) {
+        if (coord === null || coord.length < 2) return null;
+        const e = new (0, _nodedSegmentStringJsDefault.default)(coord, new (0, _labelJsDefault.default)(0, (0, _locationJsDefault.default).BOUNDARY, leftLoc, rightLoc));
+        this._curveList.add(e);
+    }
+    getCurves() {
+        this.add(this._inputGeom);
+        return this._curveList;
+    }
+    isErodedCompletely(ring, bufferDistance) {
+        const ringCoord = ring.getCoordinates();
+        if (ringCoord.length < 4) return bufferDistance < 0;
+        if (ringCoord.length === 4) return this.isTriangleErodedCompletely(ringCoord, bufferDistance);
+        const env = ring.getEnvelopeInternal();
+        const envMinDimension = Math.min(env.getHeight(), env.getWidth());
+        if (bufferDistance < 0.0 && 2 * Math.abs(bufferDistance) > envMinDimension) return true;
+        return false;
+    }
+    addCollection(gc) {
+        for(let i = 0; i < gc.getNumGeometries(); i++){
+            const g = gc.getGeometryN(i);
+            this.add(g);
+        }
+    }
+}
+exports.default = OffsetCurveSetBuilder;
+
+},{"../../geom/Location.js":"9aPCX","../../geom/LineString.js":"4eIEg","../../geomgraph/Position.js":"13raO","../../geom/Point.js":"lwZpO","../../geom/LinearRing.js":"2x4Ym","../../algorithm/Orientation.js":"avl08","../../geom/MultiPolygon.js":"6Hrab","../../geomgraph/Label.js":"dJJOo","../../geom/CoordinateArrays.js":"lncg4","../../../../../java/util/ArrayList.js":"gGAQZ","../../algorithm/Distance.js":"4ZaWr","../../geom/MultiLineString.js":"5UyOx","../../geom/Triangle.js":"3tGRP","../../noding/NodedSegmentString.js":"gBLDJ","../../geom/Polygon.js":"kpOA5","../../geom/MultiPoint.js":"5w2To","../../geom/GeometryCollection.js":"6RJQO","../../../../../java/lang/UnsupportedOperationException.js":"dV3kx","@parcel/transformer-js/src/esmodule-helpers.js":"jnFvT"}],"3tGRP":[function(require,module,exports,__globalThis) {
+var parcelHelpers = require("@parcel/transformer-js/src/esmodule-helpers.js");
+parcelHelpers.defineInteropFlag(exports);
+var _ddJs = require("../math/DD.js");
+var _ddJsDefault = parcelHelpers.interopDefault(_ddJs);
+var _angleJs = require("../algorithm/Angle.js");
+var _angleJsDefault = parcelHelpers.interopDefault(_angleJs);
+var _hcoordinateJs = require("../algorithm/HCoordinate.js");
+var _hcoordinateJsDefault = parcelHelpers.interopDefault(_hcoordinateJs);
+var _coordinateJs = require("./Coordinate.js");
+var _coordinateJsDefault = parcelHelpers.interopDefault(_coordinateJs);
+var _illegalArgumentExceptionJs = require("../../../../java/lang/IllegalArgumentException.js");
+var _illegalArgumentExceptionJsDefault = parcelHelpers.interopDefault(_illegalArgumentExceptionJs);
+class Triangle {
+    constructor(){
+        Triangle.constructor_.apply(this, arguments);
+    }
+    static constructor_() {
+        this.p0 = null;
+        this.p1 = null;
+        this.p2 = null;
+        const p0 = arguments[0], p1 = arguments[1], p2 = arguments[2];
+        this.p0 = p0;
+        this.p1 = p1;
+        this.p2 = p2;
+    }
+    static isAcute(a, b, c) {
+        if (!(0, _angleJsDefault.default).isAcute(a, b, c)) return false;
+        if (!(0, _angleJsDefault.default).isAcute(b, c, a)) return false;
+        if (!(0, _angleJsDefault.default).isAcute(c, a, b)) return false;
+        return true;
+    }
+    static circumcentre(a, b, c) {
+        const cx = c.x;
+        const cy = c.y;
+        const ax = a.x - cx;
+        const ay = a.y - cy;
+        const bx = b.x - cx;
+        const by = b.y - cy;
+        const denom = 2 * Triangle.det(ax, ay, bx, by);
+        const numx = Triangle.det(ay, ax * ax + ay * ay, by, bx * bx + by * by);
+        const numy = Triangle.det(ax, ax * ax + ay * ay, bx, bx * bx + by * by);
+        const ccx = cx - numx / denom;
+        const ccy = cy + numy / denom;
+        return new (0, _coordinateJsDefault.default)(ccx, ccy);
+    }
+    static perpendicularBisector(a, b) {
+        const dx = b.x - a.x;
+        const dy = b.y - a.y;
+        const l1 = new (0, _hcoordinateJsDefault.default)(a.x + dx / 2.0, a.y + dy / 2.0, 1.0);
+        const l2 = new (0, _hcoordinateJsDefault.default)(a.x - dy + dx / 2.0, a.y + dx + dy / 2.0, 1.0);
+        return new (0, _hcoordinateJsDefault.default)(l1, l2);
+    }
+    static angleBisector(a, b, c) {
+        const len0 = b.distance(a);
+        const len2 = b.distance(c);
+        const frac = len0 / (len0 + len2);
+        const dx = c.x - a.x;
+        const dy = c.y - a.y;
+        const splitPt = new (0, _coordinateJsDefault.default)(a.x + frac * dx, a.y + frac * dy);
+        return splitPt;
+    }
+    static inCentre(a, b, c) {
+        const len0 = b.distance(c);
+        const len1 = a.distance(c);
+        const len2 = a.distance(b);
+        const circum = len0 + len1 + len2;
+        const inCentreX = (len0 * a.x + len1 * b.x + len2 * c.x) / circum;
+        const inCentreY = (len0 * a.y + len1 * b.y + len2 * c.y) / circum;
+        return new (0, _coordinateJsDefault.default)(inCentreX, inCentreY);
+    }
+    static area(a, b, c) {
+        return Math.abs(((c.x - a.x) * (b.y - a.y) - (b.x - a.x) * (c.y - a.y)) / 2);
+    }
+    static signedArea(a, b, c) {
+        return ((c.x - a.x) * (b.y - a.y) - (b.x - a.x) * (c.y - a.y)) / 2;
+    }
+    static det(m00, m01, m10, m11) {
+        return m00 * m11 - m01 * m10;
+    }
+    static interpolateZ(p, v0, v1, v2) {
+        const x0 = v0.x;
+        const y0 = v0.y;
+        const a = v1.x - x0;
+        const b = v2.x - x0;
+        const c = v1.y - y0;
+        const d = v2.y - y0;
+        const det = a * d - b * c;
+        const dx = p.x - x0;
+        const dy = p.y - y0;
+        const t = (d * dx - b * dy) / det;
+        const u = (-c * dx + a * dy) / det;
+        const z = v0.getZ() + t * (v1.getZ() - v0.getZ()) + u * (v2.getZ() - v0.getZ());
+        return z;
+    }
+    static longestSideLength(a, b, c) {
+        const lenAB = a.distance(b);
+        const lenBC = b.distance(c);
+        const lenCA = c.distance(a);
+        let maxLen = lenAB;
+        if (lenBC > maxLen) maxLen = lenBC;
+        if (lenCA > maxLen) maxLen = lenCA;
+        return maxLen;
+    }
+    static circumcentreDD(a, b, c) {
+        const ax = (0, _ddJsDefault.default).valueOf(a.x).subtract(c.x);
+        const ay = (0, _ddJsDefault.default).valueOf(a.y).subtract(c.y);
+        const bx = (0, _ddJsDefault.default).valueOf(b.x).subtract(c.x);
+        const by = (0, _ddJsDefault.default).valueOf(b.y).subtract(c.y);
+        const denom = (0, _ddJsDefault.default).determinant(ax, ay, bx, by).multiply(2);
+        const asqr = ax.sqr().add(ay.sqr());
+        const bsqr = bx.sqr().add(by.sqr());
+        const numx = (0, _ddJsDefault.default).determinant(ay, asqr, by, bsqr);
+        const numy = (0, _ddJsDefault.default).determinant(ax, asqr, bx, bsqr);
+        const ccx = (0, _ddJsDefault.default).valueOf(c.x).subtract(numx.divide(denom)).doubleValue();
+        const ccy = (0, _ddJsDefault.default).valueOf(c.y).add(numy.divide(denom)).doubleValue();
+        return new (0, _coordinateJsDefault.default)(ccx, ccy);
+    }
+    static area3D(a, b, c) {
+        const ux = b.x - a.x;
+        const uy = b.y - a.y;
+        const uz = b.getZ() - a.getZ();
+        const vx = c.x - a.x;
+        const vy = c.y - a.y;
+        const vz = c.getZ() - a.getZ();
+        const crossx = uy * vz - uz * vy;
+        const crossy = uz * vx - ux * vz;
+        const crossz = ux * vy - uy * vx;
+        const absSq = crossx * crossx + crossy * crossy + crossz * crossz;
+        const area3D = Math.sqrt(absSq) / 2;
+        return area3D;
+    }
+    static centroid(a, b, c) {
+        const x = (a.x + b.x + c.x) / 3;
+        const y = (a.y + b.y + c.y) / 3;
+        return new (0, _coordinateJsDefault.default)(x, y);
+    }
+    interpolateZ(p) {
+        if (p === null) throw new (0, _illegalArgumentExceptionJsDefault.default)('Supplied point is null.');
+        return Triangle.interpolateZ(p, this.p0, this.p1, this.p2);
+    }
+    longestSideLength() {
+        return Triangle.longestSideLength(this.p0, this.p1, this.p2);
+    }
+    isAcute() {
+        return Triangle.isAcute(this.p0, this.p1, this.p2);
+    }
+    circumcentre() {
+        return Triangle.circumcentre(this.p0, this.p1, this.p2);
+    }
+    inCentre() {
+        return Triangle.inCentre(this.p0, this.p1, this.p2);
+    }
+    area() {
+        return Triangle.area(this.p0, this.p1, this.p2);
+    }
+    signedArea() {
+        return Triangle.signedArea(this.p0, this.p1, this.p2);
+    }
+    area3D() {
+        return Triangle.area3D(this.p0, this.p1, this.p2);
+    }
+    centroid() {
+        return Triangle.centroid(this.p0, this.p1, this.p2);
+    }
+}
+exports.default = Triangle;
+
+},{"../math/DD.js":"12omc","../algorithm/Angle.js":"61NBK","../algorithm/HCoordinate.js":"1Fobc","./Coordinate.js":"ii2fh","../../../../java/lang/IllegalArgumentException.js":"9ppVW","@parcel/transformer-js/src/esmodule-helpers.js":"jnFvT"}],"1Fobc":[function(require,module,exports,__globalThis) {
+var parcelHelpers = require("@parcel/transformer-js/src/esmodule-helpers.js");
+parcelHelpers.defineInteropFlag(exports);
+var _notRepresentableExceptionJs = require("./NotRepresentableException.js");
+var _notRepresentableExceptionJsDefault = parcelHelpers.interopDefault(_notRepresentableExceptionJs);
+var _coordinateJs = require("../geom/Coordinate.js");
+var _coordinateJsDefault = parcelHelpers.interopDefault(_coordinateJs);
+var _doubleJs = require("../../../../java/lang/Double.js");
+var _doubleJsDefault = parcelHelpers.interopDefault(_doubleJs);
+class HCoordinate {
+    constructor(){
+        HCoordinate.constructor_.apply(this, arguments);
+    }
+    static constructor_() {
+        this.x = null;
+        this.y = null;
+        this.w = null;
+        if (arguments.length === 0) {
+            this.x = 0.0;
+            this.y = 0.0;
+            this.w = 1.0;
+        } else if (arguments.length === 1) {
+            const p = arguments[0];
+            this.x = p.x;
+            this.y = p.y;
+            this.w = 1.0;
+        } else if (arguments.length === 2) {
+            if (typeof arguments[0] === 'number' && typeof arguments[1] === 'number') {
+                const _x = arguments[0], _y = arguments[1];
+                this.x = _x;
+                this.y = _y;
+                this.w = 1.0;
+            } else if (arguments[0] instanceof HCoordinate && arguments[1] instanceof HCoordinate) {
+                const p1 = arguments[0], p2 = arguments[1];
+                this.x = p1.y * p2.w - p2.y * p1.w;
+                this.y = p2.x * p1.w - p1.x * p2.w;
+                this.w = p1.x * p2.y - p2.x * p1.y;
+            } else if (arguments[0] instanceof (0, _coordinateJsDefault.default) && arguments[1] instanceof (0, _coordinateJsDefault.default)) {
+                const p1 = arguments[0], p2 = arguments[1];
+                this.x = p1.y - p2.y;
+                this.y = p2.x - p1.x;
+                this.w = p1.x * p2.y - p2.x * p1.y;
+            }
+        } else if (arguments.length === 3) {
+            const _x = arguments[0], _y = arguments[1], _w = arguments[2];
+            this.x = _x;
+            this.y = _y;
+            this.w = _w;
+        } else if (arguments.length === 4) {
+            const p1 = arguments[0], p2 = arguments[1], q1 = arguments[2], q2 = arguments[3];
+            const px = p1.y - p2.y;
+            const py = p2.x - p1.x;
+            const pw = p1.x * p2.y - p2.x * p1.y;
+            const qx = q1.y - q2.y;
+            const qy = q2.x - q1.x;
+            const qw = q1.x * q2.y - q2.x * q1.y;
+            this.x = py * qw - qy * pw;
+            this.y = qx * pw - px * qw;
+            this.w = px * qy - qx * py;
+        }
+    }
+    getCoordinate() {
+        const p = new (0, _coordinateJsDefault.default)();
+        p.x = this.getX();
+        p.y = this.getY();
+        return p;
+    }
+    getX() {
+        const a = this.x / this.w;
+        if ((0, _doubleJsDefault.default).isNaN(a) || (0, _doubleJsDefault.default).isInfinite(a)) throw new (0, _notRepresentableExceptionJsDefault.default)();
+        return a;
+    }
+    getY() {
+        const a = this.y / this.w;
+        if ((0, _doubleJsDefault.default).isNaN(a) || (0, _doubleJsDefault.default).isInfinite(a)) throw new (0, _notRepresentableExceptionJsDefault.default)();
+        return a;
+    }
+}
+exports.default = HCoordinate;
+
+},{"./NotRepresentableException.js":"2MRq4","../geom/Coordinate.js":"ii2fh","../../../../java/lang/Double.js":"clUxd","@parcel/transformer-js/src/esmodule-helpers.js":"jnFvT"}],"2MRq4":[function(require,module,exports,__globalThis) {
+var parcelHelpers = require("@parcel/transformer-js/src/esmodule-helpers.js");
+parcelHelpers.defineInteropFlag(exports);
+var _exceptionJs = require("../../../../java/lang/Exception.js");
+var _exceptionJsDefault = parcelHelpers.interopDefault(_exceptionJs);
+class NotRepresentableException extends (0, _exceptionJsDefault.default) {
+    constructor(){
+        super();
+        NotRepresentableException.constructor_.apply(this, arguments);
+    }
+    static constructor_() {
+        (0, _exceptionJsDefault.default).constructor_.call(this, 'Projective point not representable on the Cartesian plane.');
+    }
+}
+exports.default = NotRepresentableException;
+
+},{"../../../../java/lang/Exception.js":"8tbsL","@parcel/transformer-js/src/esmodule-helpers.js":"jnFvT"}],"2jxBb":[function(require,module,exports,__globalThis) {
+var parcelHelpers = require("@parcel/transformer-js/src/esmodule-helpers.js");
+parcelHelpers.defineInteropFlag(exports);
+var _directedEdgeStarJs = require("../../geomgraph/DirectedEdgeStar.js");
+var _directedEdgeStarJsDefault = parcelHelpers.interopDefault(_directedEdgeStarJs);
+var _nodeJs = require("../../geomgraph/Node.js");
+var _nodeJsDefault = parcelHelpers.interopDefault(_nodeJs);
+var _nodeFactoryJs = require("../../geomgraph/NodeFactory.js");
+var _nodeFactoryJsDefault = parcelHelpers.interopDefault(_nodeFactoryJs);
+class OverlayNodeFactory extends (0, _nodeFactoryJsDefault.default) {
+    constructor(){
+        super();
+    }
+    createNode(coord) {
+        return new (0, _nodeJsDefault.default)(coord, new (0, _directedEdgeStarJsDefault.default)());
+    }
+}
+exports.default = OverlayNodeFactory;
+
+},{"../../geomgraph/DirectedEdgeStar.js":"1iJ32","../../geomgraph/Node.js":"azV0J","../../geomgraph/NodeFactory.js":"5wP5U","@parcel/transformer-js/src/esmodule-helpers.js":"jnFvT"}],"1iJ32":[function(require,module,exports,__globalThis) {
+var parcelHelpers = require("@parcel/transformer-js/src/esmodule-helpers.js");
+parcelHelpers.defineInteropFlag(exports);
+var _locationJs = require("../geom/Location.js");
+var _locationJsDefault = parcelHelpers.interopDefault(_locationJs);
+var _positionJs = require("./Position.js");
+var _positionJsDefault = parcelHelpers.interopDefault(_positionJs);
+var _topologyExceptionJs = require("../geom/TopologyException.js");
+var _topologyExceptionJsDefault = parcelHelpers.interopDefault(_topologyExceptionJs);
+var _labelJs = require("./Label.js");
+var _labelJsDefault = parcelHelpers.interopDefault(_labelJs);
+var _arrayListJs = require("../../../../java/util/ArrayList.js");
+var _arrayListJsDefault = parcelHelpers.interopDefault(_arrayListJs);
+var _edgeEndStarJs = require("./EdgeEndStar.js");
+var _edgeEndStarJsDefault = parcelHelpers.interopDefault(_edgeEndStarJs);
+var _systemJs = require("../../../../java/lang/System.js");
+var _systemJsDefault = parcelHelpers.interopDefault(_systemJs);
+var _quadrantJs = require("./Quadrant.js");
+var _quadrantJsDefault = parcelHelpers.interopDefault(_quadrantJs);
+var _assertJs = require("../util/Assert.js");
+var _assertJsDefault = parcelHelpers.interopDefault(_assertJs);
+class DirectedEdgeStar extends (0, _edgeEndStarJsDefault.default) {
+    constructor(){
+        super();
+        DirectedEdgeStar.constructor_.apply(this, arguments);
+    }
+    static constructor_() {
+        this._resultAreaEdgeList = null;
+        this._label = null;
+        this._SCANNING_FOR_INCOMING = 1;
+        this._LINKING_TO_OUTGOING = 2;
+    }
+    linkResultDirectedEdges() {
+        this.getResultAreaEdges();
+        let firstOut = null;
+        let incoming = null;
+        let state = this._SCANNING_FOR_INCOMING;
+        for(let i = 0; i < this._resultAreaEdgeList.size(); i++){
+            const nextOut = this._resultAreaEdgeList.get(i);
+            const nextIn = nextOut.getSym();
+            if (!nextOut.getLabel().isArea()) continue;
+            if (firstOut === null && nextOut.isInResult()) firstOut = nextOut;
+            switch(state){
+                case this._SCANNING_FOR_INCOMING:
+                    if (!nextIn.isInResult()) continue;
+                    incoming = nextIn;
+                    state = this._LINKING_TO_OUTGOING;
+                    break;
+                case this._LINKING_TO_OUTGOING:
+                    if (!nextOut.isInResult()) continue;
+                    incoming.setNext(nextOut);
+                    state = this._SCANNING_FOR_INCOMING;
+                    break;
+            }
+        }
+        if (state === this._LINKING_TO_OUTGOING) {
+            if (firstOut === null) throw new (0, _topologyExceptionJsDefault.default)('no outgoing dirEdge found', this.getCoordinate());
+            (0, _assertJsDefault.default).isTrue(firstOut.isInResult(), 'unable to link last incoming dirEdge');
+            incoming.setNext(firstOut);
+        }
+    }
+    insert(ee) {
+        const de = ee;
+        this.insertEdgeEnd(de, de);
+    }
+    getRightmostEdge() {
+        const edges = this.getEdges();
+        const size = edges.size();
+        if (size < 1) return null;
+        const de0 = edges.get(0);
+        if (size === 1) return de0;
+        const deLast = edges.get(size - 1);
+        const quad0 = de0.getQuadrant();
+        const quad1 = deLast.getQuadrant();
+        if ((0, _quadrantJsDefault.default).isNorthern(quad0) && (0, _quadrantJsDefault.default).isNorthern(quad1)) return de0;
+        else if (!(0, _quadrantJsDefault.default).isNorthern(quad0) && !(0, _quadrantJsDefault.default).isNorthern(quad1)) return deLast;
+        else {
+            const nonHorizontalEdge = null;
+            if (de0.getDy() !== 0) return de0;
+            else if (deLast.getDy() !== 0) return deLast;
+        }
+        (0, _assertJsDefault.default).shouldNeverReachHere('found two horizontal edges incident on node');
+        return null;
+    }
+    updateLabelling(nodeLabel) {
+        for(let it = this.iterator(); it.hasNext();){
+            const de = it.next();
+            const label = de.getLabel();
+            label.setAllLocationsIfNull(0, nodeLabel.getLocation(0));
+            label.setAllLocationsIfNull(1, nodeLabel.getLocation(1));
+        }
+    }
+    linkAllDirectedEdges() {
+        this.getEdges();
+        let prevOut = null;
+        let firstIn = null;
+        for(let i = this._edgeList.size() - 1; i >= 0; i--){
+            const nextOut = this._edgeList.get(i);
+            const nextIn = nextOut.getSym();
+            if (firstIn === null) firstIn = nextIn;
+            if (prevOut !== null) nextIn.setNext(prevOut);
+            prevOut = nextOut;
+        }
+        firstIn.setNext(prevOut);
+    }
+    computeDepths() {
+        if (arguments.length === 1) {
+            const de = arguments[0];
+            const edgeIndex = this.findIndex(de);
+            const startDepth = de.getDepth((0, _positionJsDefault.default).LEFT);
+            const targetLastDepth = de.getDepth((0, _positionJsDefault.default).RIGHT);
+            const nextDepth = this.computeDepths(edgeIndex + 1, this._edgeList.size(), startDepth);
+            const lastDepth = this.computeDepths(0, edgeIndex, nextDepth);
+            if (lastDepth !== targetLastDepth) throw new (0, _topologyExceptionJsDefault.default)('depth mismatch at ' + de.getCoordinate());
+        } else if (arguments.length === 3) {
+            const startIndex = arguments[0], endIndex = arguments[1], startDepth = arguments[2];
+            let currDepth = startDepth;
+            for(let i = startIndex; i < endIndex; i++){
+                const nextDe = this._edgeList.get(i);
+                nextDe.setEdgeDepths((0, _positionJsDefault.default).RIGHT, currDepth);
+                currDepth = nextDe.getDepth((0, _positionJsDefault.default).LEFT);
+            }
+            return currDepth;
+        }
+    }
+    mergeSymLabels() {
+        for(let it = this.iterator(); it.hasNext();){
+            const de = it.next();
+            const label = de.getLabel();
+            label.merge(de.getSym().getLabel());
+        }
+    }
+    linkMinimalDirectedEdges(er) {
+        let firstOut = null;
+        let incoming = null;
+        let state = this._SCANNING_FOR_INCOMING;
+        for(let i = this._resultAreaEdgeList.size() - 1; i >= 0; i--){
+            const nextOut = this._resultAreaEdgeList.get(i);
+            const nextIn = nextOut.getSym();
+            if (firstOut === null && nextOut.getEdgeRing() === er) firstOut = nextOut;
+            switch(state){
+                case this._SCANNING_FOR_INCOMING:
+                    if (nextIn.getEdgeRing() !== er) continue;
+                    incoming = nextIn;
+                    state = this._LINKING_TO_OUTGOING;
+                    break;
+                case this._LINKING_TO_OUTGOING:
+                    if (nextOut.getEdgeRing() !== er) continue;
+                    incoming.setNextMin(nextOut);
+                    state = this._SCANNING_FOR_INCOMING;
+                    break;
+            }
+        }
+        if (state === this._LINKING_TO_OUTGOING) {
+            (0, _assertJsDefault.default).isTrue(firstOut !== null, 'found null for first outgoing dirEdge');
+            (0, _assertJsDefault.default).isTrue(firstOut.getEdgeRing() === er, 'unable to link last incoming dirEdge');
+            incoming.setNextMin(firstOut);
+        }
+    }
+    getOutgoingDegree() {
+        if (arguments.length === 0) {
+            let degree = 0;
+            for(let it = this.iterator(); it.hasNext();){
+                const de = it.next();
+                if (de.isInResult()) degree++;
+            }
+            return degree;
+        } else if (arguments.length === 1) {
+            const er = arguments[0];
+            let degree = 0;
+            for(let it = this.iterator(); it.hasNext();){
+                const de = it.next();
+                if (de.getEdgeRing() === er) degree++;
+            }
+            return degree;
+        }
+    }
+    getLabel() {
+        return this._label;
+    }
+    findCoveredLineEdges() {
+        let startLoc = (0, _locationJsDefault.default).NONE;
+        for(let it = this.iterator(); it.hasNext();){
+            const nextOut = it.next();
+            const nextIn = nextOut.getSym();
+            if (!nextOut.isLineEdge()) {
+                if (nextOut.isInResult()) {
+                    startLoc = (0, _locationJsDefault.default).INTERIOR;
+                    break;
+                }
+                if (nextIn.isInResult()) {
+                    startLoc = (0, _locationJsDefault.default).EXTERIOR;
+                    break;
+                }
+            }
+        }
+        if (startLoc === (0, _locationJsDefault.default).NONE) return null;
+        let currLoc = startLoc;
+        for(let it = this.iterator(); it.hasNext();){
+            const nextOut = it.next();
+            const nextIn = nextOut.getSym();
+            if (nextOut.isLineEdge()) nextOut.getEdge().setCovered(currLoc === (0, _locationJsDefault.default).INTERIOR);
+            else {
+                if (nextOut.isInResult()) currLoc = (0, _locationJsDefault.default).EXTERIOR;
+                if (nextIn.isInResult()) currLoc = (0, _locationJsDefault.default).INTERIOR;
+            }
+        }
+    }
+    computeLabelling(geom) {
+        super.computeLabelling.call(this, geom);
+        this._label = new (0, _labelJsDefault.default)((0, _locationJsDefault.default).NONE);
+        for(let it = this.iterator(); it.hasNext();){
+            const ee = it.next();
+            const e = ee.getEdge();
+            const eLabel = e.getLabel();
+            for(let i = 0; i < 2; i++){
+                const eLoc = eLabel.getLocation(i);
+                if (eLoc === (0, _locationJsDefault.default).INTERIOR || eLoc === (0, _locationJsDefault.default).BOUNDARY) this._label.setLocation(i, (0, _locationJsDefault.default).INTERIOR);
+            }
+        }
+    }
+    print(out) {
+        (0, _systemJsDefault.default).out.println('DirectedEdgeStar: ' + this.getCoordinate());
+        for(let it = this.iterator(); it.hasNext();){
+            const de = it.next();
+            out.print('out ');
+            de.print(out);
+            out.println();
+            out.print('in ');
+            de.getSym().print(out);
+            out.println();
+        }
+    }
+    getResultAreaEdges() {
+        if (this._resultAreaEdgeList !== null) return this._resultAreaEdgeList;
+        this._resultAreaEdgeList = new (0, _arrayListJsDefault.default)();
+        for(let it = this.iterator(); it.hasNext();){
+            const de = it.next();
+            if (de.isInResult() || de.getSym().isInResult()) this._resultAreaEdgeList.add(de);
+        }
+        return this._resultAreaEdgeList;
+    }
+}
+exports.default = DirectedEdgeStar;
+
+},{"../geom/Location.js":"9aPCX","./Position.js":"13raO","../geom/TopologyException.js":"bOVA5","./Label.js":"dJJOo","../../../../java/util/ArrayList.js":"gGAQZ","./EdgeEndStar.js":"lc382","../../../../java/lang/System.js":"dYmTx","./Quadrant.js":"86Qmh","../util/Assert.js":"1vSRy","@parcel/transformer-js/src/esmodule-helpers.js":"jnFvT"}],"cqdlm":[function(require,module,exports,__globalThis) {
+var parcelHelpers = require("@parcel/transformer-js/src/esmodule-helpers.js");
+parcelHelpers.defineInteropFlag(exports);
+var _orientedCoordinateArrayJs = require("../noding/OrientedCoordinateArray.js");
+var _orientedCoordinateArrayJsDefault = parcelHelpers.interopDefault(_orientedCoordinateArrayJs);
+var _arrayListJs = require("../../../../java/util/ArrayList.js");
+var _arrayListJsDefault = parcelHelpers.interopDefault(_arrayListJs);
+var _treeMapJs = require("../../../../java/util/TreeMap.js");
+var _treeMapJsDefault = parcelHelpers.interopDefault(_treeMapJs);
+class EdgeList {
+    constructor(){
+        EdgeList.constructor_.apply(this, arguments);
+    }
+    static constructor_() {
+        this._edges = new (0, _arrayListJsDefault.default)();
+        this._ocaMap = new (0, _treeMapJsDefault.default)();
+    }
+    print(out) {
+        out.print('MULTILINESTRING ( ');
+        for(let j = 0; j < this._edges.size(); j++){
+            const e = this._edges.get(j);
+            if (j > 0) out.print(',');
+            out.print('(');
+            const pts = e.getCoordinates();
+            for(let i = 0; i < pts.length; i++){
+                if (i > 0) out.print(',');
+                out.print(pts[i].x + ' ' + pts[i].y);
+            }
+            out.println(')');
+        }
+        out.print(')  ');
+    }
+    addAll(edgeColl) {
+        for(let i = edgeColl.iterator(); i.hasNext();)this.add(i.next());
+    }
+    findEdgeIndex(e) {
+        for(let i = 0; i < this._edges.size(); i++)if (this._edges.get(i).equals(e)) return i;
+        return -1;
+    }
+    iterator() {
+        return this._edges.iterator();
+    }
+    getEdges() {
+        return this._edges;
+    }
+    get(i) {
+        return this._edges.get(i);
+    }
+    findEqualEdge(e) {
+        const oca = new (0, _orientedCoordinateArrayJsDefault.default)(e.getCoordinates());
+        const matchEdge = this._ocaMap.get(oca);
+        return matchEdge;
+    }
+    add(e) {
+        this._edges.add(e);
+        const oca = new (0, _orientedCoordinateArrayJsDefault.default)(e.getCoordinates());
+        this._ocaMap.put(oca, e);
+    }
+}
+exports.default = EdgeList;
+
+},{"../noding/OrientedCoordinateArray.js":"6WFuf","../../../../java/util/ArrayList.js":"gGAQZ","../../../../java/util/TreeMap.js":"dQNYS","@parcel/transformer-js/src/esmodule-helpers.js":"jnFvT"}],"6WFuf":[function(require,module,exports,__globalThis) {
+var parcelHelpers = require("@parcel/transformer-js/src/esmodule-helpers.js");
+parcelHelpers.defineInteropFlag(exports);
+var _comparableJs = require("../../../../java/lang/Comparable.js");
+var _comparableJsDefault = parcelHelpers.interopDefault(_comparableJs);
+var _coordinateArraysJs = require("../geom/CoordinateArrays.js");
+var _coordinateArraysJsDefault = parcelHelpers.interopDefault(_coordinateArraysJs);
+class OrientedCoordinateArray {
+    constructor(){
+        OrientedCoordinateArray.constructor_.apply(this, arguments);
+    }
+    static constructor_() {
+        this._pts = null;
+        this._orientation = null;
+        const pts = arguments[0];
+        this._pts = pts;
+        this._orientation = OrientedCoordinateArray.orientation(pts);
+    }
+    static orientation(pts) {
+        return (0, _coordinateArraysJsDefault.default).increasingDirection(pts) === 1;
+    }
+    static compareOriented(pts1, orientation1, pts2, orientation2) {
+        const dir1 = orientation1 ? 1 : -1;
+        const dir2 = orientation2 ? 1 : -1;
+        const limit1 = orientation1 ? pts1.length : -1;
+        const limit2 = orientation2 ? pts2.length : -1;
+        let i1 = orientation1 ? 0 : pts1.length - 1;
+        let i2 = orientation2 ? 0 : pts2.length - 1;
+        while(true){
+            const compPt = pts1[i1].compareTo(pts2[i2]);
+            if (compPt !== 0) return compPt;
+            i1 += dir1;
+            i2 += dir2;
+            const done1 = i1 === limit1;
+            const done2 = i2 === limit2;
+            if (done1 && !done2) return -1;
+            if (!done1 && done2) return 1;
+            if (done1 && done2) return 0;
+        }
+    }
+    compareTo(o1) {
+        const oca = o1;
+        const comp = OrientedCoordinateArray.compareOriented(this._pts, this._orientation, oca._pts, oca._orientation);
+        return comp;
+    }
+    get interfaces_() {
+        return [
+            (0, _comparableJsDefault.default)
+        ];
+    }
+}
+exports.default = OrientedCoordinateArray;
+
+},{"../../../../java/lang/Comparable.js":"WFeEu","../geom/CoordinateArrays.js":"lncg4","@parcel/transformer-js/src/esmodule-helpers.js":"jnFvT"}],"dL4Dk":[function(require,module,exports,__globalThis) {
+var parcelHelpers = require("@parcel/transformer-js/src/esmodule-helpers.js");
+parcelHelpers.defineInteropFlag(exports);
+var _segmentIntersectorJs = require("./SegmentIntersector.js");
+var _segmentIntersectorJsDefault = parcelHelpers.interopDefault(_segmentIntersectorJs);
+class IntersectionAdder {
+    constructor(){
+        IntersectionAdder.constructor_.apply(this, arguments);
+    }
+    static constructor_() {
+        this._hasIntersection = false;
+        this._hasProper = false;
+        this._hasProperInterior = false;
+        this._hasInterior = false;
+        this._properIntersectionPoint = null;
+        this._li = null;
+        this._isSelfIntersection = null;
+        this.numIntersections = 0;
+        this.numInteriorIntersections = 0;
+        this.numProperIntersections = 0;
+        this.numTests = 0;
+        const li = arguments[0];
+        this._li = li;
+    }
+    static isAdjacentSegments(i1, i2) {
+        return Math.abs(i1 - i2) === 1;
+    }
+    isTrivialIntersection(e0, segIndex0, e1, segIndex1) {
+        if (e0 === e1) {
+            if (this._li.getIntersectionNum() === 1) {
+                if (IntersectionAdder.isAdjacentSegments(segIndex0, segIndex1)) return true;
+                if (e0.isClosed()) {
+                    const maxSegIndex = e0.size() - 1;
+                    if (segIndex0 === 0 && segIndex1 === maxSegIndex || segIndex1 === 0 && segIndex0 === maxSegIndex) return true;
+                }
+            }
+        }
+        return false;
+    }
+    getProperIntersectionPoint() {
+        return this._properIntersectionPoint;
+    }
+    hasProperInteriorIntersection() {
+        return this._hasProperInterior;
+    }
+    getLineIntersector() {
+        return this._li;
+    }
+    hasProperIntersection() {
+        return this._hasProper;
+    }
+    processIntersections(e0, segIndex0, e1, segIndex1) {
+        if (e0 === e1 && segIndex0 === segIndex1) return null;
+        this.numTests++;
+        const p00 = e0.getCoordinates()[segIndex0];
+        const p01 = e0.getCoordinates()[segIndex0 + 1];
+        const p10 = e1.getCoordinates()[segIndex1];
+        const p11 = e1.getCoordinates()[segIndex1 + 1];
+        this._li.computeIntersection(p00, p01, p10, p11);
+        if (this._li.hasIntersection()) {
+            this.numIntersections++;
+            if (this._li.isInteriorIntersection()) {
+                this.numInteriorIntersections++;
+                this._hasInterior = true;
+            }
+            if (!this.isTrivialIntersection(e0, segIndex0, e1, segIndex1)) {
+                this._hasIntersection = true;
+                e0.addIntersections(this._li, segIndex0, 0);
+                e1.addIntersections(this._li, segIndex1, 1);
+                if (this._li.isProper()) {
+                    this.numProperIntersections++;
+                    this._hasProper = true;
+                    this._hasProperInterior = true;
+                }
+            }
+        }
+    }
+    hasIntersection() {
+        return this._hasIntersection;
+    }
+    isDone() {
+        return false;
+    }
+    hasInteriorIntersection() {
+        return this._hasInterior;
+    }
+    get interfaces_() {
+        return [
+            (0, _segmentIntersectorJsDefault.default)
+        ];
+    }
+}
+exports.default = IntersectionAdder;
+
+},{"./SegmentIntersector.js":"jNast","@parcel/transformer-js/src/esmodule-helpers.js":"jnFvT"}],"3M1zL":[function(require,module,exports,__globalThis) {
+var parcelHelpers = require("@parcel/transformer-js/src/esmodule-helpers.js");
+parcelHelpers.defineInteropFlag(exports);
+var _lineStringJs = require("../../../geom/LineString.js");
+var _lineStringJsDefault = parcelHelpers.interopDefault(_lineStringJs);
+var _coordinateListJs = require("../../../geom/CoordinateList.js");
+var _coordinateListJsDefault = parcelHelpers.interopDefault(_coordinateListJs);
+var _coordinateJs = require("../../../geom/Coordinate.js");
+var _coordinateJsDefault = parcelHelpers.interopDefault(_coordinateJs);
+var _doubleJs = require("../../../../../../java/lang/Double.js");
+var _doubleJsDefault = parcelHelpers.interopDefault(_doubleJs);
+var _lineSegmentJs = require("../../../geom/LineSegment.js");
+var _lineSegmentJsDefault = parcelHelpers.interopDefault(_lineSegmentJs);
+class LineStringSnapper {
+    constructor(){
+        LineStringSnapper.constructor_.apply(this, arguments);
+    }
+    static constructor_() {
+        this._snapTolerance = 0.0;
+        this._srcPts = null;
+        this._seg = new (0, _lineSegmentJsDefault.default)();
+        this._allowSnappingToSourceVertices = false;
+        this._isClosed = false;
+        if (arguments[0] instanceof (0, _lineStringJsDefault.default) && typeof arguments[1] === 'number') {
+            const srcLine = arguments[0], snapTolerance = arguments[1];
+            LineStringSnapper.constructor_.call(this, srcLine.getCoordinates(), snapTolerance);
+        } else if (arguments[0] instanceof Array && typeof arguments[1] === 'number') {
+            const srcPts = arguments[0], snapTolerance = arguments[1];
+            this._srcPts = srcPts;
+            this._isClosed = LineStringSnapper.isClosed(srcPts);
+            this._snapTolerance = snapTolerance;
+        }
+    }
+    static isClosed(pts) {
+        if (pts.length <= 1) return false;
+        return pts[0].equals2D(pts[pts.length - 1]);
+    }
+    snapVertices(srcCoords, snapPts) {
+        const end = this._isClosed ? srcCoords.size() - 1 : srcCoords.size();
+        for(let i = 0; i < end; i++){
+            const srcPt = srcCoords.get(i);
+            const snapVert = this.findSnapForVertex(srcPt, snapPts);
+            if (snapVert !== null) {
+                srcCoords.set(i, new (0, _coordinateJsDefault.default)(snapVert));
+                if (i === 0 && this._isClosed) srcCoords.set(srcCoords.size() - 1, new (0, _coordinateJsDefault.default)(snapVert));
+            }
+        }
+    }
+    findSnapForVertex(pt, snapPts) {
+        for(let i = 0; i < snapPts.length; i++){
+            if (pt.equals2D(snapPts[i])) return null;
+            if (pt.distance(snapPts[i]) < this._snapTolerance) return snapPts[i];
+        }
+        return null;
+    }
+    snapTo(snapPts) {
+        const coordList = new (0, _coordinateListJsDefault.default)(this._srcPts);
+        this.snapVertices(coordList, snapPts);
+        this.snapSegments(coordList, snapPts);
+        const newPts = coordList.toCoordinateArray();
+        return newPts;
+    }
+    snapSegments(srcCoords, snapPts) {
+        if (snapPts.length === 0) return null;
+        let distinctPtCount = snapPts.length;
+        if (snapPts[0].equals2D(snapPts[snapPts.length - 1])) distinctPtCount = snapPts.length - 1;
+        for(let i = 0; i < distinctPtCount; i++){
+            const snapPt = snapPts[i];
+            const index = this.findSegmentIndexToSnap(snapPt, srcCoords);
+            if (index >= 0) srcCoords.add(index + 1, new (0, _coordinateJsDefault.default)(snapPt), false);
+        }
+    }
+    findSegmentIndexToSnap(snapPt, srcCoords) {
+        let minDist = (0, _doubleJsDefault.default).MAX_VALUE;
+        let snapIndex = -1;
+        for(let i = 0; i < srcCoords.size() - 1; i++){
+            this._seg.p0 = srcCoords.get(i);
+            this._seg.p1 = srcCoords.get(i + 1);
+            if (this._seg.p0.equals2D(snapPt) || this._seg.p1.equals2D(snapPt)) {
+                if (this._allowSnappingToSourceVertices) continue;
+                else return -1;
+            }
+            const dist = this._seg.distance(snapPt);
+            if (dist < this._snapTolerance && dist < minDist) {
+                minDist = dist;
+                snapIndex = i;
+            }
+        }
+        return snapIndex;
+    }
+    setAllowSnappingToSourceVertices(allowSnappingToSourceVertices) {
+        this._allowSnappingToSourceVertices = allowSnappingToSourceVertices;
+    }
+}
+exports.default = LineStringSnapper;
+
+},{"../../../geom/LineString.js":"4eIEg","../../../geom/CoordinateList.js":"ibs54","../../../geom/Coordinate.js":"ii2fh","../../../../../../java/lang/Double.js":"clUxd","../../../geom/LineSegment.js":"8Ncbv","@parcel/transformer-js/src/esmodule-helpers.js":"jnFvT"}],"d0nTa":[function(require,module,exports,__globalThis) {
+var parcelHelpers = require("@parcel/transformer-js/src/esmodule-helpers.js");
+parcelHelpers.defineInteropFlag(exports);
+var _lineStringJs = require("../LineString.js");
+var _lineStringJsDefault = parcelHelpers.interopDefault(_lineStringJs);
+var _geometryFactoryJs = require("../GeometryFactory.js");
+var _geometryFactoryJsDefault = parcelHelpers.interopDefault(_geometryFactoryJs);
+var _linearRingJs = require("../LinearRing.js");
+var _linearRingJsDefault = parcelHelpers.interopDefault(_linearRingJs);
+var _multiPolygonJs = require("../MultiPolygon.js");
+var _multiPolygonJsDefault = parcelHelpers.interopDefault(_multiPolygonJs);
+var _geometryCollectionJs = require("../GeometryCollection.js");
+var _geometryCollectionJsDefault = parcelHelpers.interopDefault(_geometryCollectionJs);
+var _arrayListJs = require("../../../../../java/util/ArrayList.js");
+var _arrayListJsDefault = parcelHelpers.interopDefault(_arrayListJs);
+var _multiLineStringJs = require("../MultiLineString.js");
+var _multiLineStringJsDefault = parcelHelpers.interopDefault(_multiLineStringJs);
+var _illegalArgumentExceptionJs = require("../../../../../java/lang/IllegalArgumentException.js");
+var _illegalArgumentExceptionJsDefault = parcelHelpers.interopDefault(_illegalArgumentExceptionJs);
+var _pointJs = require("../Point.js");
+var _pointJsDefault = parcelHelpers.interopDefault(_pointJs);
+var _polygonJs = require("../Polygon.js");
+var _polygonJsDefault = parcelHelpers.interopDefault(_polygonJs);
+var _multiPointJs = require("../MultiPoint.js");
+var _multiPointJsDefault = parcelHelpers.interopDefault(_multiPointJs);
+class GeometryTransformer {
+    constructor(){
+        GeometryTransformer.constructor_.apply(this, arguments);
+    }
+    static constructor_() {
+        this._inputGeom = null;
+        this._factory = null;
+        this._pruneEmptyGeometry = true;
+        this._preserveGeometryCollectionType = true;
+        this._preserveCollections = false;
+        this._preserveType = false;
+    }
+    transformPoint(geom, parent) {
+        return this._factory.createPoint(this.transformCoordinates(geom.getCoordinateSequence(), geom));
+    }
+    transformPolygon(geom, parent) {
+        let isAllValidLinearRings = true;
+        const shell = this.transformLinearRing(geom.getExteriorRing(), geom);
+        if (shell === null || !(shell instanceof (0, _linearRingJsDefault.default)) || shell.isEmpty()) isAllValidLinearRings = false;
+        const holes = new (0, _arrayListJsDefault.default)();
+        for(let i = 0; i < geom.getNumInteriorRing(); i++){
+            const hole = this.transformLinearRing(geom.getInteriorRingN(i), geom);
+            if (hole === null || hole.isEmpty()) continue;
+            if (!(hole instanceof (0, _linearRingJsDefault.default))) isAllValidLinearRings = false;
+            holes.add(hole);
+        }
+        if (isAllValidLinearRings) return this._factory.createPolygon(shell, holes.toArray([]));
+        else {
+            const components = new (0, _arrayListJsDefault.default)();
+            if (shell !== null) components.add(shell);
+            components.addAll(holes);
+            return this._factory.buildGeometry(components);
+        }
+    }
+    createCoordinateSequence(coords) {
+        return this._factory.getCoordinateSequenceFactory().create(coords);
+    }
+    getInputGeometry() {
+        return this._inputGeom;
+    }
+    transformMultiLineString(geom, parent) {
+        const transGeomList = new (0, _arrayListJsDefault.default)();
+        for(let i = 0; i < geom.getNumGeometries(); i++){
+            const transformGeom = this.transformLineString(geom.getGeometryN(i), geom);
+            if (transformGeom === null) continue;
+            if (transformGeom.isEmpty()) continue;
+            transGeomList.add(transformGeom);
+        }
+        return this._factory.buildGeometry(transGeomList);
+    }
+    transformCoordinates(coords, parent) {
+        return this.copy(coords);
+    }
+    transformLineString(geom, parent) {
+        return this._factory.createLineString(this.transformCoordinates(geom.getCoordinateSequence(), geom));
+    }
+    transformMultiPoint(geom, parent) {
+        const transGeomList = new (0, _arrayListJsDefault.default)();
+        for(let i = 0; i < geom.getNumGeometries(); i++){
+            const transformGeom = this.transformPoint(geom.getGeometryN(i), geom);
+            if (transformGeom === null) continue;
+            if (transformGeom.isEmpty()) continue;
+            transGeomList.add(transformGeom);
+        }
+        return this._factory.buildGeometry(transGeomList);
+    }
+    transformMultiPolygon(geom, parent) {
+        const transGeomList = new (0, _arrayListJsDefault.default)();
+        for(let i = 0; i < geom.getNumGeometries(); i++){
+            const transformGeom = this.transformPolygon(geom.getGeometryN(i), geom);
+            if (transformGeom === null) continue;
+            if (transformGeom.isEmpty()) continue;
+            transGeomList.add(transformGeom);
+        }
+        return this._factory.buildGeometry(transGeomList);
+    }
+    copy(seq) {
+        return seq.copy();
+    }
+    transformLinearRing(geom, parent) {
+        const seq = this.transformCoordinates(geom.getCoordinateSequence(), geom);
+        if (seq === null) return this._factory.createLinearRing(null);
+        const seqSize = seq.size();
+        if (seqSize > 0 && seqSize < 4 && !this._preserveType) return this._factory.createLineString(seq);
+        return this._factory.createLinearRing(seq);
+    }
+    transformGeometryCollection(geom, parent) {
+        const transGeomList = new (0, _arrayListJsDefault.default)();
+        for(let i = 0; i < geom.getNumGeometries(); i++){
+            const transformGeom = this.transform(geom.getGeometryN(i));
+            if (transformGeom === null) continue;
+            if (this._pruneEmptyGeometry && transformGeom.isEmpty()) continue;
+            transGeomList.add(transformGeom);
+        }
+        if (this._preserveGeometryCollectionType) return this._factory.createGeometryCollection((0, _geometryFactoryJsDefault.default).toGeometryArray(transGeomList));
+        return this._factory.buildGeometry(transGeomList);
+    }
+    transform(inputGeom) {
+        this._inputGeom = inputGeom;
+        this._factory = inputGeom.getFactory();
+        if (inputGeom instanceof (0, _pointJsDefault.default)) return this.transformPoint(inputGeom, null);
+        if (inputGeom instanceof (0, _multiPointJsDefault.default)) return this.transformMultiPoint(inputGeom, null);
+        if (inputGeom instanceof (0, _linearRingJsDefault.default)) return this.transformLinearRing(inputGeom, null);
+        if (inputGeom instanceof (0, _lineStringJsDefault.default)) return this.transformLineString(inputGeom, null);
+        if (inputGeom instanceof (0, _multiLineStringJsDefault.default)) return this.transformMultiLineString(inputGeom, null);
+        if (inputGeom instanceof (0, _polygonJsDefault.default)) return this.transformPolygon(inputGeom, null);
+        if (inputGeom instanceof (0, _multiPolygonJsDefault.default)) return this.transformMultiPolygon(inputGeom, null);
+        if (inputGeom instanceof (0, _geometryCollectionJsDefault.default)) return this.transformGeometryCollection(inputGeom, null);
+        throw new (0, _illegalArgumentExceptionJsDefault.default)('Unknown Geometry subtype: ' + inputGeom.getGeometryType());
+    }
+}
+exports.default = GeometryTransformer;
+
+},{"../LineString.js":"4eIEg","../GeometryFactory.js":"cGt0T","../LinearRing.js":"2x4Ym","../MultiPolygon.js":"6Hrab","../GeometryCollection.js":"6RJQO","../../../../../java/util/ArrayList.js":"gGAQZ","../MultiLineString.js":"5UyOx","../../../../../java/lang/IllegalArgumentException.js":"9ppVW","../Point.js":"lwZpO","../Polygon.js":"kpOA5","../MultiPoint.js":"5w2To","@parcel/transformer-js/src/esmodule-helpers.js":"jnFvT"}],"7y7Cu":[function(require,module,exports,__globalThis) {
+var parcelHelpers = require("@parcel/transformer-js/src/esmodule-helpers.js");
+parcelHelpers.defineInteropFlag(exports);
+var _coordinateJs = require("../geom/Coordinate.js");
+var _coordinateJsDefault = parcelHelpers.interopDefault(_coordinateJs);
+var _coordinateSequenceFilterJs = require("../geom/CoordinateSequenceFilter.js");
+var _coordinateSequenceFilterJsDefault = parcelHelpers.interopDefault(_coordinateSequenceFilterJs);
+var _commonBitsJs = require("./CommonBits.js");
+var _commonBitsJsDefault = parcelHelpers.interopDefault(_commonBitsJs);
+var _coordinateFilterJs = require("../geom/CoordinateFilter.js");
+var _coordinateFilterJsDefault = parcelHelpers.interopDefault(_coordinateFilterJs);
+class CommonBitsRemover {
+    constructor(){
+        CommonBitsRemover.constructor_.apply(this, arguments);
+    }
+    static constructor_() {
+        this._commonCoord = null;
+        this._ccFilter = new CommonCoordinateFilter();
+    }
+    add(geom) {
+        geom.apply(this._ccFilter);
+        this._commonCoord = this._ccFilter.getCommonCoordinate();
+    }
+    removeCommonBits(geom) {
+        if (this._commonCoord.x === 0.0 && this._commonCoord.y === 0.0) return geom;
+        const invCoord = new (0, _coordinateJsDefault.default)(this._commonCoord);
+        invCoord.x = -invCoord.x;
+        invCoord.y = -invCoord.y;
+        const trans = new Translater(invCoord);
+        geom.apply(trans);
+        geom.geometryChanged();
+        return geom;
+    }
+    addCommonBits(geom) {
+        const trans = new Translater(this._commonCoord);
+        geom.apply(trans);
+        geom.geometryChanged();
+    }
+    getCommonCoordinate() {
+        return this._commonCoord;
+    }
+}
+exports.default = CommonBitsRemover;
+class CommonCoordinateFilter {
+    constructor(){
+        CommonCoordinateFilter.constructor_.apply(this, arguments);
+    }
+    static constructor_() {
+        this._commonBitsX = new (0, _commonBitsJsDefault.default)();
+        this._commonBitsY = new (0, _commonBitsJsDefault.default)();
+    }
+    filter(coord) {
+        this._commonBitsX.add(coord.x);
+        this._commonBitsY.add(coord.y);
+    }
+    getCommonCoordinate() {
+        return new (0, _coordinateJsDefault.default)(this._commonBitsX.getCommon(), this._commonBitsY.getCommon());
+    }
+    get interfaces_() {
+        return [
+            (0, _coordinateFilterJsDefault.default)
+        ];
+    }
+}
+class Translater {
+    constructor(){
+        Translater.constructor_.apply(this, arguments);
+    }
+    static constructor_() {
+        this.trans = null;
+        const trans = arguments[0];
+        this.trans = trans;
+    }
+    filter(seq, i) {
+        const xp = seq.getOrdinate(i, 0) + this.trans.x;
+        const yp = seq.getOrdinate(i, 1) + this.trans.y;
+        seq.setOrdinate(i, 0, xp);
+        seq.setOrdinate(i, 1, yp);
+    }
+    isGeometryChanged() {
+        return true;
+    }
+    isDone() {
+        return false;
+    }
+    get interfaces_() {
+        return [
+            (0, _coordinateSequenceFilterJsDefault.default)
+        ];
+    }
+}
+CommonBitsRemover.CommonCoordinateFilter = CommonCoordinateFilter;
+CommonBitsRemover.Translater = Translater;
+
+},{"../geom/Coordinate.js":"ii2fh","../geom/CoordinateSequenceFilter.js":"8MSah","./CommonBits.js":"6B21P","../geom/CoordinateFilter.js":"cr8Rt","@parcel/transformer-js/src/esmodule-helpers.js":"jnFvT"}],"6B21P":[function(require,module,exports,__globalThis) {
+var parcelHelpers = require("@parcel/transformer-js/src/esmodule-helpers.js");
+parcelHelpers.defineInteropFlag(exports);
+var _doubleJs = require("../../../../java/lang/Double.js");
+var _doubleJsDefault = parcelHelpers.interopDefault(_doubleJs);
+var _longJs = require("../../../../java/lang/Long.js");
+var _longJsDefault = parcelHelpers.interopDefault(_longJs);
+class CommonBits {
+    constructor(){
+        this._isFirst = true;
+        this._commonMantissaBitsCount = 53;
+        this._commonBits = new (0, _longJsDefault.default)();
+        this._commonSignExp = null;
+    }
+    getCommon() {
+        return (0, _doubleJsDefault.default).longBitsToDouble(this._commonBits);
+    }
+    add(num) {
+        const numBits = (0, _doubleJsDefault.default).doubleToLongBits(num);
+        if (this._isFirst) {
+            this._commonBits = numBits;
+            this._commonSignExp = CommonBits.signExpBits(this._commonBits);
+            this._isFirst = false;
+            return null;
+        }
+        const numSignExp = CommonBits.signExpBits(numBits);
+        if (numSignExp !== this._commonSignExp) {
+            this._commonBits.high = 0;
+            this._commonBits.low = 0;
+            return null;
+        }
+        this._commonMantissaBitsCount = CommonBits.numCommonMostSigMantissaBits(this._commonBits, numBits);
+        this._commonBits = CommonBits.zeroLowerBits(this._commonBits, 64 - (12 + this._commonMantissaBitsCount));
+    }
+    toString() {
+        if (arguments.length === 1) {
+            const bits = arguments[0];
+            const x = (0, _doubleJsDefault.default).longBitsToDouble(bits);
+            const numStr = (0, _longJsDefault.default).toBinaryString(bits);
+            const padStr = '0000000000000000000000000000000000000000000000000000000000000000' + numStr;
+            const bitStr = padStr.substring(padStr.length - 64);
+            const str = bitStr.substring(0, 1) + '  ' + bitStr.substring(1, 12) + '(exp) ' + bitStr.substring(12) + ' [ ' + x + ' ]';
+            return str;
+        }
+    }
+    getClass() {
+        return CommonBits;
+    }
+    get interfaces_() {
+        return [];
+    }
+    static getBit(bits, i) {
+        const mask = 1 << i % 32;
+        if (i < 32) return (bits.low & mask) !== 0 ? 1 : 0;
+        return (bits.high & mask) !== 0 ? 1 : 0;
+    }
+    static signExpBits(num) {
+        return num.high >>> 20;
+    }
+    static zeroLowerBits(bits, nBits) {
+        let prop = 'low';
+        if (nBits > 32) {
+            bits.low = 0;
+            nBits %= 32;
+            prop = 'high';
+        }
+        if (nBits > 0) {
+            const mask = nBits < 32 ? ~((1 << nBits) - 1) : 0;
+            bits[prop] &= mask;
+        }
+        return bits;
+    }
+    static numCommonMostSigMantissaBits(num1, num2) {
+        let count = 0;
+        for(let i = 52; i >= 0; i--){
+            if (CommonBits.getBit(num1, i) !== CommonBits.getBit(num2, i)) return count;
+            count++;
+        }
+        return 52;
+    }
+}
+exports.default = CommonBits;
+
+},{"../../../../java/lang/Double.js":"clUxd","../../../../java/lang/Long.js":"9ArwZ","@parcel/transformer-js/src/esmodule-helpers.js":"jnFvT"}],"9f5ft":[function(require,module,exports,__globalThis) {
+var parcelHelpers = require("@parcel/transformer-js/src/esmodule-helpers.js");
+parcelHelpers.defineInteropFlag(exports);
+var _polygonBuilderJs = require("./PolygonBuilder.js");
+var _polygonBuilderJsDefault = parcelHelpers.interopDefault(_polygonBuilderJs);
+var _positionJs = require("../../geomgraph/Position.js");
+var _positionJsDefault = parcelHelpers.interopDefault(_positionJs);
+var _illegalArgumentExceptionJs = require("../../../../../java/lang/IllegalArgumentException.js");
+var _illegalArgumentExceptionJsDefault = parcelHelpers.interopDefault(_illegalArgumentExceptionJs);
+var _lineBuilderJs = require("./LineBuilder.js");
+var _lineBuilderJsDefault = parcelHelpers.interopDefault(_lineBuilderJs);
+var _pointBuilderJs = require("./PointBuilder.js");
+var _pointBuilderJsDefault = parcelHelpers.interopDefault(_pointBuilderJs);
+var _snapIfNeededOverlayOpJs = require("./snap/SnapIfNeededOverlayOp.js");
+var _snapIfNeededOverlayOpJsDefault = parcelHelpers.interopDefault(_snapIfNeededOverlayOpJs);
+var _labelJs = require("../../geomgraph/Label.js");
+var _labelJsDefault = parcelHelpers.interopDefault(_labelJs);
+var _arrayListJs = require("../../../../../java/util/ArrayList.js");
+var _arrayListJsDefault = parcelHelpers.interopDefault(_arrayListJs);
+var _assertJs = require("../../util/Assert.js");
+var _assertJsDefault = parcelHelpers.interopDefault(_assertJs);
+var _planarGraphJs = require("../../geomgraph/PlanarGraph.js");
+var _planarGraphJsDefault = parcelHelpers.interopDefault(_planarGraphJs);
+var _pointLocatorJs = require("../../algorithm/PointLocator.js");
+var _pointLocatorJsDefault = parcelHelpers.interopDefault(_pointLocatorJs);
+var _locationJs = require("../../geom/Location.js");
+var _locationJsDefault = parcelHelpers.interopDefault(_locationJs);
+var _edgeNodingValidatorJs = require("../../geomgraph/EdgeNodingValidator.js");
+var _edgeNodingValidatorJsDefault = parcelHelpers.interopDefault(_edgeNodingValidatorJs);
+var _geometryCollectionMapperJs = require("../../geom/util/GeometryCollectionMapper.js");
+var _geometryCollectionMapperJsDefault = parcelHelpers.interopDefault(_geometryCollectionMapperJs);
+var _overlayNodeFactoryJs = require("./OverlayNodeFactory.js");
+var _overlayNodeFactoryJsDefault = parcelHelpers.interopDefault(_overlayNodeFactoryJs);
+var _geometryGraphOperationJs = require("../GeometryGraphOperation.js");
+var _geometryGraphOperationJsDefault = parcelHelpers.interopDefault(_geometryGraphOperationJs);
+var _edgeListJs = require("../../geomgraph/EdgeList.js");
+var _edgeListJsDefault = parcelHelpers.interopDefault(_edgeListJs);
+class OverlayOp extends (0, _geometryGraphOperationJsDefault.default) {
+    constructor(){
+        super();
+        OverlayOp.constructor_.apply(this, arguments);
+    }
+    static constructor_() {
+        this._ptLocator = new (0, _pointLocatorJsDefault.default)();
+        this._geomFact = null;
+        this._resultGeom = null;
+        this._graph = null;
+        this._edgeList = new (0, _edgeListJsDefault.default)();
+        this._resultPolyList = new (0, _arrayListJsDefault.default)();
+        this._resultLineList = new (0, _arrayListJsDefault.default)();
+        this._resultPointList = new (0, _arrayListJsDefault.default)();
+        const g0 = arguments[0], g1 = arguments[1];
+        (0, _geometryGraphOperationJsDefault.default).constructor_.call(this, g0, g1);
+        this._graph = new (0, _planarGraphJsDefault.default)(new (0, _overlayNodeFactoryJsDefault.default)());
+        this._geomFact = g0.getFactory();
+    }
+    static overlayOp(geom0, geom1, opCode) {
+        const gov = new OverlayOp(geom0, geom1);
+        const geomOv = gov.getResultGeometry(opCode);
+        return geomOv;
+    }
+    static union(geom, other) {
+        if (geom.isEmpty() || other.isEmpty()) {
+            if (geom.isEmpty() && other.isEmpty()) return OverlayOp.createEmptyResult(OverlayOp.UNION, geom, other, geom.getFactory());
+            if (geom.isEmpty()) return other.copy();
+            if (other.isEmpty()) return geom.copy();
+        }
+        if (geom.isGeometryCollection() || other.isGeometryCollection()) throw new (0, _illegalArgumentExceptionJsDefault.default)('This method does not support GeometryCollection arguments');
+        return (0, _snapIfNeededOverlayOpJsDefault.default).overlayOp(geom, other, OverlayOp.UNION);
+    }
+    static intersection(geom, other) {
+        if (geom.isEmpty() || other.isEmpty()) return OverlayOp.createEmptyResult(OverlayOp.INTERSECTION, geom, other, geom.getFactory());
+        if (geom.isGeometryCollection()) {
+            const g2 = other;
+            return (0, _geometryCollectionMapperJsDefault.default).map(geom, new class {
+                get interfaces_() {
+                    return [
+                        MapOp
+                    ];
+                }
+                map(g) {
+                    return OverlayOp.intersection(g, g2);
+                }
+            }());
+        }
+        return (0, _snapIfNeededOverlayOpJsDefault.default).overlayOp(geom, other, OverlayOp.INTERSECTION);
+    }
+    static symDifference(geom, other) {
+        if (geom.isEmpty() || other.isEmpty()) {
+            if (geom.isEmpty() && other.isEmpty()) return OverlayOp.createEmptyResult(OverlayOp.SYMDIFFERENCE, geom, other, geom.getFactory());
+            if (geom.isEmpty()) return other.copy();
+            if (other.isEmpty()) return geom.copy();
+        }
+        if (geom.isGeometryCollection() || other.isGeometryCollection()) throw new (0, _illegalArgumentExceptionJsDefault.default)('This method does not support GeometryCollection arguments');
+        return (0, _snapIfNeededOverlayOpJsDefault.default).overlayOp(geom, other, OverlayOp.SYMDIFFERENCE);
+    }
+    static resultDimension(opCode, g0, g1) {
+        const dim0 = g0.getDimension();
+        const dim1 = g1.getDimension();
+        let resultDimension = -1;
+        switch(opCode){
+            case OverlayOp.INTERSECTION:
+                resultDimension = Math.min(dim0, dim1);
+                break;
+            case OverlayOp.UNION:
+                resultDimension = Math.max(dim0, dim1);
+                break;
+            case OverlayOp.DIFFERENCE:
+                resultDimension = dim0;
+                break;
+            case OverlayOp.SYMDIFFERENCE:
+                resultDimension = Math.max(dim0, dim1);
+                break;
+        }
+        return resultDimension;
+    }
+    static createEmptyResult(overlayOpCode, a, b, geomFact) {
+        let result = null;
+        const resultDim = OverlayOp.resultDimension(overlayOpCode, a, b);
+        return result = geomFact.createEmpty(resultDim);
+    }
+    static difference(geom, other) {
+        if (geom.isEmpty()) return OverlayOp.createEmptyResult(OverlayOp.DIFFERENCE, geom, other, geom.getFactory());
+        if (other.isEmpty()) return geom.copy();
+        if (geom.isGeometryCollection() || other.isGeometryCollection()) throw new (0, _illegalArgumentExceptionJsDefault.default)('This method does not support GeometryCollection arguments');
+        return (0, _snapIfNeededOverlayOpJsDefault.default).overlayOp(geom, other, OverlayOp.DIFFERENCE);
+    }
+    static isResultOfOp() {
+        if (arguments.length === 2) {
+            const label = arguments[0], opCode = arguments[1];
+            const loc0 = label.getLocation(0);
+            const loc1 = label.getLocation(1);
+            return OverlayOp.isResultOfOp(loc0, loc1, opCode);
+        } else if (arguments.length === 3) {
+            let loc0 = arguments[0], loc1 = arguments[1], overlayOpCode = arguments[2];
+            if (loc0 === (0, _locationJsDefault.default).BOUNDARY) loc0 = (0, _locationJsDefault.default).INTERIOR;
+            if (loc1 === (0, _locationJsDefault.default).BOUNDARY) loc1 = (0, _locationJsDefault.default).INTERIOR;
+            switch(overlayOpCode){
+                case OverlayOp.INTERSECTION:
+                    return loc0 === (0, _locationJsDefault.default).INTERIOR && loc1 === (0, _locationJsDefault.default).INTERIOR;
+                case OverlayOp.UNION:
+                    return loc0 === (0, _locationJsDefault.default).INTERIOR || loc1 === (0, _locationJsDefault.default).INTERIOR;
+                case OverlayOp.DIFFERENCE:
+                    return loc0 === (0, _locationJsDefault.default).INTERIOR && loc1 !== (0, _locationJsDefault.default).INTERIOR;
+                case OverlayOp.SYMDIFFERENCE:
+                    return loc0 === (0, _locationJsDefault.default).INTERIOR && loc1 !== (0, _locationJsDefault.default).INTERIOR || loc0 !== (0, _locationJsDefault.default).INTERIOR && loc1 === (0, _locationJsDefault.default).INTERIOR;
+            }
+            return false;
+        }
+    }
+    insertUniqueEdge(e) {
+        const existingEdge = this._edgeList.findEqualEdge(e);
+        if (existingEdge !== null) {
+            const existingLabel = existingEdge.getLabel();
+            let labelToMerge = e.getLabel();
+            if (!existingEdge.isPointwiseEqual(e)) {
+                labelToMerge = new (0, _labelJsDefault.default)(e.getLabel());
+                labelToMerge.flip();
+            }
+            const depth = existingEdge.getDepth();
+            if (depth.isNull()) depth.add(existingLabel);
+            depth.add(labelToMerge);
+            existingLabel.merge(labelToMerge);
+        } else this._edgeList.add(e);
+    }
+    getGraph() {
+        return this._graph;
+    }
+    cancelDuplicateResultEdges() {
+        for(let it = this._graph.getEdgeEnds().iterator(); it.hasNext();){
+            const de = it.next();
+            const sym = de.getSym();
+            if (de.isInResult() && sym.isInResult()) {
+                de.setInResult(false);
+                sym.setInResult(false);
+            }
+        }
+    }
+    mergeSymLabels() {
+        for(let nodeit = this._graph.getNodes().iterator(); nodeit.hasNext();){
+            const node = nodeit.next();
+            node.getEdges().mergeSymLabels();
+        }
+    }
+    computeOverlay(opCode) {
+        this.copyPoints(0);
+        this.copyPoints(1);
+        this._arg[0].computeSelfNodes(this._li, false);
+        this._arg[1].computeSelfNodes(this._li, false);
+        this._arg[0].computeEdgeIntersections(this._arg[1], this._li, true);
+        const baseSplitEdges = new (0, _arrayListJsDefault.default)();
+        this._arg[0].computeSplitEdges(baseSplitEdges);
+        this._arg[1].computeSplitEdges(baseSplitEdges);
+        const splitEdges = baseSplitEdges;
+        this.insertUniqueEdges(baseSplitEdges);
+        this.computeLabelsFromDepths();
+        this.replaceCollapsedEdges();
+        (0, _edgeNodingValidatorJsDefault.default).checkValid(this._edgeList.getEdges());
+        this._graph.addEdges(this._edgeList.getEdges());
+        this.computeLabelling();
+        this.labelIncompleteNodes();
+        this.findResultAreaEdges(opCode);
+        this.cancelDuplicateResultEdges();
+        const polyBuilder = new (0, _polygonBuilderJsDefault.default)(this._geomFact);
+        polyBuilder.add(this._graph);
+        this._resultPolyList = polyBuilder.getPolygons();
+        const lineBuilder = new (0, _lineBuilderJsDefault.default)(this, this._geomFact, this._ptLocator);
+        this._resultLineList = lineBuilder.build(opCode);
+        const pointBuilder = new (0, _pointBuilderJsDefault.default)(this, this._geomFact, this._ptLocator);
+        this._resultPointList = pointBuilder.build(opCode);
+        this._resultGeom = this.computeGeometry(this._resultPointList, this._resultLineList, this._resultPolyList, opCode);
+    }
+    findResultAreaEdges(opCode) {
+        for(let it = this._graph.getEdgeEnds().iterator(); it.hasNext();){
+            const de = it.next();
+            const label = de.getLabel();
+            if (label.isArea() && !de.isInteriorAreaEdge() && OverlayOp.isResultOfOp(label.getLocation(0, (0, _positionJsDefault.default).RIGHT), label.getLocation(1, (0, _positionJsDefault.default).RIGHT), opCode)) de.setInResult(true);
+        }
+    }
+    computeLabelsFromDepths() {
+        for(let it = this._edgeList.iterator(); it.hasNext();){
+            const e = it.next();
+            const lbl = e.getLabel();
+            const depth = e.getDepth();
+            if (!depth.isNull()) {
+                depth.normalize();
+                for(let i = 0; i < 2; i++)if (!lbl.isNull(i) && lbl.isArea() && !depth.isNull(i)) {
+                    if (depth.getDelta(i) === 0) lbl.toLine(i);
+                    else {
+                        (0, _assertJsDefault.default).isTrue(!depth.isNull(i, (0, _positionJsDefault.default).LEFT), 'depth of LEFT side has not been initialized');
+                        lbl.setLocation(i, (0, _positionJsDefault.default).LEFT, depth.getLocation(i, (0, _positionJsDefault.default).LEFT));
+                        (0, _assertJsDefault.default).isTrue(!depth.isNull(i, (0, _positionJsDefault.default).RIGHT), 'depth of RIGHT side has not been initialized');
+                        lbl.setLocation(i, (0, _positionJsDefault.default).RIGHT, depth.getLocation(i, (0, _positionJsDefault.default).RIGHT));
+                    }
+                }
+            }
+        }
+    }
+    isCoveredByA(coord) {
+        if (this.isCovered(coord, this._resultPolyList)) return true;
+        return false;
+    }
+    isCoveredByLA(coord) {
+        if (this.isCovered(coord, this._resultLineList)) return true;
+        if (this.isCovered(coord, this._resultPolyList)) return true;
+        return false;
+    }
+    computeGeometry(resultPointList, resultLineList, resultPolyList, opcode) {
+        const geomList = new (0, _arrayListJsDefault.default)();
+        geomList.addAll(resultPointList);
+        geomList.addAll(resultLineList);
+        geomList.addAll(resultPolyList);
+        if (geomList.isEmpty()) return OverlayOp.createEmptyResult(opcode, this._arg[0].getGeometry(), this._arg[1].getGeometry(), this._geomFact);
+        return this._geomFact.buildGeometry(geomList);
+    }
+    isCovered(coord, geomList) {
+        for(let it = geomList.iterator(); it.hasNext();){
+            const geom = it.next();
+            const loc = this._ptLocator.locate(coord, geom);
+            if (loc !== (0, _locationJsDefault.default).EXTERIOR) return true;
+        }
+        return false;
+    }
+    replaceCollapsedEdges() {
+        const newEdges = new (0, _arrayListJsDefault.default)();
+        for(let it = this._edgeList.iterator(); it.hasNext();){
+            const e = it.next();
+            if (e.isCollapsed()) {
+                it.remove();
+                newEdges.add(e.getCollapsedEdge());
+            }
+        }
+        this._edgeList.addAll(newEdges);
+    }
+    updateNodeLabelling() {
+        for(let nodeit = this._graph.getNodes().iterator(); nodeit.hasNext();){
+            const node = nodeit.next();
+            const lbl = node.getEdges().getLabel();
+            node.getLabel().merge(lbl);
+        }
+    }
+    getResultGeometry(overlayOpCode) {
+        this.computeOverlay(overlayOpCode);
+        return this._resultGeom;
+    }
+    insertUniqueEdges(edges) {
+        for(let i = edges.iterator(); i.hasNext();){
+            const e = i.next();
+            this.insertUniqueEdge(e);
+        }
+    }
+    labelIncompleteNode(n, targetIndex) {
+        const loc = this._ptLocator.locate(n.getCoordinate(), this._arg[targetIndex].getGeometry());
+        n.getLabel().setLocation(targetIndex, loc);
+    }
+    copyPoints(argIndex) {
+        for(let i = this._arg[argIndex].getNodeIterator(); i.hasNext();){
+            const graphNode = i.next();
+            const newNode = this._graph.addNode(graphNode.getCoordinate());
+            newNode.setLabel(argIndex, graphNode.getLabel().getLocation(argIndex));
+        }
+    }
+    computeLabelling() {
+        for(let nodeit = this._graph.getNodes().iterator(); nodeit.hasNext();){
+            const node = nodeit.next();
+            node.getEdges().computeLabelling(this._arg);
+        }
+        this.mergeSymLabels();
+        this.updateNodeLabelling();
+    }
+    labelIncompleteNodes() {
+        for(let ni = this._graph.getNodes().iterator(); ni.hasNext();){
+            const n = ni.next();
+            const label = n.getLabel();
+            if (n.isIsolated()) {
+                if (label.isNull(0)) this.labelIncompleteNode(n, 0);
+                else this.labelIncompleteNode(n, 1);
+            }
+            n.getEdges().updateLabelling(label);
+        }
+    }
+}
+exports.default = OverlayOp;
+OverlayOp.INTERSECTION = 1;
+OverlayOp.UNION = 2;
+OverlayOp.DIFFERENCE = 3;
+OverlayOp.SYMDIFFERENCE = 4;
+
+},{"./PolygonBuilder.js":"crM1Q","../../geomgraph/Position.js":"13raO","../../../../../java/lang/IllegalArgumentException.js":"9ppVW","./LineBuilder.js":"2O8Aa","./PointBuilder.js":"cvTMk","./snap/SnapIfNeededOverlayOp.js":"gxP36","../../geomgraph/Label.js":"dJJOo","../../../../../java/util/ArrayList.js":"gGAQZ","../../util/Assert.js":"1vSRy","../../geomgraph/PlanarGraph.js":"etG4v","../../algorithm/PointLocator.js":"lFmUP","../../geom/Location.js":"9aPCX","../../geomgraph/EdgeNodingValidator.js":"aLQ5t","../../geom/util/GeometryCollectionMapper.js":"kOSsM","./OverlayNodeFactory.js":"2jxBb","../GeometryGraphOperation.js":"3eQ0s","../../geomgraph/EdgeList.js":"cqdlm","@parcel/transformer-js/src/esmodule-helpers.js":"jnFvT"}],"2O8Aa":[function(require,module,exports,__globalThis) {
+var parcelHelpers = require("@parcel/transformer-js/src/esmodule-helpers.js");
+parcelHelpers.defineInteropFlag(exports);
+var _arrayListJs = require("../../../../../java/util/ArrayList.js");
+var _arrayListJsDefault = parcelHelpers.interopDefault(_arrayListJs);
+var _assertJs = require("../../util/Assert.js");
+var _assertJsDefault = parcelHelpers.interopDefault(_assertJs);
+var _overlayOpJs = require("./OverlayOp.js");
+var _overlayOpJsDefault = parcelHelpers.interopDefault(_overlayOpJs);
+class LineBuilder {
+    constructor(){
+        LineBuilder.constructor_.apply(this, arguments);
+    }
+    static constructor_() {
+        this._op = null;
+        this._geometryFactory = null;
+        this._ptLocator = null;
+        this._lineEdgesList = new (0, _arrayListJsDefault.default)();
+        this._resultLineList = new (0, _arrayListJsDefault.default)();
+        const op = arguments[0], geometryFactory = arguments[1], ptLocator = arguments[2];
+        this._op = op;
+        this._geometryFactory = geometryFactory;
+        this._ptLocator = ptLocator;
+    }
+    collectLines(opCode) {
+        for(let it = this._op.getGraph().getEdgeEnds().iterator(); it.hasNext();){
+            const de = it.next();
+            this.collectLineEdge(de, opCode, this._lineEdgesList);
+            this.collectBoundaryTouchEdge(de, opCode, this._lineEdgesList);
+        }
+    }
+    labelIsolatedLine(e, targetIndex) {
+        const loc = this._ptLocator.locate(e.getCoordinate(), this._op.getArgGeometry(targetIndex));
+        e.getLabel().setLocation(targetIndex, loc);
+    }
+    build(opCode) {
+        this.findCoveredLineEdges();
+        this.collectLines(opCode);
+        this.buildLines(opCode);
+        return this._resultLineList;
+    }
+    collectLineEdge(de, opCode, edges) {
+        const label = de.getLabel();
+        const e = de.getEdge();
+        if (de.isLineEdge()) {
+            if (!de.isVisited() && (0, _overlayOpJsDefault.default).isResultOfOp(label, opCode) && !e.isCovered()) {
+                edges.add(e);
+                de.setVisitedEdge(true);
+            }
+        }
+    }
+    findCoveredLineEdges() {
+        for(let nodeit = this._op.getGraph().getNodes().iterator(); nodeit.hasNext();){
+            const node = nodeit.next();
+            node.getEdges().findCoveredLineEdges();
+        }
+        for(let it = this._op.getGraph().getEdgeEnds().iterator(); it.hasNext();){
+            const de = it.next();
+            const e = de.getEdge();
+            if (de.isLineEdge() && !e.isCoveredSet()) {
+                const isCovered = this._op.isCoveredByA(de.getCoordinate());
+                e.setCovered(isCovered);
+            }
+        }
+    }
+    labelIsolatedLines(edgesList) {
+        for(let it = edgesList.iterator(); it.hasNext();){
+            const e = it.next();
+            const label = e.getLabel();
+            if (e.isIsolated()) {
+                if (label.isNull(0)) this.labelIsolatedLine(e, 0);
+                else this.labelIsolatedLine(e, 1);
+            }
+        }
+    }
+    buildLines(opCode) {
+        for(let it = this._lineEdgesList.iterator(); it.hasNext();){
+            const e = it.next();
+            const line = this._geometryFactory.createLineString(e.getCoordinates());
+            this._resultLineList.add(line);
+            e.setInResult(true);
+        }
+    }
+    collectBoundaryTouchEdge(de, opCode, edges) {
+        const label = de.getLabel();
+        if (de.isLineEdge()) return null;
+        if (de.isVisited()) return null;
+        if (de.isInteriorAreaEdge()) return null;
+        if (de.getEdge().isInResult()) return null;
+        (0, _assertJsDefault.default).isTrue(!(de.isInResult() || de.getSym().isInResult()) || !de.getEdge().isInResult());
+        if ((0, _overlayOpJsDefault.default).isResultOfOp(label, opCode) && opCode === (0, _overlayOpJsDefault.default).INTERSECTION) {
+            edges.add(de.getEdge());
+            de.setVisitedEdge(true);
+        }
+    }
+}
+exports.default = LineBuilder;
+
+},{"../../../../../java/util/ArrayList.js":"gGAQZ","../../util/Assert.js":"1vSRy","./OverlayOp.js":"9f5ft","@parcel/transformer-js/src/esmodule-helpers.js":"jnFvT"}],"cvTMk":[function(require,module,exports,__globalThis) {
+var parcelHelpers = require("@parcel/transformer-js/src/esmodule-helpers.js");
+parcelHelpers.defineInteropFlag(exports);
+var _arrayListJs = require("../../../../../java/util/ArrayList.js");
+var _arrayListJsDefault = parcelHelpers.interopDefault(_arrayListJs);
+var _overlayOpJs = require("./OverlayOp.js");
+var _overlayOpJsDefault = parcelHelpers.interopDefault(_overlayOpJs);
+class PointBuilder {
+    constructor(){
+        PointBuilder.constructor_.apply(this, arguments);
+    }
+    static constructor_() {
+        this._op = null;
+        this._geometryFactory = null;
+        this._resultPointList = new (0, _arrayListJsDefault.default)();
+        const op = arguments[0], geometryFactory = arguments[1], ptLocator = arguments[2];
+        this._op = op;
+        this._geometryFactory = geometryFactory;
+    }
+    build(opCode) {
+        this.extractNonCoveredResultNodes(opCode);
+        return this._resultPointList;
+    }
+    extractNonCoveredResultNodes(opCode) {
+        for(let nodeit = this._op.getGraph().getNodes().iterator(); nodeit.hasNext();){
+            const n = nodeit.next();
+            if (n.isInResult()) continue;
+            if (n.isIncidentEdgeInResult()) continue;
+            if (n.getEdges().getDegree() === 0 || opCode === (0, _overlayOpJsDefault.default).INTERSECTION) {
+                const label = n.getLabel();
+                if ((0, _overlayOpJsDefault.default).isResultOfOp(label, opCode)) this.filterCoveredNodeToPoint(n);
+            }
+        }
+    }
+    filterCoveredNodeToPoint(n) {
+        const coord = n.getCoordinate();
+        if (!this._op.isCoveredByLA(coord)) {
+            const pt = this._geometryFactory.createPoint(coord);
+            this._resultPointList.add(pt);
+        }
+    }
+}
+exports.default = PointBuilder;
+
+},{"../../../../../java/util/ArrayList.js":"gGAQZ","./OverlayOp.js":"9f5ft","@parcel/transformer-js/src/esmodule-helpers.js":"jnFvT"}],"aLQ5t":[function(require,module,exports,__globalThis) {
+var parcelHelpers = require("@parcel/transformer-js/src/esmodule-helpers.js");
+parcelHelpers.defineInteropFlag(exports);
+var _basicSegmentStringJs = require("../noding/BasicSegmentString.js");
+var _basicSegmentStringJsDefault = parcelHelpers.interopDefault(_basicSegmentStringJs);
+var _fastNodingValidatorJs = require("../noding/FastNodingValidator.js");
+var _fastNodingValidatorJsDefault = parcelHelpers.interopDefault(_fastNodingValidatorJs);
+var _arrayListJs = require("../../../../java/util/ArrayList.js");
+var _arrayListJsDefault = parcelHelpers.interopDefault(_arrayListJs);
+class EdgeNodingValidator {
+    constructor(){
+        EdgeNodingValidator.constructor_.apply(this, arguments);
+    }
+    static constructor_() {
+        this._nv = null;
+        const edges = arguments[0];
+        this._nv = new (0, _fastNodingValidatorJsDefault.default)(EdgeNodingValidator.toSegmentStrings(edges));
+    }
+    static toSegmentStrings(edges) {
+        const segStrings = new (0, _arrayListJsDefault.default)();
+        for(let i = edges.iterator(); i.hasNext();){
+            const e = i.next();
+            segStrings.add(new (0, _basicSegmentStringJsDefault.default)(e.getCoordinates(), e));
+        }
+        return segStrings;
+    }
+    static checkValid(edges) {
+        const validator = new EdgeNodingValidator(edges);
+        validator.checkValid();
+    }
+    checkValid() {
+        this._nv.checkValid();
+    }
+}
+exports.default = EdgeNodingValidator;
+
+},{"../noding/BasicSegmentString.js":"fENuM","../noding/FastNodingValidator.js":"1FZBO","../../../../java/util/ArrayList.js":"gGAQZ","@parcel/transformer-js/src/esmodule-helpers.js":"jnFvT"}],"fENuM":[function(require,module,exports,__globalThis) {
+var parcelHelpers = require("@parcel/transformer-js/src/esmodule-helpers.js");
+parcelHelpers.defineInteropFlag(exports);
+var _wktwriterJs = require("../io/WKTWriter.js");
+var _wktwriterJsDefault = parcelHelpers.interopDefault(_wktwriterJs);
+var _coordinateArraySequenceJs = require("../geom/impl/CoordinateArraySequence.js");
+var _coordinateArraySequenceJsDefault = parcelHelpers.interopDefault(_coordinateArraySequenceJs);
+var _octantJs = require("./Octant.js");
+var _octantJsDefault = parcelHelpers.interopDefault(_octantJs);
+var _segmentStringJs = require("./SegmentString.js");
+var _segmentStringJsDefault = parcelHelpers.interopDefault(_segmentStringJs);
+class BasicSegmentString {
+    constructor(){
+        BasicSegmentString.constructor_.apply(this, arguments);
+    }
+    static constructor_() {
+        this._pts = null;
+        this._data = null;
+        const pts = arguments[0], data = arguments[1];
+        this._pts = pts;
+        this._data = data;
+    }
+    getCoordinates() {
+        return this._pts;
+    }
+    size() {
+        return this._pts.length;
+    }
+    getCoordinate(i) {
+        return this._pts[i];
+    }
+    isClosed() {
+        return this._pts[0].equals(this._pts[this._pts.length - 1]);
+    }
+    getSegmentOctant(index) {
+        if (index === this._pts.length - 1) return -1;
+        return (0, _octantJsDefault.default).octant(this.getCoordinate(index), this.getCoordinate(index + 1));
+    }
+    setData(data) {
+        this._data = data;
+    }
+    getData() {
+        return this._data;
+    }
+    toString() {
+        return (0, _wktwriterJsDefault.default).toLineString(new (0, _coordinateArraySequenceJsDefault.default)(this._pts));
+    }
+    get interfaces_() {
+        return [
+            (0, _segmentStringJsDefault.default)
+        ];
+    }
+}
+exports.default = BasicSegmentString;
+
+},{"../io/WKTWriter.js":"1WLaw","../geom/impl/CoordinateArraySequence.js":"grBJo","./Octant.js":"5OU0v","./SegmentString.js":"isRVw","@parcel/transformer-js/src/esmodule-helpers.js":"jnFvT"}],"1FZBO":[function(require,module,exports,__globalThis) {
+var parcelHelpers = require("@parcel/transformer-js/src/esmodule-helpers.js");
+parcelHelpers.defineInteropFlag(exports);
+var _wktwriterJs = require("../io/WKTWriter.js");
+var _wktwriterJsDefault = parcelHelpers.interopDefault(_wktwriterJs);
+var _mcindexNoderJs = require("./MCIndexNoder.js");
+var _mcindexNoderJsDefault = parcelHelpers.interopDefault(_mcindexNoderJs);
+var _topologyExceptionJs = require("../geom/TopologyException.js");
+var _topologyExceptionJsDefault = parcelHelpers.interopDefault(_topologyExceptionJs);
+var _robustLineIntersectorJs = require("../algorithm/RobustLineIntersector.js");
+var _robustLineIntersectorJsDefault = parcelHelpers.interopDefault(_robustLineIntersectorJs);
+var _nodingIntersectionFinderJs = require("./NodingIntersectionFinder.js");
+var _nodingIntersectionFinderJsDefault = parcelHelpers.interopDefault(_nodingIntersectionFinderJs);
+class FastNodingValidator {
+    constructor(){
+        FastNodingValidator.constructor_.apply(this, arguments);
+    }
+    static constructor_() {
+        this._li = new (0, _robustLineIntersectorJsDefault.default)();
+        this._segStrings = null;
+        this._findAllIntersections = false;
+        this._segInt = null;
+        this._isValid = true;
+        const segStrings = arguments[0];
+        this._segStrings = segStrings;
+    }
+    static computeIntersections(segStrings) {
+        const nv = new FastNodingValidator(segStrings);
+        nv.setFindAllIntersections(true);
+        nv.isValid();
+        return nv.getIntersections();
+    }
+    isValid() {
+        this.execute();
+        return this._isValid;
+    }
+    setFindAllIntersections(findAllIntersections) {
+        this._findAllIntersections = findAllIntersections;
+    }
+    checkInteriorIntersections() {
+        this._isValid = true;
+        this._segInt = new (0, _nodingIntersectionFinderJsDefault.default)(this._li);
+        this._segInt.setFindAllIntersections(this._findAllIntersections);
+        const noder = new (0, _mcindexNoderJsDefault.default)();
+        noder.setSegmentIntersector(this._segInt);
+        noder.computeNodes(this._segStrings);
+        if (this._segInt.hasIntersection()) {
+            this._isValid = false;
+            return null;
+        }
+    }
+    checkValid() {
+        this.execute();
+        if (!this._isValid) throw new (0, _topologyExceptionJsDefault.default)(this.getErrorMessage(), this._segInt.getIntersection());
+    }
+    getErrorMessage() {
+        if (this._isValid) return 'no intersections found';
+        const intSegs = this._segInt.getIntersectionSegments();
+        return 'found non-noded intersection between ' + (0, _wktwriterJsDefault.default).toLineString(intSegs[0], intSegs[1]) + ' and ' + (0, _wktwriterJsDefault.default).toLineString(intSegs[2], intSegs[3]);
+    }
+    execute() {
+        if (this._segInt !== null) return null;
+        this.checkInteriorIntersections();
+    }
+    getIntersections() {
+        return this._segInt.getIntersections();
+    }
+}
+exports.default = FastNodingValidator;
+
+},{"../io/WKTWriter.js":"1WLaw","./MCIndexNoder.js":"1deq0","../geom/TopologyException.js":"bOVA5","../algorithm/RobustLineIntersector.js":"kLdG9","./NodingIntersectionFinder.js":"iSydr","@parcel/transformer-js/src/esmodule-helpers.js":"jnFvT"}],"iSydr":[function(require,module,exports,__globalThis) {
+var parcelHelpers = require("@parcel/transformer-js/src/esmodule-helpers.js");
+parcelHelpers.defineInteropFlag(exports);
+var _segmentIntersectorJs = require("./SegmentIntersector.js");
+var _segmentIntersectorJsDefault = parcelHelpers.interopDefault(_segmentIntersectorJs);
+var _arrayListJs = require("../../../../java/util/ArrayList.js");
+var _arrayListJsDefault = parcelHelpers.interopDefault(_arrayListJs);
+class NodingIntersectionFinder {
+    constructor(){
+        NodingIntersectionFinder.constructor_.apply(this, arguments);
+    }
+    static constructor_() {
+        this._findAllIntersections = false;
+        this._isCheckEndSegmentsOnly = false;
+        this._keepIntersections = true;
+        this._isInteriorIntersectionsOnly = false;
+        this._li = null;
+        this._interiorIntersection = null;
+        this._intSegments = null;
+        this._intersections = new (0, _arrayListJsDefault.default)();
+        this._intersectionCount = 0;
+        const li = arguments[0];
+        this._li = li;
+        this._interiorIntersection = null;
+    }
+    static createAllIntersectionsFinder(li) {
+        const finder = new NodingIntersectionFinder(li);
+        finder.setFindAllIntersections(true);
+        return finder;
+    }
+    static isInteriorVertexIntersection() {
+        if (arguments.length === 4) {
+            const p0 = arguments[0], p1 = arguments[1], isEnd0 = arguments[2], isEnd1 = arguments[3];
+            if (isEnd0 && isEnd1) return false;
+            if (p0.equals2D(p1)) return true;
+            return false;
+        } else if (arguments.length === 8) {
+            const p00 = arguments[0], p01 = arguments[1], p10 = arguments[2], p11 = arguments[3], isEnd00 = arguments[4], isEnd01 = arguments[5], isEnd10 = arguments[6], isEnd11 = arguments[7];
+            if (NodingIntersectionFinder.isInteriorVertexIntersection(p00, p10, isEnd00, isEnd10)) return true;
+            if (NodingIntersectionFinder.isInteriorVertexIntersection(p00, p11, isEnd00, isEnd11)) return true;
+            if (NodingIntersectionFinder.isInteriorVertexIntersection(p01, p10, isEnd01, isEnd10)) return true;
+            if (NodingIntersectionFinder.isInteriorVertexIntersection(p01, p11, isEnd01, isEnd11)) return true;
+            return false;
+        }
+    }
+    static createInteriorIntersectionCounter(li) {
+        const finder = new NodingIntersectionFinder(li);
+        finder.setInteriorIntersectionsOnly(true);
+        finder.setFindAllIntersections(true);
+        finder.setKeepIntersections(false);
+        return finder;
+    }
+    static createIntersectionCounter(li) {
+        const finder = new NodingIntersectionFinder(li);
+        finder.setFindAllIntersections(true);
+        finder.setKeepIntersections(false);
+        return finder;
+    }
+    static isEndSegment(segStr, index) {
+        if (index === 0) return true;
+        if (index >= segStr.size() - 2) return true;
+        return false;
+    }
+    static createAnyIntersectionFinder(li) {
+        return new NodingIntersectionFinder(li);
+    }
+    static createInteriorIntersectionsFinder(li) {
+        const finder = new NodingIntersectionFinder(li);
+        finder.setFindAllIntersections(true);
+        finder.setInteriorIntersectionsOnly(true);
+        return finder;
+    }
+    count() {
+        return this._intersectionCount;
+    }
+    getIntersections() {
+        return this._intersections;
+    }
+    setFindAllIntersections(findAllIntersections) {
+        this._findAllIntersections = findAllIntersections;
+    }
+    setKeepIntersections(keepIntersections) {
+        this._keepIntersections = keepIntersections;
+    }
+    getIntersection() {
+        return this._interiorIntersection;
+    }
+    processIntersections(e0, segIndex0, e1, segIndex1) {
+        if (!this._findAllIntersections && this.hasIntersection()) return null;
+        const isSameSegString = e0 === e1;
+        const isSameSegment = isSameSegString && segIndex0 === segIndex1;
+        if (isSameSegment) return null;
+        if (this._isCheckEndSegmentsOnly) {
+            const isEndSegPresent = NodingIntersectionFinder.isEndSegment(e0, segIndex0) || NodingIntersectionFinder.isEndSegment(e1, segIndex1);
+            if (!isEndSegPresent) return null;
+        }
+        const p00 = e0.getCoordinate(segIndex0);
+        const p01 = e0.getCoordinate(segIndex0 + 1);
+        const p10 = e1.getCoordinate(segIndex1);
+        const p11 = e1.getCoordinate(segIndex1 + 1);
+        const isEnd00 = segIndex0 === 0;
+        const isEnd01 = segIndex0 + 2 === e0.size();
+        const isEnd10 = segIndex1 === 0;
+        const isEnd11 = segIndex1 + 2 === e1.size();
+        this._li.computeIntersection(p00, p01, p10, p11);
+        const isInteriorInt = this._li.hasIntersection() && this._li.isInteriorIntersection();
+        let isInteriorVertexInt = false;
+        if (!this._isInteriorIntersectionsOnly) {
+            const isAdjacentSegment = isSameSegString && Math.abs(segIndex1 - segIndex0) <= 1;
+            isInteriorVertexInt = !isAdjacentSegment && NodingIntersectionFinder.isInteriorVertexIntersection(p00, p01, p10, p11, isEnd00, isEnd01, isEnd10, isEnd11);
+        }
+        if (isInteriorInt || isInteriorVertexInt) {
+            this._intSegments = new Array(4).fill(null);
+            this._intSegments[0] = p00;
+            this._intSegments[1] = p01;
+            this._intSegments[2] = p10;
+            this._intSegments[3] = p11;
+            this._interiorIntersection = this._li.getIntersection(0);
+            if (this._keepIntersections) this._intersections.add(this._interiorIntersection);
+            this._intersectionCount++;
+        }
+    }
+    hasIntersection() {
+        return this._interiorIntersection !== null;
+    }
+    isDone() {
+        if (this._findAllIntersections) return false;
+        return this._interiorIntersection !== null;
+    }
+    setInteriorIntersectionsOnly(isInteriorIntersectionsOnly) {
+        this._isInteriorIntersectionsOnly = isInteriorIntersectionsOnly;
+    }
+    setCheckEndSegmentsOnly(isCheckEndSegmentsOnly) {
+        this._isCheckEndSegmentsOnly = isCheckEndSegmentsOnly;
+    }
+    getIntersectionSegments() {
+        return this._intSegments;
+    }
+    get interfaces_() {
+        return [
+            (0, _segmentIntersectorJsDefault.default)
+        ];
+    }
+}
+exports.default = NodingIntersectionFinder;
+
+},{"./SegmentIntersector.js":"jNast","../../../../java/util/ArrayList.js":"gGAQZ","@parcel/transformer-js/src/esmodule-helpers.js":"jnFvT"}],"kOSsM":[function(require,module,exports,__globalThis) {
+var parcelHelpers = require("@parcel/transformer-js/src/esmodule-helpers.js");
+parcelHelpers.defineInteropFlag(exports);
+var _geometryFactoryJs = require("../GeometryFactory.js");
+var _geometryFactoryJsDefault = parcelHelpers.interopDefault(_geometryFactoryJs);
+var _arrayListJs = require("../../../../../java/util/ArrayList.js");
+var _arrayListJsDefault = parcelHelpers.interopDefault(_arrayListJs);
+class GeometryCollectionMapper {
+    constructor(){
+        GeometryCollectionMapper.constructor_.apply(this, arguments);
+    }
+    static constructor_() {
+        this._mapOp = null;
+        const mapOp = arguments[0];
+        this._mapOp = mapOp;
+    }
+    static map(gc, op) {
+        const mapper = new GeometryCollectionMapper(op);
+        return mapper.map(gc);
+    }
+    map(gc) {
+        const mapped = new (0, _arrayListJsDefault.default)();
+        for(let i = 0; i < gc.getNumGeometries(); i++){
+            const g = this._mapOp.map(gc.getGeometryN(i));
+            if (!g.isEmpty()) mapped.add(g);
+        }
+        return gc.getFactory().createGeometryCollection((0, _geometryFactoryJsDefault.default).toGeometryArray(mapped));
+    }
+}
+exports.default = GeometryCollectionMapper;
+
+},{"../GeometryFactory.js":"cGt0T","../../../../../java/util/ArrayList.js":"gGAQZ","@parcel/transformer-js/src/esmodule-helpers.js":"jnFvT"}],"fRnOp":[function(require,module,exports,__globalThis) {
+var parcelHelpers = require("@parcel/transformer-js/src/esmodule-helpers.js");
+parcelHelpers.defineInteropFlag(exports);
+var _lineStringJs = require("../../geom/LineString.js");
+var _lineStringJsDefault = parcelHelpers.interopDefault(_lineStringJs);
+var _geometryJs = require("../../geom/Geometry.js");
+var _geometryJsDefault = parcelHelpers.interopDefault(_geometryJs);
+var _hasInterfaceJs = require("../../../../../hasInterface.js");
+var _hasInterfaceJsDefault = parcelHelpers.interopDefault(_hasInterfaceJs);
+var _collectionJs = require("../../../../../java/util/Collection.js");
+var _collectionJsDefault = parcelHelpers.interopDefault(_collectionJs);
+var _pointJs = require("../../geom/Point.js");
+var _pointJsDefault = parcelHelpers.interopDefault(_pointJs);
+var _polygonJs = require("../../geom/Polygon.js");
+var _polygonJsDefault = parcelHelpers.interopDefault(_polygonJs);
+var _geometryCollectionJs = require("../../geom/GeometryCollection.js");
+var _geometryCollectionJsDefault = parcelHelpers.interopDefault(_geometryCollectionJs);
+var _dimensionJs = require("../../geom/Dimension.js");
+var _dimensionJsDefault = parcelHelpers.interopDefault(_dimensionJs);
+var _arrayListJs = require("../../../../../java/util/ArrayList.js");
+var _arrayListJsDefault = parcelHelpers.interopDefault(_arrayListJs);
+var _geometryFilterJs = require("../../geom/GeometryFilter.js");
+var _geometryFilterJsDefault = parcelHelpers.interopDefault(_geometryFilterJs);
+var _assertJs = require("../../util/Assert.js");
+var _assertJsDefault = parcelHelpers.interopDefault(_assertJs);
+class InputExtracter {
+    constructor(){
+        InputExtracter.constructor_.apply(this, arguments);
+    }
+    static constructor_() {
+        this._geomFactory = null;
+        this._polygons = new (0, _arrayListJsDefault.default)();
+        this._lines = new (0, _arrayListJsDefault.default)();
+        this._points = new (0, _arrayListJsDefault.default)();
+        this._dimension = (0, _dimensionJsDefault.default).FALSE;
+    }
+    static extract() {
+        if ((0, _hasInterfaceJsDefault.default)(arguments[0], (0, _collectionJsDefault.default))) {
+            const geoms = arguments[0];
+            const extracter = new InputExtracter();
+            extracter.add(geoms);
+            return extracter;
+        } else if (arguments[0] instanceof (0, _geometryJsDefault.default)) {
+            const geom = arguments[0];
+            const extracter = new InputExtracter();
+            extracter.add(geom);
+            return extracter;
+        }
+    }
+    getFactory() {
+        return this._geomFactory;
+    }
+    filter(geom) {
+        this.recordDimension(geom.getDimension());
+        if (geom instanceof (0, _geometryCollectionJsDefault.default)) return null;
+        if (geom.isEmpty()) return null;
+        if (geom instanceof (0, _polygonJsDefault.default)) {
+            this._polygons.add(geom);
+            return null;
+        } else if (geom instanceof (0, _lineStringJsDefault.default)) {
+            this._lines.add(geom);
+            return null;
+        } else if (geom instanceof (0, _pointJsDefault.default)) {
+            this._points.add(geom);
+            return null;
+        }
+        (0, _assertJsDefault.default).shouldNeverReachHere('Unhandled geometry type: ' + geom.getGeometryType());
+    }
+    getExtract(dim) {
+        switch(dim){
+            case 0:
+                return this._points;
+            case 1:
+                return this._lines;
+            case 2:
+                return this._polygons;
+        }
+        (0, _assertJsDefault.default).shouldNeverReachHere('Invalid dimension: ' + dim);
+        return null;
+    }
+    recordDimension(dim) {
+        if (dim > this._dimension) this._dimension = dim;
+    }
+    getDimension() {
+        return this._dimension;
+    }
+    isEmpty() {
+        return this._polygons.isEmpty() && this._lines.isEmpty() && this._points.isEmpty();
+    }
+    add() {
+        if ((0, _hasInterfaceJsDefault.default)(arguments[0], (0, _collectionJsDefault.default))) {
+            const geoms = arguments[0];
+            for (const geom of geoms)this.add(geom);
+        } else if (arguments[0] instanceof (0, _geometryJsDefault.default)) {
+            const geom = arguments[0];
+            if (this._geomFactory === null) this._geomFactory = geom.getFactory();
+            geom.apply(this);
+        }
+    }
+    get interfaces_() {
+        return [
+            (0, _geometryFilterJsDefault.default)
+        ];
+    }
+}
+exports.default = InputExtracter;
+
+},{"../../geom/LineString.js":"4eIEg","../../geom/Geometry.js":"9DSzO","../../../../../hasInterface.js":"5bpze","../../../../../java/util/Collection.js":"cggki","../../geom/Point.js":"lwZpO","../../geom/Polygon.js":"kpOA5","../../geom/GeometryCollection.js":"6RJQO","../../geom/Dimension.js":"kWqD0","../../../../../java/util/ArrayList.js":"gGAQZ","../../geom/GeometryFilter.js":"fZPJo","../../util/Assert.js":"1vSRy","@parcel/transformer-js/src/esmodule-helpers.js":"jnFvT"}],"8dfi7":[function(require,module,exports,__globalThis) {
+var parcelHelpers = require("@parcel/transformer-js/src/esmodule-helpers.js");
+parcelHelpers.defineInteropFlag(exports);
+var _treeSetJs = require("../../../../../java/util/TreeSet.js");
+var _treeSetJsDefault = parcelHelpers.interopDefault(_treeSetJs);
+var _geometryCombinerJs = require("../../geom/util/GeometryCombiner.js");
+var _geometryCombinerJsDefault = parcelHelpers.interopDefault(_geometryCombinerJs);
+var _coordinateArraysJs = require("../../geom/CoordinateArrays.js");
+var _coordinateArraysJsDefault = parcelHelpers.interopDefault(_coordinateArraysJs);
+var _pointLocatorJs = require("../../algorithm/PointLocator.js");
+var _pointLocatorJsDefault = parcelHelpers.interopDefault(_pointLocatorJs);
+var _locationJs = require("../../geom/Location.js");
+var _locationJsDefault = parcelHelpers.interopDefault(_locationJs);
+class PointGeometryUnion {
+    constructor(){
+        PointGeometryUnion.constructor_.apply(this, arguments);
+    }
+    static constructor_() {
+        this._pointGeom = null;
+        this._otherGeom = null;
+        this._geomFact = null;
+        const pointGeom = arguments[0], otherGeom = arguments[1];
+        this._pointGeom = pointGeom;
+        this._otherGeom = otherGeom;
+        this._geomFact = otherGeom.getFactory();
+    }
+    static union(pointGeom, otherGeom) {
+        const unioner = new PointGeometryUnion(pointGeom, otherGeom);
+        return unioner.union();
+    }
+    union() {
+        const locater = new (0, _pointLocatorJsDefault.default)();
+        const exteriorCoords = new (0, _treeSetJsDefault.default)();
+        for(let i = 0; i < this._pointGeom.getNumGeometries(); i++){
+            const point = this._pointGeom.getGeometryN(i);
+            const coord = point.getCoordinate();
+            const loc = locater.locate(coord, this._otherGeom);
+            if (loc === (0, _locationJsDefault.default).EXTERIOR) exteriorCoords.add(coord);
+        }
+        if (exteriorCoords.size() === 0) return this._otherGeom;
+        let ptComp = null;
+        const coords = (0, _coordinateArraysJsDefault.default).toCoordinateArray(exteriorCoords);
+        if (coords.length === 1) ptComp = this._geomFact.createPoint(coords[0]);
+        else ptComp = this._geomFact.createMultiPointFromCoords(coords);
+        return (0, _geometryCombinerJsDefault.default).combine(ptComp, this._otherGeom);
+    }
+}
+exports.default = PointGeometryUnion;
+
+},{"../../../../../java/util/TreeSet.js":"is5ah","../../geom/util/GeometryCombiner.js":"gAQ1x","../../geom/CoordinateArrays.js":"lncg4","../../algorithm/PointLocator.js":"lFmUP","../../geom/Location.js":"9aPCX","@parcel/transformer-js/src/esmodule-helpers.js":"jnFvT"}],"gAQ1x":[function(require,module,exports,__globalThis) {
+var parcelHelpers = require("@parcel/transformer-js/src/esmodule-helpers.js");
+parcelHelpers.defineInteropFlag(exports);
+var _arrayListJs = require("../../../../../java/util/ArrayList.js");
+var _arrayListJsDefault = parcelHelpers.interopDefault(_arrayListJs);
+class GeometryCombiner {
+    constructor(){
+        GeometryCombiner.constructor_.apply(this, arguments);
+    }
+    static constructor_() {
+        this._geomFactory = null;
+        this._skipEmpty = false;
+        this._inputGeoms = null;
+        const geoms = arguments[0];
+        this._geomFactory = GeometryCombiner.extractFactory(geoms);
+        this._inputGeoms = geoms;
+    }
+    static extractFactory(geoms) {
+        if (geoms.isEmpty()) return null;
+        return geoms.iterator().next().getFactory();
+    }
+    static createList() {
+        if (arguments.length === 2) {
+            const obj0 = arguments[0], obj1 = arguments[1];
+            const list = new (0, _arrayListJsDefault.default)();
+            list.add(obj0);
+            list.add(obj1);
+            return list;
+        } else if (arguments.length === 3) {
+            const obj0 = arguments[0], obj1 = arguments[1], obj2 = arguments[2];
+            const list = new (0, _arrayListJsDefault.default)();
+            list.add(obj0);
+            list.add(obj1);
+            list.add(obj2);
+            return list;
+        }
+    }
+    static combine() {
+        if (arguments.length === 1) {
+            const geoms = arguments[0];
+            const combiner = new GeometryCombiner(geoms);
+            return combiner.combine();
+        } else if (arguments.length === 2) {
+            const g0 = arguments[0], g1 = arguments[1];
+            const combiner = new GeometryCombiner(GeometryCombiner.createList(g0, g1));
+            return combiner.combine();
+        } else if (arguments.length === 3) {
+            const g0 = arguments[0], g1 = arguments[1], g2 = arguments[2];
+            const combiner = new GeometryCombiner(GeometryCombiner.createList(g0, g1, g2));
+            return combiner.combine();
+        }
+    }
+    extractElements(geom, elems) {
+        if (geom === null) return null;
+        for(let i = 0; i < geom.getNumGeometries(); i++){
+            const elemGeom = geom.getGeometryN(i);
+            if (this._skipEmpty && elemGeom.isEmpty()) continue;
+            elems.add(elemGeom);
+        }
+    }
+    combine() {
+        const elems = new (0, _arrayListJsDefault.default)();
+        for(let i = this._inputGeoms.iterator(); i.hasNext();){
+            const g = i.next();
+            this.extractElements(g, elems);
+        }
+        if (elems.size() === 0) {
+            if (this._geomFactory !== null) return this._geomFactory.createGeometryCollection();
+            return null;
+        }
+        return this._geomFactory.buildGeometry(elems);
+    }
+}
+exports.default = GeometryCombiner;
+
+},{"../../../../../java/util/ArrayList.js":"gGAQZ","@parcel/transformer-js/src/esmodule-helpers.js":"jnFvT"}],"63KSD":[function(require,module,exports,__globalThis) {
+var parcelHelpers = require("@parcel/transformer-js/src/esmodule-helpers.js");
+parcelHelpers.defineInteropFlag(exports);
+var _polygonExtracterJs = require("../../geom/util/PolygonExtracter.js");
+var _polygonExtracterJsDefault = parcelHelpers.interopDefault(_polygonExtracterJs);
+var _overlapUnionJs = require("./OverlapUnion.js");
+var _overlapUnionJsDefault = parcelHelpers.interopDefault(_overlapUnionJs);
+var _strtreeJs = require("../../index/strtree/STRtree.js");
+var _strtreeJsDefault = parcelHelpers.interopDefault(_strtreeJs);
+var _geometryJs = require("../../geom/Geometry.js");
+var _geometryJsDefault = parcelHelpers.interopDefault(_geometryJs);
+var _listJs = require("../../../../../java/util/List.js");
+var _listJsDefault = parcelHelpers.interopDefault(_listJs);
+var _illegalStateExceptionJs = require("../../../../../java/lang/IllegalStateException.js");
+var _illegalStateExceptionJsDefault = parcelHelpers.interopDefault(_illegalStateExceptionJs);
+var _hasInterfaceJs = require("../../../../../hasInterface.js");
+var _hasInterfaceJsDefault = parcelHelpers.interopDefault(_hasInterfaceJs);
+var _geometryFactoryJs = require("../../geom/GeometryFactory.js");
+var _geometryFactoryJsDefault = parcelHelpers.interopDefault(_geometryFactoryJs);
+var _polygonalJs = require("../../geom/Polygonal.js");
+var _polygonalJsDefault = parcelHelpers.interopDefault(_polygonalJs);
+var _arrayListJs = require("../../../../../java/util/ArrayList.js");
+var _arrayListJsDefault = parcelHelpers.interopDefault(_arrayListJs);
+class CascadedPolygonUnion {
+    constructor(){
+        CascadedPolygonUnion.constructor_.apply(this, arguments);
+    }
+    static constructor_() {
+        this._inputPolys = null;
+        this._geomFactory = null;
+        const polys = arguments[0];
+        this._inputPolys = polys;
+        if (this._inputPolys === null) this._inputPolys = new (0, _arrayListJsDefault.default)();
+    }
+    static getGeometry(list, index) {
+        if (index >= list.size()) return null;
+        return list.get(index);
+    }
+    static union(polys) {
+        const op = new CascadedPolygonUnion(polys);
+        return op.union();
+    }
+    static restrictToPolygons(g) {
+        if ((0, _hasInterfaceJsDefault.default)(g, (0, _polygonalJsDefault.default))) return g;
+        const polygons = (0, _polygonExtracterJsDefault.default).getPolygons(g);
+        if (polygons.size() === 1) return polygons.get(0);
+        return g.getFactory().createMultiPolygon((0, _geometryFactoryJsDefault.default).toPolygonArray(polygons));
+    }
+    reduceToGeometries(geomTree) {
+        const geoms = new (0, _arrayListJsDefault.default)();
+        for(let i = geomTree.iterator(); i.hasNext();){
+            const o = i.next();
+            let geom = null;
+            if ((0, _hasInterfaceJsDefault.default)(o, (0, _listJsDefault.default))) geom = this.unionTree(o);
+            else if (o instanceof (0, _geometryJsDefault.default)) geom = o;
+            geoms.add(geom);
+        }
+        return geoms;
+    }
+    union() {
+        if (this._inputPolys === null) throw new (0, _illegalStateExceptionJsDefault.default)('union() method cannot be called twice');
+        if (this._inputPolys.isEmpty()) return null;
+        this._geomFactory = this._inputPolys.iterator().next().getFactory();
+        const index = new (0, _strtreeJsDefault.default)(CascadedPolygonUnion.STRTREE_NODE_CAPACITY);
+        for(let i = this._inputPolys.iterator(); i.hasNext();){
+            const item = i.next();
+            index.insert(item.getEnvelopeInternal(), item);
+        }
+        this._inputPolys = null;
+        const itemTree = index.itemsTree();
+        const unionAll = this.unionTree(itemTree);
+        return unionAll;
+    }
+    binaryUnion() {
+        if (arguments.length === 1) {
+            const geoms = arguments[0];
+            return this.binaryUnion(geoms, 0, geoms.size());
+        } else if (arguments.length === 3) {
+            const geoms = arguments[0], start = arguments[1], end = arguments[2];
+            if (end - start <= 1) {
+                const g0 = CascadedPolygonUnion.getGeometry(geoms, start);
+                return this.unionSafe(g0, null);
+            } else if (end - start === 2) return this.unionSafe(CascadedPolygonUnion.getGeometry(geoms, start), CascadedPolygonUnion.getGeometry(geoms, start + 1));
+            else {
+                const mid = Math.trunc((end + start) / 2);
+                const g0 = this.binaryUnion(geoms, start, mid);
+                const g1 = this.binaryUnion(geoms, mid, end);
+                return this.unionSafe(g0, g1);
+            }
+        }
+    }
+    unionSafe(g0, g1) {
+        if (g0 === null && g1 === null) return null;
+        if (g0 === null) return g1.copy();
+        if (g1 === null) return g0.copy();
+        return this.unionActual(g0, g1);
+    }
+    unionActual(g0, g1) {
+        const union = (0, _overlapUnionJsDefault.default).union(g0, g1);
+        return CascadedPolygonUnion.restrictToPolygons(union);
+    }
+    unionTree(geomTree) {
+        const geoms = this.reduceToGeometries(geomTree);
+        const union = this.binaryUnion(geoms);
+        return union;
+    }
+}
+exports.default = CascadedPolygonUnion;
+CascadedPolygonUnion.STRTREE_NODE_CAPACITY = 4;
+
+},{"../../geom/util/PolygonExtracter.js":"5SZnk","./OverlapUnion.js":"eiSu5","../../index/strtree/STRtree.js":"2wZHu","../../geom/Geometry.js":"9DSzO","../../../../../java/util/List.js":"7jAhK","../../../../../java/lang/IllegalStateException.js":"efv6w","../../../../../hasInterface.js":"5bpze","../../geom/GeometryFactory.js":"cGt0T","../../geom/Polygonal.js":"jIBid","../../../../../java/util/ArrayList.js":"gGAQZ","@parcel/transformer-js/src/esmodule-helpers.js":"jnFvT"}],"5SZnk":[function(require,module,exports,__globalThis) {
+var parcelHelpers = require("@parcel/transformer-js/src/esmodule-helpers.js");
+parcelHelpers.defineInteropFlag(exports);
+var _polygonJs = require("../Polygon.js");
+var _polygonJsDefault = parcelHelpers.interopDefault(_polygonJs);
+var _geometryCollectionJs = require("../GeometryCollection.js");
+var _geometryCollectionJsDefault = parcelHelpers.interopDefault(_geometryCollectionJs);
+var _arrayListJs = require("../../../../../java/util/ArrayList.js");
+var _arrayListJsDefault = parcelHelpers.interopDefault(_arrayListJs);
+var _geometryFilterJs = require("../GeometryFilter.js");
+var _geometryFilterJsDefault = parcelHelpers.interopDefault(_geometryFilterJs);
+class PolygonExtracter {
+    constructor(){
+        PolygonExtracter.constructor_.apply(this, arguments);
+    }
+    static constructor_() {
+        this._comps = null;
+        const comps = arguments[0];
+        this._comps = comps;
+    }
+    static getPolygons() {
+        if (arguments.length === 1) {
+            const geom = arguments[0];
+            return PolygonExtracter.getPolygons(geom, new (0, _arrayListJsDefault.default)());
+        } else if (arguments.length === 2) {
+            const geom = arguments[0], list = arguments[1];
+            if (geom instanceof (0, _polygonJsDefault.default)) list.add(geom);
+            else if (geom instanceof (0, _geometryCollectionJsDefault.default)) geom.apply(new PolygonExtracter(list));
+            return list;
+        }
+    }
+    filter(geom) {
+        if (geom instanceof (0, _polygonJsDefault.default)) this._comps.add(geom);
+    }
+    get interfaces_() {
+        return [
+            (0, _geometryFilterJsDefault.default)
+        ];
+    }
+}
+exports.default = PolygonExtracter;
+
+},{"../Polygon.js":"kpOA5","../GeometryCollection.js":"6RJQO","../../../../../java/util/ArrayList.js":"gGAQZ","../GeometryFilter.js":"fZPJo","@parcel/transformer-js/src/esmodule-helpers.js":"jnFvT"}],"eiSu5":[function(require,module,exports,__globalThis) {
+var parcelHelpers = require("@parcel/transformer-js/src/esmodule-helpers.js");
+parcelHelpers.defineInteropFlag(exports);
+var _hashSetJs = require("../../../../../java/util/HashSet.js");
+var _hashSetJsDefault = parcelHelpers.interopDefault(_hashSetJs);
+var _unionOpJs = require("./UnionOp.js");
+var _unionOpJsDefault = parcelHelpers.interopDefault(_unionOpJs);
+var _topologyExceptionJs = require("../../geom/TopologyException.js");
+var _topologyExceptionJsDefault = parcelHelpers.interopDefault(_topologyExceptionJs);
+var _lineSegmentJs = require("../../geom/LineSegment.js");
+var _lineSegmentJsDefault = parcelHelpers.interopDefault(_lineSegmentJs);
+var _arrayListJs = require("../../../../../java/util/ArrayList.js");
+var _arrayListJsDefault = parcelHelpers.interopDefault(_arrayListJs);
+var _coordinateSequenceFilterJs = require("../../geom/CoordinateSequenceFilter.js");
+var _coordinateSequenceFilterJsDefault = parcelHelpers.interopDefault(_coordinateSequenceFilterJs);
+var _bufferOpJs = require("../buffer/BufferOp.js");
+var _bufferOpJsDefault = parcelHelpers.interopDefault(_bufferOpJs);
+var _geometryCombinerJs = require("../../geom/util/GeometryCombiner.js");
+var _geometryCombinerJsDefault = parcelHelpers.interopDefault(_geometryCombinerJs);
+class OverlapUnion {
+    constructor(){
+        OverlapUnion.constructor_.apply(this, arguments);
+    }
+    static constructor_() {
+        this._geomFactory = null;
+        this._g0 = null;
+        this._g1 = null;
+        this._isUnionSafe = null;
+        const g0 = arguments[0], g1 = arguments[1];
+        this._g0 = g0;
+        this._g1 = g1;
+        this._geomFactory = g0.getFactory();
+    }
+    static containsProperly() {
+        if (arguments.length === 2) {
+            const env = arguments[0], p = arguments[1];
+            if (env.isNull()) return false;
+            return p.getX() > env.getMinX() && p.getX() < env.getMaxX() && p.getY() > env.getMinY() && p.getY() < env.getMaxY();
+        } else if (arguments.length === 3) {
+            const env = arguments[0], p0 = arguments[1], p1 = arguments[2];
+            return OverlapUnion.containsProperly(env, p0) && OverlapUnion.containsProperly(env, p1);
+        }
+    }
+    static union(g0, g1) {
+        const union = new OverlapUnion(g0, g1);
+        return union.union();
+    }
+    static intersects(env, p0, p1) {
+        return env.intersects(p0) || env.intersects(p1);
+    }
+    static overlapEnvelope(g0, g1) {
+        const g0Env = g0.getEnvelopeInternal();
+        const g1Env = g1.getEnvelopeInternal();
+        const overlapEnv = g0Env.intersection(g1Env);
+        return overlapEnv;
+    }
+    static extractBorderSegments(geom, env, segs) {
+        geom.apply(new class {
+            get interfaces_() {
+                return [
+                    (0, _coordinateSequenceFilterJsDefault.default)
+                ];
+            }
+            filter(seq, i) {
+                if (i <= 0) return null;
+                const p0 = seq.getCoordinate(i - 1);
+                const p1 = seq.getCoordinate(i);
+                const isBorder = OverlapUnion.intersects(env, p0, p1) && !OverlapUnion.containsProperly(env, p0, p1);
+                if (isBorder) {
+                    const seg = new (0, _lineSegmentJsDefault.default)(p0, p1);
+                    segs.add(seg);
+                }
+            }
+            isDone() {
+                return false;
+            }
+            isGeometryChanged() {
+                return false;
+            }
+        }());
+    }
+    static unionBuffer(g0, g1) {
+        const factory = g0.getFactory();
+        const gColl = factory.createGeometryCollection([
+            g0,
+            g1
+        ]);
+        const union = (0, _bufferOpJsDefault.default).bufferOp(gColl, 0.0);
+        return union;
+    }
+    isBorderSegmentsSame(result, env) {
+        const segsBefore = this.extractBorderSegments(this._g0, this._g1, env);
+        const segsAfter = new (0, _arrayListJsDefault.default)();
+        OverlapUnion.extractBorderSegments(result, env, segsAfter);
+        return this.isEqual(segsBefore, segsAfter);
+    }
+    union() {
+        const overlapEnv = OverlapUnion.overlapEnvelope(this._g0, this._g1);
+        if (overlapEnv.isNull()) {
+            const g0Copy = this._g0.copy();
+            const g1Copy = this._g1.copy();
+            return (0, _geometryCombinerJsDefault.default).combine(g0Copy, g1Copy);
+        }
+        const disjointPolys = new (0, _arrayListJsDefault.default)();
+        const g0Overlap = this.extractByEnvelope(overlapEnv, this._g0, disjointPolys);
+        const g1Overlap = this.extractByEnvelope(overlapEnv, this._g1, disjointPolys);
+        const unionGeom = this.unionFull(g0Overlap, g1Overlap);
+        let result = null;
+        this._isUnionSafe = this.isBorderSegmentsSame(unionGeom, overlapEnv);
+        if (!this._isUnionSafe) result = this.unionFull(this._g0, this._g1);
+        else result = this.combine(unionGeom, disjointPolys);
+        return result;
+    }
+    extractBorderSegments(geom0, geom1, env) {
+        const segs = new (0, _arrayListJsDefault.default)();
+        OverlapUnion.extractBorderSegments(geom0, env, segs);
+        if (geom1 !== null) OverlapUnion.extractBorderSegments(geom1, env, segs);
+        return segs;
+    }
+    isUnionOptimized() {
+        return this._isUnionSafe;
+    }
+    extractByEnvelope(env, geom, disjointGeoms) {
+        const intersectingGeoms = new (0, _arrayListJsDefault.default)();
+        for(let i = 0; i < geom.getNumGeometries(); i++){
+            const elem = geom.getGeometryN(i);
+            if (elem.getEnvelopeInternal().intersects(env)) intersectingGeoms.add(elem);
+            else {
+                const copy = elem.copy();
+                disjointGeoms.add(copy);
+            }
+        }
+        return this._geomFactory.buildGeometry(intersectingGeoms);
+    }
+    isEqual(segs0, segs1) {
+        if (segs0.size() !== segs1.size()) return false;
+        const segIndex = new (0, _hashSetJsDefault.default)(segs0);
+        for (const seg of segs1)if (!segIndex.contains(seg)) return false;
+        return true;
+    }
+    combine(unionGeom, disjointPolys) {
+        if (disjointPolys.size() <= 0) return unionGeom;
+        disjointPolys.add(unionGeom);
+        const result = (0, _geometryCombinerJsDefault.default).combine(disjointPolys);
+        return result;
+    }
+    unionFull(geom0, geom1) {
+        try {
+            return (0, _unionOpJsDefault.default).union(geom0, geom1);
+        } catch (ex) {
+            if (ex instanceof (0, _topologyExceptionJsDefault.default)) return OverlapUnion.unionBuffer(geom0, geom1);
+            else throw ex;
+        } finally{}
+    }
+}
+exports.default = OverlapUnion;
+
+},{"../../../../../java/util/HashSet.js":"a1U62","./UnionOp.js":"3YR2Y","../../geom/TopologyException.js":"bOVA5","../../geom/LineSegment.js":"8Ncbv","../../../../../java/util/ArrayList.js":"gGAQZ","../../geom/CoordinateSequenceFilter.js":"8MSah","../buffer/BufferOp.js":"1i41m","../../geom/util/GeometryCombiner.js":"gAQ1x","@parcel/transformer-js/src/esmodule-helpers.js":"jnFvT"}],"3YR2Y":[function(require,module,exports,__globalThis) {
+var parcelHelpers = require("@parcel/transformer-js/src/esmodule-helpers.js");
+parcelHelpers.defineInteropFlag(exports);
+var _geometryJs = require("../../geom/Geometry.js");
+var _geometryJsDefault = parcelHelpers.interopDefault(_geometryJs);
+var _snapIfNeededOverlayOpJs = require("../overlay/snap/SnapIfNeededOverlayOp.js");
+var _snapIfNeededOverlayOpJsDefault = parcelHelpers.interopDefault(_snapIfNeededOverlayOpJs);
+var _overlayOpJs = require("../overlay/OverlayOp.js");
+var _overlayOpJsDefault = parcelHelpers.interopDefault(_overlayOpJs);
+class UnionOp {
+    static union(g, other) {
+        if (g.isEmpty() || other.isEmpty()) {
+            if (g.isEmpty() && other.isEmpty()) return (0, _overlayOpJsDefault.default).createEmptyResult((0, _overlayOpJsDefault.default).UNION, g, other, g.getFactory());
+            if (g.isEmpty()) return other.copy();
+            if (other.isEmpty()) return g.copy();
+        }
+        (0, _geometryJsDefault.default).checkNotGeometryCollection(g);
+        (0, _geometryJsDefault.default).checkNotGeometryCollection(other);
+        return (0, _snapIfNeededOverlayOpJsDefault.default).overlayOp(g, other, (0, _overlayOpJsDefault.default).UNION);
+    }
+}
+exports.default = UnionOp;
+
+},{"../../geom/Geometry.js":"9DSzO","../overlay/snap/SnapIfNeededOverlayOp.js":"gxP36","../overlay/OverlayOp.js":"9f5ft","@parcel/transformer-js/src/esmodule-helpers.js":"jnFvT"}],"cLSxx":[function(require,module,exports,__globalThis) {
 var parcelHelpers = require("@parcel/transformer-js/src/esmodule-helpers.js");
 parcelHelpers.defineInteropFlag(exports);
 parcelHelpers.export(exports, "getNewWMTSSource", ()=>getNewWMTSSource);
@@ -66718,5296 +74220,7 @@ var _bufferOpJsDefault = parcelHelpers.interopDefault(_bufferOpJs);
 var _bufferParametersJs = require("./buffer/BufferParameters.js");
 var _bufferParametersJsDefault = parcelHelpers.interopDefault(_bufferParametersJs);
 
-},{"./buffer/BufferOp.js":"1i41m","./buffer/BufferParameters.js":"idesX","@parcel/transformer-js/src/esmodule-helpers.js":"jnFvT"}],"1i41m":[function(require,module,exports,__globalThis) {
-var parcelHelpers = require("@parcel/transformer-js/src/esmodule-helpers.js");
-parcelHelpers.defineInteropFlag(exports);
-var _bufferParametersJs = require("./BufferParameters.js");
-var _bufferParametersJsDefault = parcelHelpers.interopDefault(_bufferParametersJs);
-var _scaledNoderJs = require("../../noding/ScaledNoder.js");
-var _scaledNoderJsDefault = parcelHelpers.interopDefault(_scaledNoderJs);
-var _topologyExceptionJs = require("../../geom/TopologyException.js");
-var _topologyExceptionJsDefault = parcelHelpers.interopDefault(_topologyExceptionJs);
-var _mathUtilJs = require("../../math/MathUtil.js");
-var _mathUtilJsDefault = parcelHelpers.interopDefault(_mathUtilJs);
-var _precisionModelJs = require("../../geom/PrecisionModel.js");
-var _precisionModelJsDefault = parcelHelpers.interopDefault(_precisionModelJs);
-var _runtimeExceptionJs = require("../../../../../java/lang/RuntimeException.js");
-var _runtimeExceptionJsDefault = parcelHelpers.interopDefault(_runtimeExceptionJs);
-var _mcindexSnapRounderJs = require("../../noding/snapround/MCIndexSnapRounder.js");
-var _mcindexSnapRounderJsDefault = parcelHelpers.interopDefault(_mcindexSnapRounderJs);
-var _geometryJs = require("../../geom/Geometry.js");
-var _geometryJsDefault = parcelHelpers.interopDefault(_geometryJs);
-var _bufferBuilderJs = require("./BufferBuilder.js");
-var _bufferBuilderJsDefault = parcelHelpers.interopDefault(_bufferBuilderJs);
-class BufferOp {
-    constructor(){
-        BufferOp.constructor_.apply(this, arguments);
-    }
-    static constructor_() {
-        this._argGeom = null;
-        this._distance = null;
-        this._bufParams = new (0, _bufferParametersJsDefault.default)();
-        this._resultGeometry = null;
-        this._saveException = null;
-        if (arguments.length === 1) {
-            const g = arguments[0];
-            this._argGeom = g;
-        } else if (arguments.length === 2) {
-            const g = arguments[0], bufParams = arguments[1];
-            this._argGeom = g;
-            this._bufParams = bufParams;
-        }
-    }
-    static bufferOp() {
-        if (arguments.length === 2) {
-            const g = arguments[0], distance = arguments[1];
-            const gBuf = new BufferOp(g);
-            const geomBuf = gBuf.getResultGeometry(distance);
-            return geomBuf;
-        } else if (arguments.length === 3) {
-            if (Number.isInteger(arguments[2]) && arguments[0] instanceof (0, _geometryJsDefault.default) && typeof arguments[1] === 'number') {
-                const g = arguments[0], distance = arguments[1], quadrantSegments = arguments[2];
-                const bufOp = new BufferOp(g);
-                bufOp.setQuadrantSegments(quadrantSegments);
-                const geomBuf = bufOp.getResultGeometry(distance);
-                return geomBuf;
-            } else if (arguments[2] instanceof (0, _bufferParametersJsDefault.default) && arguments[0] instanceof (0, _geometryJsDefault.default) && typeof arguments[1] === 'number') {
-                const g = arguments[0], distance = arguments[1], params = arguments[2];
-                const bufOp = new BufferOp(g, params);
-                const geomBuf = bufOp.getResultGeometry(distance);
-                return geomBuf;
-            }
-        } else if (arguments.length === 4) {
-            const g = arguments[0], distance = arguments[1], quadrantSegments = arguments[2], endCapStyle = arguments[3];
-            const bufOp = new BufferOp(g);
-            bufOp.setQuadrantSegments(quadrantSegments);
-            bufOp.setEndCapStyle(endCapStyle);
-            const geomBuf = bufOp.getResultGeometry(distance);
-            return geomBuf;
-        }
-    }
-    static precisionScaleFactor(g, distance, maxPrecisionDigits) {
-        const env = g.getEnvelopeInternal();
-        const envMax = (0, _mathUtilJsDefault.default).max(Math.abs(env.getMaxX()), Math.abs(env.getMaxY()), Math.abs(env.getMinX()), Math.abs(env.getMinY()));
-        const expandByDistance = distance > 0.0 ? distance : 0.0;
-        const bufEnvMax = envMax + 2 * expandByDistance;
-        const bufEnvPrecisionDigits = Math.trunc(Math.log(bufEnvMax) / Math.log(10) + 1.0);
-        const minUnitLog10 = maxPrecisionDigits - bufEnvPrecisionDigits;
-        const scaleFactor = Math.pow(10.0, minUnitLog10);
-        return scaleFactor;
-    }
-    bufferFixedPrecision(fixedPM) {
-        const noder = new (0, _scaledNoderJsDefault.default)(new (0, _mcindexSnapRounderJsDefault.default)(new (0, _precisionModelJsDefault.default)(1.0)), fixedPM.getScale());
-        const bufBuilder = new (0, _bufferBuilderJsDefault.default)(this._bufParams);
-        bufBuilder.setWorkingPrecisionModel(fixedPM);
-        bufBuilder.setNoder(noder);
-        this._resultGeometry = bufBuilder.buffer(this._argGeom, this._distance);
-    }
-    bufferReducedPrecision() {
-        if (arguments.length === 0) {
-            for(let precDigits = BufferOp.MAX_PRECISION_DIGITS; precDigits >= 0; precDigits--){
-                try {
-                    this.bufferReducedPrecision(precDigits);
-                } catch (ex) {
-                    if (ex instanceof (0, _topologyExceptionJsDefault.default)) this._saveException = ex;
-                    else throw ex;
-                } finally{}
-                if (this._resultGeometry !== null) return null;
-            }
-            throw this._saveException;
-        } else if (arguments.length === 1) {
-            const precisionDigits = arguments[0];
-            const sizeBasedScaleFactor = BufferOp.precisionScaleFactor(this._argGeom, this._distance, precisionDigits);
-            const fixedPM = new (0, _precisionModelJsDefault.default)(sizeBasedScaleFactor);
-            this.bufferFixedPrecision(fixedPM);
-        }
-    }
-    bufferOriginalPrecision() {
-        try {
-            const bufBuilder = new (0, _bufferBuilderJsDefault.default)(this._bufParams);
-            this._resultGeometry = bufBuilder.buffer(this._argGeom, this._distance);
-        } catch (ex) {
-            if (ex instanceof (0, _runtimeExceptionJsDefault.default)) this._saveException = ex;
-            else throw ex;
-        } finally{}
-    }
-    getResultGeometry(distance) {
-        this._distance = distance;
-        this.computeGeometry();
-        return this._resultGeometry;
-    }
-    setEndCapStyle(endCapStyle) {
-        this._bufParams.setEndCapStyle(endCapStyle);
-    }
-    computeGeometry() {
-        this.bufferOriginalPrecision();
-        if (this._resultGeometry !== null) return null;
-        const argPM = this._argGeom.getFactory().getPrecisionModel();
-        if (argPM.getType() === (0, _precisionModelJsDefault.default).FIXED) this.bufferFixedPrecision(argPM);
-        else this.bufferReducedPrecision();
-    }
-    setQuadrantSegments(quadrantSegments) {
-        this._bufParams.setQuadrantSegments(quadrantSegments);
-    }
-}
-exports.default = BufferOp;
-BufferOp.CAP_ROUND = (0, _bufferParametersJsDefault.default).CAP_ROUND;
-BufferOp.CAP_BUTT = (0, _bufferParametersJsDefault.default).CAP_FLAT;
-BufferOp.CAP_FLAT = (0, _bufferParametersJsDefault.default).CAP_FLAT;
-BufferOp.CAP_SQUARE = (0, _bufferParametersJsDefault.default).CAP_SQUARE;
-BufferOp.MAX_PRECISION_DIGITS = 12;
-
-},{"./BufferParameters.js":"idesX","../../noding/ScaledNoder.js":"XDiPO","../../geom/TopologyException.js":"bOVA5","../../math/MathUtil.js":"432sT","../../geom/PrecisionModel.js":"9XxRL","../../../../../java/lang/RuntimeException.js":"3yvnL","../../noding/snapround/MCIndexSnapRounder.js":"hoOy8","../../geom/Geometry.js":"9DSzO","./BufferBuilder.js":"a6cSc","@parcel/transformer-js/src/esmodule-helpers.js":"jnFvT"}],"idesX":[function(require,module,exports,__globalThis) {
-var parcelHelpers = require("@parcel/transformer-js/src/esmodule-helpers.js");
-parcelHelpers.defineInteropFlag(exports);
-class BufferParameters {
-    constructor(){
-        BufferParameters.constructor_.apply(this, arguments);
-    }
-    static constructor_() {
-        this._quadrantSegments = BufferParameters.DEFAULT_QUADRANT_SEGMENTS;
-        this._endCapStyle = BufferParameters.CAP_ROUND;
-        this._joinStyle = BufferParameters.JOIN_ROUND;
-        this._mitreLimit = BufferParameters.DEFAULT_MITRE_LIMIT;
-        this._isSingleSided = false;
-        this._simplifyFactor = BufferParameters.DEFAULT_SIMPLIFY_FACTOR;
-        if (arguments.length === 0) ;
-        else if (arguments.length === 1) {
-            const quadrantSegments = arguments[0];
-            this.setQuadrantSegments(quadrantSegments);
-        } else if (arguments.length === 2) {
-            const quadrantSegments = arguments[0], endCapStyle = arguments[1];
-            this.setQuadrantSegments(quadrantSegments);
-            this.setEndCapStyle(endCapStyle);
-        } else if (arguments.length === 4) {
-            const quadrantSegments = arguments[0], endCapStyle = arguments[1], joinStyle = arguments[2], mitreLimit = arguments[3];
-            this.setQuadrantSegments(quadrantSegments);
-            this.setEndCapStyle(endCapStyle);
-            this.setJoinStyle(joinStyle);
-            this.setMitreLimit(mitreLimit);
-        }
-    }
-    static bufferDistanceError(quadSegs) {
-        const alpha = Math.PI / 2.0 / quadSegs;
-        return 1 - Math.cos(alpha / 2.0);
-    }
-    getEndCapStyle() {
-        return this._endCapStyle;
-    }
-    isSingleSided() {
-        return this._isSingleSided;
-    }
-    setQuadrantSegments(quadSegs) {
-        this._quadrantSegments = quadSegs;
-        if (this._quadrantSegments === 0) this._joinStyle = BufferParameters.JOIN_BEVEL;
-        if (this._quadrantSegments < 0) {
-            this._joinStyle = BufferParameters.JOIN_MITRE;
-            this._mitreLimit = Math.abs(this._quadrantSegments);
-        }
-        if (quadSegs <= 0) this._quadrantSegments = 1;
-        if (this._joinStyle !== BufferParameters.JOIN_ROUND) this._quadrantSegments = BufferParameters.DEFAULT_QUADRANT_SEGMENTS;
-    }
-    getJoinStyle() {
-        return this._joinStyle;
-    }
-    setJoinStyle(joinStyle) {
-        this._joinStyle = joinStyle;
-    }
-    setSimplifyFactor(simplifyFactor) {
-        this._simplifyFactor = simplifyFactor < 0 ? 0 : simplifyFactor;
-    }
-    getSimplifyFactor() {
-        return this._simplifyFactor;
-    }
-    getQuadrantSegments() {
-        return this._quadrantSegments;
-    }
-    setEndCapStyle(endCapStyle) {
-        this._endCapStyle = endCapStyle;
-    }
-    getMitreLimit() {
-        return this._mitreLimit;
-    }
-    setMitreLimit(mitreLimit) {
-        this._mitreLimit = mitreLimit;
-    }
-    setSingleSided(isSingleSided) {
-        this._isSingleSided = isSingleSided;
-    }
-}
-exports.default = BufferParameters;
-BufferParameters.CAP_ROUND = 1;
-BufferParameters.CAP_FLAT = 2;
-BufferParameters.CAP_SQUARE = 3;
-BufferParameters.JOIN_ROUND = 1;
-BufferParameters.JOIN_MITRE = 2;
-BufferParameters.JOIN_BEVEL = 3;
-BufferParameters.DEFAULT_QUADRANT_SEGMENTS = 8;
-BufferParameters.DEFAULT_MITRE_LIMIT = 5.0;
-BufferParameters.DEFAULT_SIMPLIFY_FACTOR = 0.01;
-
-},{"@parcel/transformer-js/src/esmodule-helpers.js":"jnFvT"}],"XDiPO":[function(require,module,exports,__globalThis) {
-var parcelHelpers = require("@parcel/transformer-js/src/esmodule-helpers.js");
-parcelHelpers.defineInteropFlag(exports);
-var _hasInterfaceJs = require("../../../../hasInterface.js");
-var _hasInterfaceJsDefault = parcelHelpers.interopDefault(_hasInterfaceJs);
-var _coordinateJs = require("../geom/Coordinate.js");
-var _coordinateJsDefault = parcelHelpers.interopDefault(_coordinateJs);
-var _nodedSegmentStringJs = require("./NodedSegmentString.js");
-var _nodedSegmentStringJsDefault = parcelHelpers.interopDefault(_nodedSegmentStringJs);
-var _systemJs = require("../../../../java/lang/System.js");
-var _systemJsDefault = parcelHelpers.interopDefault(_systemJs);
-var _coordinateArraysJs = require("../geom/CoordinateArrays.js");
-var _coordinateArraysJsDefault = parcelHelpers.interopDefault(_coordinateArraysJs);
-var _arrayListJs = require("../../../../java/util/ArrayList.js");
-var _arrayListJsDefault = parcelHelpers.interopDefault(_arrayListJs);
-var _collectionJs = require("../../../../java/util/Collection.js");
-var _collectionJsDefault = parcelHelpers.interopDefault(_collectionJs);
-var _noderJs = require("./Noder.js");
-var _noderJsDefault = parcelHelpers.interopDefault(_noderJs);
-class ScaledNoder {
-    constructor(){
-        ScaledNoder.constructor_.apply(this, arguments);
-    }
-    static constructor_() {
-        this._noder = null;
-        this._scaleFactor = null;
-        this._offsetX = null;
-        this._offsetY = null;
-        this._isScaled = false;
-        if (arguments.length === 2) {
-            const noder = arguments[0], scaleFactor = arguments[1];
-            ScaledNoder.constructor_.call(this, noder, scaleFactor, 0, 0);
-        } else if (arguments.length === 4) {
-            const noder = arguments[0], scaleFactor = arguments[1], offsetX = arguments[2], offsetY = arguments[3];
-            this._noder = noder;
-            this._scaleFactor = scaleFactor;
-            this._isScaled = !this.isIntegerPrecision();
-        }
-    }
-    rescale() {
-        if ((0, _hasInterfaceJsDefault.default)(arguments[0], (0, _collectionJsDefault.default))) {
-            const segStrings = arguments[0];
-            for(let i = segStrings.iterator(); i.hasNext();){
-                const ss = i.next();
-                this.rescale(ss.getCoordinates());
-            }
-        } else if (arguments[0] instanceof Array) {
-            const pts = arguments[0];
-            for(let i = 0; i < pts.length; i++){
-                pts[i].x = pts[i].x / this._scaleFactor + this._offsetX;
-                pts[i].y = pts[i].y / this._scaleFactor + this._offsetY;
-            }
-            if (pts.length === 2 && pts[0].equals2D(pts[1])) (0, _systemJsDefault.default).out.println(pts);
-        }
-    }
-    scale() {
-        if ((0, _hasInterfaceJsDefault.default)(arguments[0], (0, _collectionJsDefault.default))) {
-            const segStrings = arguments[0];
-            const nodedSegmentStrings = new (0, _arrayListJsDefault.default)(segStrings.size());
-            for(let i = segStrings.iterator(); i.hasNext();){
-                const ss = i.next();
-                nodedSegmentStrings.add(new (0, _nodedSegmentStringJsDefault.default)(this.scale(ss.getCoordinates()), ss.getData()));
-            }
-            return nodedSegmentStrings;
-        } else if (arguments[0] instanceof Array) {
-            const pts = arguments[0];
-            const roundPts = new Array(pts.length).fill(null);
-            for(let i = 0; i < pts.length; i++)roundPts[i] = new (0, _coordinateJsDefault.default)(Math.round((pts[i].x - this._offsetX) * this._scaleFactor), Math.round((pts[i].y - this._offsetY) * this._scaleFactor), pts[i].getZ());
-            const roundPtsNoDup = (0, _coordinateArraysJsDefault.default).removeRepeatedPoints(roundPts);
-            return roundPtsNoDup;
-        }
-    }
-    isIntegerPrecision() {
-        return this._scaleFactor === 1.0;
-    }
-    getNodedSubstrings() {
-        const splitSS = this._noder.getNodedSubstrings();
-        if (this._isScaled) this.rescale(splitSS);
-        return splitSS;
-    }
-    computeNodes(inputSegStrings) {
-        let intSegStrings = inputSegStrings;
-        if (this._isScaled) intSegStrings = this.scale(inputSegStrings);
-        this._noder.computeNodes(intSegStrings);
-    }
-    get interfaces_() {
-        return [
-            (0, _noderJsDefault.default)
-        ];
-    }
-}
-exports.default = ScaledNoder;
-
-},{"../../../../hasInterface.js":"5bpze","../geom/Coordinate.js":"ii2fh","./NodedSegmentString.js":"gBLDJ","../../../../java/lang/System.js":"dYmTx","../geom/CoordinateArrays.js":"lncg4","../../../../java/util/ArrayList.js":"gGAQZ","../../../../java/util/Collection.js":"cggki","./Noder.js":"jKC91","@parcel/transformer-js/src/esmodule-helpers.js":"jnFvT"}],"gBLDJ":[function(require,module,exports,__globalThis) {
-var parcelHelpers = require("@parcel/transformer-js/src/esmodule-helpers.js");
-parcelHelpers.defineInteropFlag(exports);
-var _segmentNodeListJs = require("./SegmentNodeList.js");
-var _segmentNodeListJsDefault = parcelHelpers.interopDefault(_segmentNodeListJs);
-var _wktwriterJs = require("../io/WKTWriter.js");
-var _wktwriterJsDefault = parcelHelpers.interopDefault(_wktwriterJs);
-var _coordinateArraySequenceJs = require("../geom/impl/CoordinateArraySequence.js");
-var _coordinateArraySequenceJsDefault = parcelHelpers.interopDefault(_coordinateArraySequenceJs);
-var _coordinateJs = require("../geom/Coordinate.js");
-var _coordinateJsDefault = parcelHelpers.interopDefault(_coordinateJs);
-var _octantJs = require("./Octant.js");
-var _octantJsDefault = parcelHelpers.interopDefault(_octantJs);
-var _arrayListJs = require("../../../../java/util/ArrayList.js");
-var _arrayListJsDefault = parcelHelpers.interopDefault(_arrayListJs);
-var _nodableSegmentStringJs = require("./NodableSegmentString.js");
-var _nodableSegmentStringJsDefault = parcelHelpers.interopDefault(_nodableSegmentStringJs);
-class NodedSegmentString {
-    constructor(){
-        NodedSegmentString.constructor_.apply(this, arguments);
-    }
-    static constructor_() {
-        this._nodeList = new (0, _segmentNodeListJsDefault.default)(this);
-        this._pts = null;
-        this._data = null;
-        const pts = arguments[0], data = arguments[1];
-        this._pts = pts;
-        this._data = data;
-    }
-    static getNodedSubstrings() {
-        if (arguments.length === 1) {
-            const segStrings = arguments[0];
-            const resultEdgelist = new (0, _arrayListJsDefault.default)();
-            NodedSegmentString.getNodedSubstrings(segStrings, resultEdgelist);
-            return resultEdgelist;
-        } else if (arguments.length === 2) {
-            const segStrings = arguments[0], resultEdgelist = arguments[1];
-            for(let i = segStrings.iterator(); i.hasNext();){
-                const ss = i.next();
-                ss.getNodeList().addSplitEdges(resultEdgelist);
-            }
-        }
-    }
-    getCoordinates() {
-        return this._pts;
-    }
-    size() {
-        return this._pts.length;
-    }
-    getCoordinate(i) {
-        return this._pts[i];
-    }
-    isClosed() {
-        return this._pts[0].equals(this._pts[this._pts.length - 1]);
-    }
-    getSegmentOctant(index) {
-        if (index === this._pts.length - 1) return -1;
-        return this.safeOctant(this.getCoordinate(index), this.getCoordinate(index + 1));
-    }
-    toString() {
-        return (0, _wktwriterJsDefault.default).toLineString(new (0, _coordinateArraySequenceJsDefault.default)(this._pts));
-    }
-    getNodeList() {
-        return this._nodeList;
-    }
-    addIntersectionNode(intPt, segmentIndex) {
-        let normalizedSegmentIndex = segmentIndex;
-        const nextSegIndex = normalizedSegmentIndex + 1;
-        if (nextSegIndex < this._pts.length) {
-            const nextPt = this._pts[nextSegIndex];
-            if (intPt.equals2D(nextPt)) normalizedSegmentIndex = nextSegIndex;
-        }
-        const ei = this._nodeList.add(intPt, normalizedSegmentIndex);
-        return ei;
-    }
-    addIntersections(li, segmentIndex, geomIndex) {
-        for(let i = 0; i < li.getIntersectionNum(); i++)this.addIntersection(li, segmentIndex, geomIndex, i);
-    }
-    setData(data) {
-        this._data = data;
-    }
-    safeOctant(p0, p1) {
-        if (p0.equals2D(p1)) return 0;
-        return (0, _octantJsDefault.default).octant(p0, p1);
-    }
-    getData() {
-        return this._data;
-    }
-    addIntersection() {
-        if (arguments.length === 2) {
-            const intPt = arguments[0], segmentIndex = arguments[1];
-            this.addIntersectionNode(intPt, segmentIndex);
-        } else if (arguments.length === 4) {
-            const li = arguments[0], segmentIndex = arguments[1], geomIndex = arguments[2], intIndex = arguments[3];
-            const intPt = new (0, _coordinateJsDefault.default)(li.getIntersection(intIndex));
-            this.addIntersection(intPt, segmentIndex);
-        }
-    }
-    get interfaces_() {
-        return [
-            (0, _nodableSegmentStringJsDefault.default)
-        ];
-    }
-}
-exports.default = NodedSegmentString;
-
-},{"./SegmentNodeList.js":"fBtLO","../io/WKTWriter.js":"1WLaw","../geom/impl/CoordinateArraySequence.js":"grBJo","../geom/Coordinate.js":"ii2fh","./Octant.js":"5OU0v","../../../../java/util/ArrayList.js":"gGAQZ","./NodableSegmentString.js":"dNf4G","@parcel/transformer-js/src/esmodule-helpers.js":"jnFvT"}],"fBtLO":[function(require,module,exports,__globalThis) {
-var parcelHelpers = require("@parcel/transformer-js/src/esmodule-helpers.js");
-parcelHelpers.defineInteropFlag(exports);
-var _coordinateListJs = require("../geom/CoordinateList.js");
-var _coordinateListJsDefault = parcelHelpers.interopDefault(_coordinateListJs);
-var _segmentNodeJs = require("./SegmentNode.js");
-var _segmentNodeJsDefault = parcelHelpers.interopDefault(_segmentNodeJs);
-var _iteratorJs = require("../../../../java/util/Iterator.js");
-var _iteratorJsDefault = parcelHelpers.interopDefault(_iteratorJs);
-var _coordinateJs = require("../geom/Coordinate.js");
-var _coordinateJsDefault = parcelHelpers.interopDefault(_coordinateJs);
-var _nodedSegmentStringJs = require("./NodedSegmentString.js");
-var _nodedSegmentStringJsDefault = parcelHelpers.interopDefault(_nodedSegmentStringJs);
-var _integerJs = require("../../../../java/lang/Integer.js");
-var _integerJsDefault = parcelHelpers.interopDefault(_integerJs);
-var _unsupportedOperationExceptionJs = require("../../../../java/lang/UnsupportedOperationException.js");
-var _unsupportedOperationExceptionJsDefault = parcelHelpers.interopDefault(_unsupportedOperationExceptionJs);
-var _arrayListJs = require("../../../../java/util/ArrayList.js");
-var _arrayListJsDefault = parcelHelpers.interopDefault(_arrayListJs);
-var _treeMapJs = require("../../../../java/util/TreeMap.js");
-var _treeMapJsDefault = parcelHelpers.interopDefault(_treeMapJs);
-var _runtimeExceptionJs = require("../../../../java/lang/RuntimeException.js");
-var _runtimeExceptionJsDefault = parcelHelpers.interopDefault(_runtimeExceptionJs);
-var _assertJs = require("../util/Assert.js");
-var _assertJsDefault = parcelHelpers.interopDefault(_assertJs);
-class SegmentNodeList {
-    constructor(){
-        SegmentNodeList.constructor_.apply(this, arguments);
-    }
-    static constructor_() {
-        this._nodeMap = new (0, _treeMapJsDefault.default)();
-        this._edge = null;
-        const edge = arguments[0];
-        this._edge = edge;
-    }
-    getSplitCoordinates() {
-        const coordList = new (0, _coordinateListJsDefault.default)();
-        this.addEndpoints();
-        const it = this.iterator();
-        let eiPrev = it.next();
-        while(it.hasNext()){
-            const ei = it.next();
-            this.addEdgeCoordinates(eiPrev, ei, coordList);
-            eiPrev = ei;
-        }
-        return coordList.toCoordinateArray();
-    }
-    print(out) {
-        out.println('Intersections:');
-        for(let it = this.iterator(); it.hasNext();){
-            const ei = it.next();
-            ei.print(out);
-        }
-    }
-    findCollapsesFromExistingVertices(collapsedVertexIndexes) {
-        for(let i = 0; i < this._edge.size() - 2; i++){
-            const p0 = this._edge.getCoordinate(i);
-            const p1 = this._edge.getCoordinate(i + 1);
-            const p2 = this._edge.getCoordinate(i + 2);
-            if (p0.equals2D(p2)) collapsedVertexIndexes.add((0, _integerJsDefault.default).valueOf(i + 1));
-        }
-    }
-    addEdgeCoordinates(ei0, ei1, coordList) {
-        const pts = this.createSplitEdgePts(ei0, ei1);
-        coordList.add(pts, false);
-    }
-    findCollapseIndex(ei0, ei1, collapsedVertexIndex) {
-        if (!ei0.coord.equals2D(ei1.coord)) return false;
-        let numVerticesBetween = ei1.segmentIndex - ei0.segmentIndex;
-        if (!ei1.isInterior()) numVerticesBetween--;
-        if (numVerticesBetween === 1) {
-            collapsedVertexIndex[0] = ei0.segmentIndex + 1;
-            return true;
-        }
-        return false;
-    }
-    findCollapsesFromInsertedNodes(collapsedVertexIndexes) {
-        const collapsedVertexIndex = new Array(1).fill(null);
-        const it = this.iterator();
-        let eiPrev = it.next();
-        while(it.hasNext()){
-            const ei = it.next();
-            const isCollapsed = this.findCollapseIndex(eiPrev, ei, collapsedVertexIndex);
-            if (isCollapsed) collapsedVertexIndexes.add((0, _integerJsDefault.default).valueOf(collapsedVertexIndex[0]));
-            eiPrev = ei;
-        }
-    }
-    getEdge() {
-        return this._edge;
-    }
-    addEndpoints() {
-        const maxSegIndex = this._edge.size() - 1;
-        this.add(this._edge.getCoordinate(0), 0);
-        this.add(this._edge.getCoordinate(maxSegIndex), maxSegIndex);
-    }
-    createSplitEdge(ei0, ei1) {
-        const pts = this.createSplitEdgePts(ei0, ei1);
-        return new (0, _nodedSegmentStringJsDefault.default)(pts, this._edge.getData());
-    }
-    add(intPt, segmentIndex) {
-        const eiNew = new (0, _segmentNodeJsDefault.default)(this._edge, intPt, segmentIndex, this._edge.getSegmentOctant(segmentIndex));
-        const ei = this._nodeMap.get(eiNew);
-        if (ei !== null) {
-            (0, _assertJsDefault.default).isTrue(ei.coord.equals2D(intPt), 'Found equal nodes with different coordinates');
-            return ei;
-        }
-        this._nodeMap.put(eiNew, eiNew);
-        return eiNew;
-    }
-    checkSplitEdgesCorrectness(splitEdges) {
-        const edgePts = this._edge.getCoordinates();
-        const split0 = splitEdges.get(0);
-        const pt0 = split0.getCoordinate(0);
-        if (!pt0.equals2D(edgePts[0])) throw new (0, _runtimeExceptionJsDefault.default)('bad split edge start point at ' + pt0);
-        const splitn = splitEdges.get(splitEdges.size() - 1);
-        const splitnPts = splitn.getCoordinates();
-        const ptn = splitnPts[splitnPts.length - 1];
-        if (!ptn.equals2D(edgePts[edgePts.length - 1])) throw new (0, _runtimeExceptionJsDefault.default)('bad split edge end point at ' + ptn);
-    }
-    addCollapsedNodes() {
-        const collapsedVertexIndexes = new (0, _arrayListJsDefault.default)();
-        this.findCollapsesFromInsertedNodes(collapsedVertexIndexes);
-        this.findCollapsesFromExistingVertices(collapsedVertexIndexes);
-        for(let it = collapsedVertexIndexes.iterator(); it.hasNext();){
-            const vertexIndex = it.next().intValue();
-            this.add(this._edge.getCoordinate(vertexIndex), vertexIndex);
-        }
-    }
-    createSplitEdgePts(ei0, ei1) {
-        let npts = ei1.segmentIndex - ei0.segmentIndex + 2;
-        if (npts === 2) return [
-            new (0, _coordinateJsDefault.default)(ei0.coord),
-            new (0, _coordinateJsDefault.default)(ei1.coord)
-        ];
-        const lastSegStartPt = this._edge.getCoordinate(ei1.segmentIndex);
-        const useIntPt1 = ei1.isInterior() || !ei1.coord.equals2D(lastSegStartPt);
-        if (!useIntPt1) npts--;
-        const pts = new Array(npts).fill(null);
-        let ipt = 0;
-        pts[ipt++] = new (0, _coordinateJsDefault.default)(ei0.coord);
-        for(let i = ei0.segmentIndex + 1; i <= ei1.segmentIndex; i++)pts[ipt++] = this._edge.getCoordinate(i);
-        if (useIntPt1) pts[ipt] = new (0, _coordinateJsDefault.default)(ei1.coord);
-        return pts;
-    }
-    iterator() {
-        return this._nodeMap.values().iterator();
-    }
-    addSplitEdges(edgeList) {
-        this.addEndpoints();
-        this.addCollapsedNodes();
-        const it = this.iterator();
-        let eiPrev = it.next();
-        while(it.hasNext()){
-            const ei = it.next();
-            const newEdge = this.createSplitEdge(eiPrev, ei);
-            edgeList.add(newEdge);
-            eiPrev = ei;
-        }
-    }
-}
-exports.default = SegmentNodeList;
-class NodeVertexIterator {
-    constructor(){
-        NodeVertexIterator.constructor_.apply(this, arguments);
-    }
-    static constructor_() {
-        this._nodeList = null;
-        this._edge = null;
-        this._nodeIt = null;
-        this._currNode = null;
-        this._nextNode = null;
-        this._currSegIndex = 0;
-        const nodeList = arguments[0];
-        this._nodeList = nodeList;
-        this._edge = nodeList.getEdge();
-        this._nodeIt = nodeList.iterator();
-        this.readNextNode();
-    }
-    next() {
-        if (this._currNode === null) {
-            this._currNode = this._nextNode;
-            this._currSegIndex = this._currNode.segmentIndex;
-            this.readNextNode();
-            return this._currNode;
-        }
-        if (this._nextNode === null) return null;
-        if (this._nextNode.segmentIndex === this._currNode.segmentIndex) {
-            this._currNode = this._nextNode;
-            this._currSegIndex = this._currNode.segmentIndex;
-            this.readNextNode();
-            return this._currNode;
-        }
-        this._nextNode.segmentIndex, this._currNode.segmentIndex;
-        return null;
-    }
-    readNextNode() {
-        if (this._nodeIt.hasNext()) this._nextNode = this._nodeIt.next();
-        else this._nextNode = null;
-    }
-    hasNext() {
-        if (this._nextNode === null) return false;
-        return true;
-    }
-    remove() {
-        throw new (0, _unsupportedOperationExceptionJsDefault.default)(this.getClass().getName());
-    }
-    get interfaces_() {
-        return [
-            (0, _iteratorJsDefault.default)
-        ];
-    }
-}
-
-},{"../geom/CoordinateList.js":"ibs54","./SegmentNode.js":"i2Y5Z","../../../../java/util/Iterator.js":"zp5SP","../geom/Coordinate.js":"ii2fh","./NodedSegmentString.js":"gBLDJ","../../../../java/lang/Integer.js":"b3mDP","../../../../java/lang/UnsupportedOperationException.js":"dV3kx","../../../../java/util/ArrayList.js":"gGAQZ","../../../../java/util/TreeMap.js":"dQNYS","../../../../java/lang/RuntimeException.js":"3yvnL","../util/Assert.js":"1vSRy","@parcel/transformer-js/src/esmodule-helpers.js":"jnFvT"}],"i2Y5Z":[function(require,module,exports,__globalThis) {
-var parcelHelpers = require("@parcel/transformer-js/src/esmodule-helpers.js");
-parcelHelpers.defineInteropFlag(exports);
-var _coordinateJs = require("../geom/Coordinate.js");
-var _coordinateJsDefault = parcelHelpers.interopDefault(_coordinateJs);
-var _segmentPointComparatorJs = require("./SegmentPointComparator.js");
-var _segmentPointComparatorJsDefault = parcelHelpers.interopDefault(_segmentPointComparatorJs);
-var _comparableJs = require("../../../../java/lang/Comparable.js");
-var _comparableJsDefault = parcelHelpers.interopDefault(_comparableJs);
-class SegmentNode {
-    constructor(){
-        SegmentNode.constructor_.apply(this, arguments);
-    }
-    static constructor_() {
-        this._segString = null;
-        this.coord = null;
-        this.segmentIndex = null;
-        this._segmentOctant = null;
-        this._isInterior = null;
-        const segString = arguments[0], coord = arguments[1], segmentIndex = arguments[2], segmentOctant = arguments[3];
-        this._segString = segString;
-        this.coord = new (0, _coordinateJsDefault.default)(coord);
-        this.segmentIndex = segmentIndex;
-        this._segmentOctant = segmentOctant;
-        this._isInterior = !coord.equals2D(segString.getCoordinate(segmentIndex));
-    }
-    getCoordinate() {
-        return this.coord;
-    }
-    print(out) {
-        out.print(this.coord);
-        out.print(' seg # = ' + this.segmentIndex);
-    }
-    compareTo(obj) {
-        const other = obj;
-        if (this.segmentIndex < other.segmentIndex) return -1;
-        if (this.segmentIndex > other.segmentIndex) return 1;
-        if (this.coord.equals2D(other.coord)) return 0;
-        if (!this._isInterior) return -1;
-        if (!other._isInterior) return 1;
-        return (0, _segmentPointComparatorJsDefault.default).compare(this._segmentOctant, this.coord, other.coord);
-    }
-    isEndPoint(maxSegmentIndex) {
-        if (this.segmentIndex === 0 && !this._isInterior) return true;
-        if (this.segmentIndex === maxSegmentIndex) return true;
-        return false;
-    }
-    toString() {
-        return this.segmentIndex + ':' + this.coord.toString();
-    }
-    isInterior() {
-        return this._isInterior;
-    }
-    get interfaces_() {
-        return [
-            (0, _comparableJsDefault.default)
-        ];
-    }
-}
-exports.default = SegmentNode;
-
-},{"../geom/Coordinate.js":"ii2fh","./SegmentPointComparator.js":"1JLGC","../../../../java/lang/Comparable.js":"WFeEu","@parcel/transformer-js/src/esmodule-helpers.js":"jnFvT"}],"1JLGC":[function(require,module,exports,__globalThis) {
-var parcelHelpers = require("@parcel/transformer-js/src/esmodule-helpers.js");
-parcelHelpers.defineInteropFlag(exports);
-var _assertJs = require("../util/Assert.js");
-var _assertJsDefault = parcelHelpers.interopDefault(_assertJs);
-class SegmentPointComparator {
-    static relativeSign(x0, x1) {
-        if (x0 < x1) return -1;
-        if (x0 > x1) return 1;
-        return 0;
-    }
-    static compareValue(compareSign0, compareSign1) {
-        if (compareSign0 < 0) return -1;
-        if (compareSign0 > 0) return 1;
-        if (compareSign1 < 0) return -1;
-        if (compareSign1 > 0) return 1;
-        return 0;
-    }
-    static compare(octant, p0, p1) {
-        if (p0.equals2D(p1)) return 0;
-        const xSign = SegmentPointComparator.relativeSign(p0.x, p1.x);
-        const ySign = SegmentPointComparator.relativeSign(p0.y, p1.y);
-        switch(octant){
-            case 0:
-                return SegmentPointComparator.compareValue(xSign, ySign);
-            case 1:
-                return SegmentPointComparator.compareValue(ySign, xSign);
-            case 2:
-                return SegmentPointComparator.compareValue(ySign, -xSign);
-            case 3:
-                return SegmentPointComparator.compareValue(-xSign, ySign);
-            case 4:
-                return SegmentPointComparator.compareValue(-xSign, -ySign);
-            case 5:
-                return SegmentPointComparator.compareValue(-ySign, -xSign);
-            case 6:
-                return SegmentPointComparator.compareValue(-ySign, xSign);
-            case 7:
-                return SegmentPointComparator.compareValue(xSign, -ySign);
-        }
-        (0, _assertJsDefault.default).shouldNeverReachHere('invalid octant value');
-        return 0;
-    }
-}
-exports.default = SegmentPointComparator;
-
-},{"../util/Assert.js":"1vSRy","@parcel/transformer-js/src/esmodule-helpers.js":"jnFvT"}],"5OU0v":[function(require,module,exports,__globalThis) {
-var parcelHelpers = require("@parcel/transformer-js/src/esmodule-helpers.js");
-parcelHelpers.defineInteropFlag(exports);
-var _coordinateJs = require("../geom/Coordinate.js");
-var _coordinateJsDefault = parcelHelpers.interopDefault(_coordinateJs);
-var _illegalArgumentExceptionJs = require("../../../../java/lang/IllegalArgumentException.js");
-var _illegalArgumentExceptionJsDefault = parcelHelpers.interopDefault(_illegalArgumentExceptionJs);
-class Octant {
-    static octant() {
-        if (typeof arguments[0] === 'number' && typeof arguments[1] === 'number') {
-            const dx = arguments[0], dy = arguments[1];
-            if (dx === 0.0 && dy === 0.0) throw new (0, _illegalArgumentExceptionJsDefault.default)('Cannot compute the octant for point ( ' + dx + ', ' + dy + ' )');
-            const adx = Math.abs(dx);
-            const ady = Math.abs(dy);
-            if (dx >= 0) {
-                if (dy >= 0) {
-                    if (adx >= ady) return 0;
-                    else return 1;
-                } else if (adx >= ady) return 7;
-                else return 6;
-            } else if (dy >= 0) {
-                if (adx >= ady) return 3;
-                else return 2;
-            } else if (adx >= ady) return 4;
-            else return 5;
-        } else if (arguments[0] instanceof (0, _coordinateJsDefault.default) && arguments[1] instanceof (0, _coordinateJsDefault.default)) {
-            const p0 = arguments[0], p1 = arguments[1];
-            const dx = p1.x - p0.x;
-            const dy = p1.y - p0.y;
-            if (dx === 0.0 && dy === 0.0) throw new (0, _illegalArgumentExceptionJsDefault.default)('Cannot compute the octant for two identical points ' + p0);
-            return Octant.octant(dx, dy);
-        }
-    }
-}
-exports.default = Octant;
-
-},{"../geom/Coordinate.js":"ii2fh","../../../../java/lang/IllegalArgumentException.js":"9ppVW","@parcel/transformer-js/src/esmodule-helpers.js":"jnFvT"}],"dNf4G":[function(require,module,exports,__globalThis) {
-var parcelHelpers = require("@parcel/transformer-js/src/esmodule-helpers.js");
-parcelHelpers.defineInteropFlag(exports);
-var _segmentStringJs = require("./SegmentString.js");
-var _segmentStringJsDefault = parcelHelpers.interopDefault(_segmentStringJs);
-class NodableSegmentString {
-    addIntersection(intPt, segmentIndex) {}
-    get interfaces_() {
-        return [
-            (0, _segmentStringJsDefault.default)
-        ];
-    }
-}
-exports.default = NodableSegmentString;
-
-},{"./SegmentString.js":"isRVw","@parcel/transformer-js/src/esmodule-helpers.js":"jnFvT"}],"isRVw":[function(require,module,exports,__globalThis) {
-var parcelHelpers = require("@parcel/transformer-js/src/esmodule-helpers.js");
-parcelHelpers.defineInteropFlag(exports);
-class SegmentString {
-    getCoordinates() {}
-    size() {}
-    getCoordinate(i) {}
-    isClosed() {}
-    setData(data) {}
-    getData() {}
-}
-exports.default = SegmentString;
-
-},{"@parcel/transformer-js/src/esmodule-helpers.js":"jnFvT"}],"jKC91":[function(require,module,exports,__globalThis) {
-var parcelHelpers = require("@parcel/transformer-js/src/esmodule-helpers.js");
-parcelHelpers.defineInteropFlag(exports);
-class Noder {
-    getNodedSubstrings() {}
-    computeNodes(segStrings) {}
-}
-exports.default = Noder;
-
-},{"@parcel/transformer-js/src/esmodule-helpers.js":"jnFvT"}],"hoOy8":[function(require,module,exports,__globalThis) {
-var parcelHelpers = require("@parcel/transformer-js/src/esmodule-helpers.js");
-parcelHelpers.defineInteropFlag(exports);
-var _nodingValidatorJs = require("../NodingValidator.js");
-var _nodingValidatorJsDefault = parcelHelpers.interopDefault(_nodingValidatorJs);
-var _hasInterfaceJs = require("../../../../../hasInterface.js");
-var _hasInterfaceJsDefault = parcelHelpers.interopDefault(_hasInterfaceJs);
-var _mcindexNoderJs = require("../MCIndexNoder.js");
-var _mcindexNoderJsDefault = parcelHelpers.interopDefault(_mcindexNoderJs);
-var _nodedSegmentStringJs = require("../NodedSegmentString.js");
-var _nodedSegmentStringJsDefault = parcelHelpers.interopDefault(_nodedSegmentStringJs);
-var _hotPixelJs = require("./HotPixel.js");
-var _hotPixelJsDefault = parcelHelpers.interopDefault(_hotPixelJs);
-var _exceptionJs = require("../../../../../java/lang/Exception.js");
-var _exceptionJsDefault = parcelHelpers.interopDefault(_exceptionJs);
-var _mcindexPointSnapperJs = require("./MCIndexPointSnapper.js");
-var _mcindexPointSnapperJsDefault = parcelHelpers.interopDefault(_mcindexPointSnapperJs);
-var _robustLineIntersectorJs = require("../../algorithm/RobustLineIntersector.js");
-var _robustLineIntersectorJsDefault = parcelHelpers.interopDefault(_robustLineIntersectorJs);
-var _interiorIntersectionFinderAdderJs = require("../InteriorIntersectionFinderAdder.js");
-var _interiorIntersectionFinderAdderJsDefault = parcelHelpers.interopDefault(_interiorIntersectionFinderAdderJs);
-var _collectionJs = require("../../../../../java/util/Collection.js");
-var _collectionJsDefault = parcelHelpers.interopDefault(_collectionJs);
-var _noderJs = require("../Noder.js");
-var _noderJsDefault = parcelHelpers.interopDefault(_noderJs);
-class MCIndexSnapRounder {
-    constructor(){
-        MCIndexSnapRounder.constructor_.apply(this, arguments);
-    }
-    static constructor_() {
-        this._pm = null;
-        this._li = null;
-        this._scaleFactor = null;
-        this._noder = null;
-        this._pointSnapper = null;
-        this._nodedSegStrings = null;
-        const pm = arguments[0];
-        this._pm = pm;
-        this._li = new (0, _robustLineIntersectorJsDefault.default)();
-        this._li.setPrecisionModel(pm);
-        this._scaleFactor = pm.getScale();
-    }
-    checkCorrectness(inputSegmentStrings) {
-        const resultSegStrings = (0, _nodedSegmentStringJsDefault.default).getNodedSubstrings(inputSegmentStrings);
-        const nv = new (0, _nodingValidatorJsDefault.default)(resultSegStrings);
-        try {
-            nv.checkValid();
-        } catch (ex) {
-            if (ex instanceof (0, _exceptionJsDefault.default)) ex.printStackTrace();
-            else throw ex;
-        } finally{}
-    }
-    getNodedSubstrings() {
-        return (0, _nodedSegmentStringJsDefault.default).getNodedSubstrings(this._nodedSegStrings);
-    }
-    snapRound(segStrings, li) {
-        const intersections = this.findInteriorIntersections(segStrings, li);
-        this.computeIntersectionSnaps(intersections);
-        this.computeVertexSnaps(segStrings);
-    }
-    findInteriorIntersections(segStrings, li) {
-        const intFinderAdder = new (0, _interiorIntersectionFinderAdderJsDefault.default)(li);
-        this._noder.setSegmentIntersector(intFinderAdder);
-        this._noder.computeNodes(segStrings);
-        return intFinderAdder.getInteriorIntersections();
-    }
-    computeVertexSnaps() {
-        if ((0, _hasInterfaceJsDefault.default)(arguments[0], (0, _collectionJsDefault.default))) {
-            const edges = arguments[0];
-            for(let i0 = edges.iterator(); i0.hasNext();){
-                const edge0 = i0.next();
-                this.computeVertexSnaps(edge0);
-            }
-        } else if (arguments[0] instanceof (0, _nodedSegmentStringJsDefault.default)) {
-            const e = arguments[0];
-            const pts0 = e.getCoordinates();
-            for(let i = 0; i < pts0.length; i++){
-                const hotPixel = new (0, _hotPixelJsDefault.default)(pts0[i], this._scaleFactor, this._li);
-                const isNodeAdded = this._pointSnapper.snap(hotPixel, e, i);
-                if (isNodeAdded) e.addIntersection(pts0[i], i);
-            }
-        }
-    }
-    computeNodes(inputSegmentStrings) {
-        this._nodedSegStrings = inputSegmentStrings;
-        this._noder = new (0, _mcindexNoderJsDefault.default)();
-        this._pointSnapper = new (0, _mcindexPointSnapperJsDefault.default)(this._noder.getIndex());
-        this.snapRound(inputSegmentStrings, this._li);
-    }
-    computeIntersectionSnaps(snapPts) {
-        for(let it = snapPts.iterator(); it.hasNext();){
-            const snapPt = it.next();
-            const hotPixel = new (0, _hotPixelJsDefault.default)(snapPt, this._scaleFactor, this._li);
-            this._pointSnapper.snap(hotPixel);
-        }
-    }
-    get interfaces_() {
-        return [
-            (0, _noderJsDefault.default)
-        ];
-    }
-}
-exports.default = MCIndexSnapRounder;
-
-},{"../NodingValidator.js":"cKZlA","../../../../../hasInterface.js":"5bpze","../MCIndexNoder.js":"1deq0","../NodedSegmentString.js":"gBLDJ","./HotPixel.js":"g53tv","../../../../../java/lang/Exception.js":"8tbsL","./MCIndexPointSnapper.js":"lR2tW","../../algorithm/RobustLineIntersector.js":"kLdG9","../InteriorIntersectionFinderAdder.js":"esmGM","../../../../../java/util/Collection.js":"cggki","../Noder.js":"jKC91","@parcel/transformer-js/src/esmodule-helpers.js":"jnFvT"}],"cKZlA":[function(require,module,exports,__globalThis) {
-var parcelHelpers = require("@parcel/transformer-js/src/esmodule-helpers.js");
-parcelHelpers.defineInteropFlag(exports);
-var _geometryFactoryJs = require("../geom/GeometryFactory.js");
-var _geometryFactoryJsDefault = parcelHelpers.interopDefault(_geometryFactoryJs);
-var _robustLineIntersectorJs = require("../algorithm/RobustLineIntersector.js");
-var _robustLineIntersectorJsDefault = parcelHelpers.interopDefault(_robustLineIntersectorJs);
-var _runtimeExceptionJs = require("../../../../java/lang/RuntimeException.js");
-var _runtimeExceptionJsDefault = parcelHelpers.interopDefault(_runtimeExceptionJs);
-class NodingValidator {
-    constructor(){
-        NodingValidator.constructor_.apply(this, arguments);
-    }
-    static constructor_() {
-        this._li = new (0, _robustLineIntersectorJsDefault.default)();
-        this._segStrings = null;
-        const segStrings = arguments[0];
-        this._segStrings = segStrings;
-    }
-    checkEndPtVertexIntersections() {
-        if (arguments.length === 0) for(let i = this._segStrings.iterator(); i.hasNext();){
-            const ss = i.next();
-            const pts = ss.getCoordinates();
-            this.checkEndPtVertexIntersections(pts[0], this._segStrings);
-            this.checkEndPtVertexIntersections(pts[pts.length - 1], this._segStrings);
-        }
-        else if (arguments.length === 2) {
-            const testPt = arguments[0], segStrings = arguments[1];
-            for(let i = segStrings.iterator(); i.hasNext();){
-                const ss = i.next();
-                const pts = ss.getCoordinates();
-                for(let j = 1; j < pts.length - 1; j++)if (pts[j].equals(testPt)) throw new (0, _runtimeExceptionJsDefault.default)('found endpt/interior pt intersection at index ' + j + ' :pt ' + testPt);
-            }
-        }
-    }
-    checkInteriorIntersections() {
-        if (arguments.length === 0) for(let i = this._segStrings.iterator(); i.hasNext();){
-            const ss0 = i.next();
-            for(let j = this._segStrings.iterator(); j.hasNext();){
-                const ss1 = j.next();
-                this.checkInteriorIntersections(ss0, ss1);
-            }
-        }
-        else if (arguments.length === 2) {
-            const ss0 = arguments[0], ss1 = arguments[1];
-            const pts0 = ss0.getCoordinates();
-            const pts1 = ss1.getCoordinates();
-            for(let i0 = 0; i0 < pts0.length - 1; i0++)for(let i1 = 0; i1 < pts1.length - 1; i1++)this.checkInteriorIntersections(ss0, i0, ss1, i1);
-        } else if (arguments.length === 4) {
-            const e0 = arguments[0], segIndex0 = arguments[1], e1 = arguments[2], segIndex1 = arguments[3];
-            if (e0 === e1 && segIndex0 === segIndex1) return null;
-            const p00 = e0.getCoordinates()[segIndex0];
-            const p01 = e0.getCoordinates()[segIndex0 + 1];
-            const p10 = e1.getCoordinates()[segIndex1];
-            const p11 = e1.getCoordinates()[segIndex1 + 1];
-            this._li.computeIntersection(p00, p01, p10, p11);
-            if (this._li.hasIntersection()) {
-                if (this._li.isProper() || this.hasInteriorIntersection(this._li, p00, p01) || this.hasInteriorIntersection(this._li, p10, p11)) throw new (0, _runtimeExceptionJsDefault.default)('found non-noded intersection at ' + p00 + '-' + p01 + ' and ' + p10 + '-' + p11);
-            }
-        }
-    }
-    checkValid() {
-        this.checkEndPtVertexIntersections();
-        this.checkInteriorIntersections();
-        this.checkCollapses();
-    }
-    checkCollapses() {
-        if (arguments.length === 0) for(let i = this._segStrings.iterator(); i.hasNext();){
-            const ss = i.next();
-            this.checkCollapses(ss);
-        }
-        else if (arguments.length === 1) {
-            const ss = arguments[0];
-            const pts = ss.getCoordinates();
-            for(let i = 0; i < pts.length - 2; i++)this.checkCollapse(pts[i], pts[i + 1], pts[i + 2]);
-        }
-    }
-    hasInteriorIntersection(li, p0, p1) {
-        for(let i = 0; i < li.getIntersectionNum(); i++){
-            const intPt = li.getIntersection(i);
-            if (!(intPt.equals(p0) || intPt.equals(p1))) return true;
-        }
-        return false;
-    }
-    checkCollapse(p0, p1, p2) {
-        if (p0.equals(p2)) throw new (0, _runtimeExceptionJsDefault.default)('found non-noded collapse at ' + NodingValidator.fact.createLineString([
-            p0,
-            p1,
-            p2
-        ]));
-    }
-}
-exports.default = NodingValidator;
-NodingValidator.fact = new (0, _geometryFactoryJsDefault.default)();
-
-},{"../geom/GeometryFactory.js":"cGt0T","../algorithm/RobustLineIntersector.js":"kLdG9","../../../../java/lang/RuntimeException.js":"3yvnL","@parcel/transformer-js/src/esmodule-helpers.js":"jnFvT"}],"1deq0":[function(require,module,exports,__globalThis) {
-var parcelHelpers = require("@parcel/transformer-js/src/esmodule-helpers.js");
-parcelHelpers.defineInteropFlag(exports);
-var _strtreeJs = require("../index/strtree/STRtree.js");
-var _strtreeJsDefault = parcelHelpers.interopDefault(_strtreeJs);
-var _nodedSegmentStringJs = require("./NodedSegmentString.js");
-var _nodedSegmentStringJsDefault = parcelHelpers.interopDefault(_nodedSegmentStringJs);
-var _monotoneChainOverlapActionJs = require("../index/chain/MonotoneChainOverlapAction.js");
-var _monotoneChainOverlapActionJsDefault = parcelHelpers.interopDefault(_monotoneChainOverlapActionJs);
-var _monotoneChainBuilderJs = require("../index/chain/MonotoneChainBuilder.js");
-var _monotoneChainBuilderJsDefault = parcelHelpers.interopDefault(_monotoneChainBuilderJs);
-var _arrayListJs = require("../../../../java/util/ArrayList.js");
-var _arrayListJsDefault = parcelHelpers.interopDefault(_arrayListJs);
-var _singlePassNoderJs = require("./SinglePassNoder.js");
-var _singlePassNoderJsDefault = parcelHelpers.interopDefault(_singlePassNoderJs);
-class MCIndexNoder extends (0, _singlePassNoderJsDefault.default) {
-    constructor(){
-        super();
-        MCIndexNoder.constructor_.apply(this, arguments);
-    }
-    static constructor_() {
-        this._monoChains = new (0, _arrayListJsDefault.default)();
-        this._index = new (0, _strtreeJsDefault.default)();
-        this._idCounter = 0;
-        this._nodedSegStrings = null;
-        this._nOverlaps = 0;
-        if (arguments.length === 0) ;
-        else if (arguments.length === 1) {
-            const si = arguments[0];
-            (0, _singlePassNoderJsDefault.default).constructor_.call(this, si);
-        }
-    }
-    getMonotoneChains() {
-        return this._monoChains;
-    }
-    getNodedSubstrings() {
-        return (0, _nodedSegmentStringJsDefault.default).getNodedSubstrings(this._nodedSegStrings);
-    }
-    getIndex() {
-        return this._index;
-    }
-    add(segStr) {
-        const segChains = (0, _monotoneChainBuilderJsDefault.default).getChains(segStr.getCoordinates(), segStr);
-        for(let i = segChains.iterator(); i.hasNext();){
-            const mc = i.next();
-            mc.setId(this._idCounter++);
-            this._index.insert(mc.getEnvelope(), mc);
-            this._monoChains.add(mc);
-        }
-    }
-    computeNodes(inputSegStrings) {
-        this._nodedSegStrings = inputSegStrings;
-        for(let i = inputSegStrings.iterator(); i.hasNext();)this.add(i.next());
-        this.intersectChains();
-    }
-    intersectChains() {
-        const overlapAction = new SegmentOverlapAction(this._segInt);
-        for(let i = this._monoChains.iterator(); i.hasNext();){
-            const queryChain = i.next();
-            const overlapChains = this._index.query(queryChain.getEnvelope());
-            for(let j = overlapChains.iterator(); j.hasNext();){
-                const testChain = j.next();
-                if (testChain.getId() > queryChain.getId()) {
-                    queryChain.computeOverlaps(testChain, overlapAction);
-                    this._nOverlaps++;
-                }
-                if (this._segInt.isDone()) return null;
-            }
-        }
-    }
-}
-exports.default = MCIndexNoder;
-class SegmentOverlapAction extends (0, _monotoneChainOverlapActionJsDefault.default) {
-    constructor(){
-        super();
-        SegmentOverlapAction.constructor_.apply(this, arguments);
-    }
-    static constructor_() {
-        this._si = null;
-        const si = arguments[0];
-        this._si = si;
-    }
-    overlap() {
-        if (arguments.length === 4) {
-            const mc1 = arguments[0], start1 = arguments[1], mc2 = arguments[2], start2 = arguments[3];
-            const ss1 = mc1.getContext();
-            const ss2 = mc2.getContext();
-            this._si.processIntersections(ss1, start1, ss2, start2);
-        } else return super.overlap.apply(this, arguments);
-    }
-}
-MCIndexNoder.SegmentOverlapAction = SegmentOverlapAction;
-
-},{"../index/strtree/STRtree.js":"2wZHu","./NodedSegmentString.js":"gBLDJ","../index/chain/MonotoneChainOverlapAction.js":"25ZO4","../index/chain/MonotoneChainBuilder.js":"doUZZ","../../../../java/util/ArrayList.js":"gGAQZ","./SinglePassNoder.js":"h7eIw","@parcel/transformer-js/src/esmodule-helpers.js":"jnFvT"}],"2wZHu":[function(require,module,exports,__globalThis) {
-var parcelHelpers = require("@parcel/transformer-js/src/esmodule-helpers.js");
-parcelHelpers.defineInteropFlag(exports);
-var _itemBoundableJs = require("./ItemBoundable.js");
-var _itemBoundableJsDefault = parcelHelpers.interopDefault(_itemBoundableJs);
-var _priorityQueueJs = require("../../../../../java/util/PriorityQueue.js");
-var _priorityQueueJsDefault = parcelHelpers.interopDefault(_priorityQueueJs);
-var _hasInterfaceJs = require("../../../../../hasInterface.js");
-var _hasInterfaceJsDefault = parcelHelpers.interopDefault(_hasInterfaceJs);
-var _doubleJs = require("../../../../../java/lang/Double.js");
-var _doubleJsDefault = parcelHelpers.interopDefault(_doubleJs);
-var _serializableJs = require("../../../../../java/io/Serializable.js");
-var _serializableJsDefault = parcelHelpers.interopDefault(_serializableJs);
-var _spatialIndexJs = require("../SpatialIndex.js");
-var _spatialIndexJsDefault = parcelHelpers.interopDefault(_spatialIndexJs);
-var _abstractNodeJs = require("./AbstractNode.js");
-var _abstractNodeJsDefault = parcelHelpers.interopDefault(_abstractNodeJs);
-var _collectionsJs = require("../../../../../java/util/Collections.js");
-var _collectionsJsDefault = parcelHelpers.interopDefault(_collectionsJs);
-var _boundablePairJs = require("./BoundablePair.js");
-var _boundablePairJsDefault = parcelHelpers.interopDefault(_boundablePairJs);
-var _arrayListJs = require("../../../../../java/util/ArrayList.js");
-var _arrayListJsDefault = parcelHelpers.interopDefault(_arrayListJs);
-var _comparatorJs = require("../../../../../java/util/Comparator.js");
-var _comparatorJsDefault = parcelHelpers.interopDefault(_comparatorJs);
-var _envelopeJs = require("../../geom/Envelope.js");
-var _envelopeJsDefault = parcelHelpers.interopDefault(_envelopeJs);
-var _assertJs = require("../../util/Assert.js");
-var _assertJsDefault = parcelHelpers.interopDefault(_assertJs);
-var _abstractSTRtreeJs = require("./AbstractSTRtree.js");
-var _abstractSTRtreeJsDefault = parcelHelpers.interopDefault(_abstractSTRtreeJs);
-var _itemDistanceJs = require("./ItemDistance.js");
-var _itemDistanceJsDefault = parcelHelpers.interopDefault(_itemDistanceJs);
-class STRtree extends (0, _abstractSTRtreeJsDefault.default) {
-    constructor(){
-        super();
-        STRtree.constructor_.apply(this, arguments);
-    }
-    static constructor_() {
-        if (arguments.length === 0) STRtree.constructor_.call(this, STRtree.DEFAULT_NODE_CAPACITY);
-        else if (arguments.length === 1) {
-            const nodeCapacity = arguments[0];
-            (0, _abstractSTRtreeJsDefault.default).constructor_.call(this, nodeCapacity);
-        }
-    }
-    static getItems(kNearestNeighbors) {
-        const items = new Array(kNearestNeighbors.size()).fill(null);
-        let count = 0;
-        while(!kNearestNeighbors.isEmpty()){
-            const bp = kNearestNeighbors.poll();
-            items[count] = bp.getBoundable(0).getItem();
-            count++;
-        }
-        return items;
-    }
-    static avg(a, b) {
-        return (a + b) / 2;
-    }
-    static centreY(e) {
-        return STRtree.avg(e.getMinY(), e.getMaxY());
-    }
-    static centreX(e) {
-        return STRtree.avg(e.getMinX(), e.getMaxX());
-    }
-    size() {
-        if (arguments.length === 0) return super.size.call(this);
-        else return super.size.apply(this, arguments);
-    }
-    insert() {
-        if (arguments.length === 2 && arguments[1] instanceof Object && arguments[0] instanceof (0, _envelopeJsDefault.default)) {
-            const itemEnv = arguments[0], item = arguments[1];
-            if (itemEnv.isNull()) return null;
-            super.insert.call(this, itemEnv, item);
-        } else return super.insert.apply(this, arguments);
-    }
-    getIntersectsOp() {
-        return STRtree.intersectsOp;
-    }
-    verticalSlices(childBoundables, sliceCount) {
-        const sliceCapacity = Math.trunc(Math.ceil(childBoundables.size() / sliceCount));
-        const slices = new Array(sliceCount).fill(null);
-        const i = childBoundables.iterator();
-        for(let j = 0; j < sliceCount; j++){
-            slices[j] = new (0, _arrayListJsDefault.default)();
-            let boundablesAddedToSlice = 0;
-            while(i.hasNext() && boundablesAddedToSlice < sliceCapacity){
-                const childBoundable = i.next();
-                slices[j].add(childBoundable);
-                boundablesAddedToSlice++;
-            }
-        }
-        return slices;
-    }
-    query() {
-        if (arguments.length === 1) {
-            const searchEnv = arguments[0];
-            return super.query.call(this, searchEnv);
-        } else if (arguments.length === 2) {
-            const searchEnv = arguments[0], visitor = arguments[1];
-            super.query.call(this, searchEnv, visitor);
-        }
-    }
-    getComparator() {
-        return STRtree.yComparator;
-    }
-    createParentBoundablesFromVerticalSlice(childBoundables, newLevel) {
-        return super.createParentBoundables.call(this, childBoundables, newLevel);
-    }
-    remove() {
-        if (arguments.length === 2 && arguments[1] instanceof Object && arguments[0] instanceof (0, _envelopeJsDefault.default)) {
-            const itemEnv = arguments[0], item = arguments[1];
-            return super.remove.call(this, itemEnv, item);
-        } else return super.remove.apply(this, arguments);
-    }
-    depth() {
-        if (arguments.length === 0) return super.depth.call(this);
-        else return super.depth.apply(this, arguments);
-    }
-    createParentBoundables(childBoundables, newLevel) {
-        (0, _assertJsDefault.default).isTrue(!childBoundables.isEmpty());
-        const minLeafCount = Math.trunc(Math.ceil(childBoundables.size() / this.getNodeCapacity()));
-        const sortedChildBoundables = new (0, _arrayListJsDefault.default)(childBoundables);
-        (0, _collectionsJsDefault.default).sort(sortedChildBoundables, STRtree.xComparator);
-        const verticalSlices = this.verticalSlices(sortedChildBoundables, Math.trunc(Math.ceil(Math.sqrt(minLeafCount))));
-        return this.createParentBoundablesFromVerticalSlices(verticalSlices, newLevel);
-    }
-    nearestNeighbour() {
-        if (arguments.length === 1) {
-            if ((0, _hasInterfaceJsDefault.default)(arguments[0], (0, _itemDistanceJsDefault.default))) {
-                const itemDist = arguments[0];
-                if (this.isEmpty()) return null;
-                const bp = new (0, _boundablePairJsDefault.default)(this.getRoot(), this.getRoot(), itemDist);
-                return this.nearestNeighbour(bp);
-            } else if (arguments[0] instanceof (0, _boundablePairJsDefault.default)) {
-                const initBndPair = arguments[0];
-                let distanceLowerBound = (0, _doubleJsDefault.default).POSITIVE_INFINITY;
-                let minPair = null;
-                const priQ = new (0, _priorityQueueJsDefault.default)();
-                priQ.add(initBndPair);
-                while(!priQ.isEmpty() && distanceLowerBound > 0.0){
-                    const bndPair = priQ.poll();
-                    const pairDistance = bndPair.getDistance();
-                    if (pairDistance >= distanceLowerBound) break;
-                    if (bndPair.isLeaves()) {
-                        distanceLowerBound = pairDistance;
-                        minPair = bndPair;
-                    } else bndPair.expandToQueue(priQ, distanceLowerBound);
-                }
-                if (minPair === null) return null;
-                return [
-                    minPair.getBoundable(0).getItem(),
-                    minPair.getBoundable(1).getItem()
-                ];
-            }
-        } else if (arguments.length === 2) {
-            const tree = arguments[0], itemDist = arguments[1];
-            if (this.isEmpty() || tree.isEmpty()) return null;
-            const bp = new (0, _boundablePairJsDefault.default)(this.getRoot(), tree.getRoot(), itemDist);
-            return this.nearestNeighbour(bp);
-        } else if (arguments.length === 3) {
-            const env = arguments[0], item = arguments[1], itemDist = arguments[2];
-            const bnd = new (0, _itemBoundableJsDefault.default)(env, item);
-            const bp = new (0, _boundablePairJsDefault.default)(this.getRoot(), bnd, itemDist);
-            return this.nearestNeighbour(bp)[0];
-        } else if (arguments.length === 4) {
-            const env = arguments[0], item = arguments[1], itemDist = arguments[2], k = arguments[3];
-            const bnd = new (0, _itemBoundableJsDefault.default)(env, item);
-            const bp = new (0, _boundablePairJsDefault.default)(this.getRoot(), bnd, itemDist);
-            return this.nearestNeighbourK(bp, k);
-        }
-    }
-    isWithinDistance() {
-        if (arguments.length === 2) {
-            const initBndPair = arguments[0], maxDistance = arguments[1];
-            let distanceUpperBound = (0, _doubleJsDefault.default).POSITIVE_INFINITY;
-            const priQ = new (0, _priorityQueueJsDefault.default)();
-            priQ.add(initBndPair);
-            while(!priQ.isEmpty()){
-                const bndPair = priQ.poll();
-                const pairDistance = bndPair.getDistance();
-                if (pairDistance > maxDistance) return false;
-                if (bndPair.maximumDistance() <= maxDistance) return true;
-                if (bndPair.isLeaves()) {
-                    distanceUpperBound = pairDistance;
-                    if (distanceUpperBound <= maxDistance) return true;
-                } else bndPair.expandToQueue(priQ, distanceUpperBound);
-            }
-            return false;
-        } else if (arguments.length === 3) {
-            const tree = arguments[0], itemDist = arguments[1], maxDistance = arguments[2];
-            const bp = new (0, _boundablePairJsDefault.default)(this.getRoot(), tree.getRoot(), itemDist);
-            return this.isWithinDistance(bp, maxDistance);
-        }
-    }
-    createParentBoundablesFromVerticalSlices(verticalSlices, newLevel) {
-        (0, _assertJsDefault.default).isTrue(verticalSlices.length > 0);
-        const parentBoundables = new (0, _arrayListJsDefault.default)();
-        for(let i = 0; i < verticalSlices.length; i++)parentBoundables.addAll(this.createParentBoundablesFromVerticalSlice(verticalSlices[i], newLevel));
-        return parentBoundables;
-    }
-    nearestNeighbourK() {
-        if (arguments.length === 2) {
-            const initBndPair = arguments[0], k = arguments[1];
-            return this.nearestNeighbourK(initBndPair, (0, _doubleJsDefault.default).POSITIVE_INFINITY, k);
-        } else if (arguments.length === 3) {
-            const initBndPair = arguments[0], maxDistance = arguments[1], k = arguments[2];
-            let distanceLowerBound = maxDistance;
-            const priQ = new (0, _priorityQueueJsDefault.default)();
-            priQ.add(initBndPair);
-            const kNearestNeighbors = new (0, _priorityQueueJsDefault.default)();
-            while(!priQ.isEmpty() && distanceLowerBound >= 0.0){
-                const bndPair = priQ.poll();
-                const pairDistance = bndPair.getDistance();
-                if (pairDistance >= distanceLowerBound) break;
-                if (bndPair.isLeaves()) {
-                    if (kNearestNeighbors.size() < k) kNearestNeighbors.add(bndPair);
-                    else {
-                        const bp1 = kNearestNeighbors.peek();
-                        if (bp1.getDistance() > pairDistance) {
-                            kNearestNeighbors.poll();
-                            kNearestNeighbors.add(bndPair);
-                        }
-                        const bp2 = kNearestNeighbors.peek();
-                        distanceLowerBound = bp2.getDistance();
-                    }
-                } else bndPair.expandToQueue(priQ, distanceLowerBound);
-            }
-            return STRtree.getItems(kNearestNeighbors);
-        }
-    }
-    createNode(level) {
-        return new STRtreeNode(level);
-    }
-    get interfaces_() {
-        return [
-            (0, _spatialIndexJsDefault.default),
-            (0, _serializableJsDefault.default)
-        ];
-    }
-}
-exports.default = STRtree;
-class STRtreeNode extends (0, _abstractNodeJsDefault.default) {
-    constructor(){
-        super();
-        STRtreeNode.constructor_.apply(this, arguments);
-    }
-    static constructor_() {
-        const level = arguments[0];
-        (0, _abstractNodeJsDefault.default).constructor_.call(this, level);
-    }
-    computeBounds() {
-        let bounds = null;
-        for(let i = this.getChildBoundables().iterator(); i.hasNext();){
-            const childBoundable = i.next();
-            if (bounds === null) bounds = new (0, _envelopeJsDefault.default)(childBoundable.getBounds());
-            else bounds.expandToInclude(childBoundable.getBounds());
-        }
-        return bounds;
-    }
-}
-STRtree.STRtreeNode = STRtreeNode;
-STRtree.xComparator = new class {
-    get interfaces_() {
-        return [
-            (0, _comparatorJsDefault.default)
-        ];
-    }
-    compare(o1, o2) {
-        return (0, _abstractSTRtreeJsDefault.default).compareDoubles(STRtree.centreX(o1.getBounds()), STRtree.centreX(o2.getBounds()));
-    }
-}();
-STRtree.yComparator = new class {
-    get interfaces_() {
-        return [
-            (0, _comparatorJsDefault.default)
-        ];
-    }
-    compare(o1, o2) {
-        return (0, _abstractSTRtreeJsDefault.default).compareDoubles(STRtree.centreY(o1.getBounds()), STRtree.centreY(o2.getBounds()));
-    }
-}();
-STRtree.intersectsOp = new class {
-    get interfaces_() {
-        return [
-            IntersectsOp
-        ];
-    }
-    intersects(aBounds, bBounds) {
-        return aBounds.intersects(bBounds);
-    }
-}();
-STRtree.DEFAULT_NODE_CAPACITY = 10;
-
-},{"./ItemBoundable.js":"eO4jy","../../../../../java/util/PriorityQueue.js":"b2lva","../../../../../hasInterface.js":"5bpze","../../../../../java/lang/Double.js":"clUxd","../../../../../java/io/Serializable.js":"5sRbw","../SpatialIndex.js":"2N5f4","./AbstractNode.js":"1SBma","../../../../../java/util/Collections.js":"c5dcW","./BoundablePair.js":"bUhyu","../../../../../java/util/ArrayList.js":"gGAQZ","../../../../../java/util/Comparator.js":"hcSJ3","../../geom/Envelope.js":"h2zeM","../../util/Assert.js":"1vSRy","./AbstractSTRtree.js":"4MW3s","./ItemDistance.js":"d4XWg","@parcel/transformer-js/src/esmodule-helpers.js":"jnFvT"}],"eO4jy":[function(require,module,exports,__globalThis) {
-var parcelHelpers = require("@parcel/transformer-js/src/esmodule-helpers.js");
-parcelHelpers.defineInteropFlag(exports);
-var _boundableJs = require("./Boundable.js");
-var _boundableJsDefault = parcelHelpers.interopDefault(_boundableJs);
-var _serializableJs = require("../../../../../java/io/Serializable.js");
-var _serializableJsDefault = parcelHelpers.interopDefault(_serializableJs);
-class ItemBoundable {
-    constructor(){
-        ItemBoundable.constructor_.apply(this, arguments);
-    }
-    static constructor_() {
-        this._bounds = null;
-        this._item = null;
-        const bounds = arguments[0], item = arguments[1];
-        this._bounds = bounds;
-        this._item = item;
-    }
-    getItem() {
-        return this._item;
-    }
-    getBounds() {
-        return this._bounds;
-    }
-    get interfaces_() {
-        return [
-            (0, _boundableJsDefault.default),
-            (0, _serializableJsDefault.default)
-        ];
-    }
-}
-exports.default = ItemBoundable;
-
-},{"./Boundable.js":"78kNi","../../../../../java/io/Serializable.js":"5sRbw","@parcel/transformer-js/src/esmodule-helpers.js":"jnFvT"}],"78kNi":[function(require,module,exports,__globalThis) {
-var parcelHelpers = require("@parcel/transformer-js/src/esmodule-helpers.js");
-parcelHelpers.defineInteropFlag(exports);
-class Boundable {
-    getBounds() {}
-}
-exports.default = Boundable;
-
-},{"@parcel/transformer-js/src/esmodule-helpers.js":"jnFvT"}],"b2lva":[function(require,module,exports,__globalThis) {
-var parcelHelpers = require("@parcel/transformer-js/src/esmodule-helpers.js");
-parcelHelpers.defineInteropFlag(exports);
-var _fastpriorityqueue = require("fastpriorityqueue");
-var _fastpriorityqueueDefault = parcelHelpers.interopDefault(_fastpriorityqueue);
-class PriorityQueue {
-    constructor(){
-        this._fpQueue = new (0, _fastpriorityqueueDefault.default)((a, b)=>a.compareTo(b) < 0);
-    }
-    poll() {
-        return this._fpQueue.poll();
-    }
-    size() {
-        return this._fpQueue.size;
-    }
-    clear() {
-        this._fpQueue = new (0, _fastpriorityqueueDefault.default)();
-    }
-    peek() {
-        return this._fpQueue.peek();
-    }
-    remove() {
-        return this._fpQueue.poll();
-    }
-    isEmpty() {
-        return this._fpQueue.isEmpty();
-    }
-    add(x) {
-        this._fpQueue.add(x);
-    }
-}
-exports.default = PriorityQueue;
-
-},{"fastpriorityqueue":"lU7Rc","@parcel/transformer-js/src/esmodule-helpers.js":"jnFvT"}],"lU7Rc":[function(require,module,exports,__globalThis) {
-/**
- * FastPriorityQueue.js : a fast heap-based priority queue  in JavaScript.
- * (c) the authors
- * Licensed under the Apache License, Version 2.0.
- *
- * Speed-optimized heap-based priority queue for modern browsers and JavaScript engines.
- *
- * Usage :
-         Installation (in shell, if you use node):
-         $ npm install fastpriorityqueue
-
-         Running test program (in JavaScript):
-
-         // var FastPriorityQueue = require("fastpriorityqueue");// in node
-         var x = new FastPriorityQueue();
-         x.add(1);
-         x.add(0);
-         x.add(5);
-         x.add(4);
-         x.add(3);
-         x.peek(); // should return 0, leaves x unchanged
-         x.size; // should return 5, leaves x unchanged
-         while(!x.isEmpty()) {
-           console.log(x.poll());
-         } // will print 0 1 3 4 5
-         x.trim(); // (optional) optimizes memory usage
- */ 'use strict';
-var defaultcomparator = function(a, b) {
-    return a < b;
-};
-// construct a new priority queue
-// the provided comparator function should take a, b and return *true* when a < b
-function FastPriorityQueue(comparator) {
-    if (!(this instanceof FastPriorityQueue)) return new FastPriorityQueue(comparator);
-    this.array = [];
-    this.size = 0;
-    this.compare = comparator || defaultcomparator;
-}
-// copy the priority queue into another, and return it. Queue items are shallow-copied.
-// Runs in `O(n)` time.
-FastPriorityQueue.prototype.clone = function() {
-    var fpq = new FastPriorityQueue(this.compare);
-    fpq.size = this.size;
-    fpq.array = this.array.slice(0, this.size);
-    return fpq;
-};
-// add an element into the queue
-// runs in `O(log n)` time
-FastPriorityQueue.prototype.add = function(myval) {
-    var i = this.size;
-    this.array[this.size] = myval;
-    this.size += 1;
-    var p;
-    var ap;
-    while(i > 0){
-        p = i - 1 >> 1;
-        ap = this.array[p];
-        if (!this.compare(myval, ap)) break;
-        this.array[i] = ap;
-        i = p;
-    }
-    this.array[i] = myval;
-};
-// replace the content of the heap by provided array and "heapify it"
-FastPriorityQueue.prototype.heapify = function(arr) {
-    this.array = arr;
-    this.size = arr.length;
-    var i;
-    for(i = this.size >> 1; i >= 0; i--)this._percolateDown(i);
-};
-// for internal use
-FastPriorityQueue.prototype._percolateUp = function(i, force) {
-    var myval = this.array[i];
-    var p;
-    var ap;
-    while(i > 0){
-        p = i - 1 >> 1;
-        ap = this.array[p];
-        // force will skip the compare
-        if (!force && !this.compare(myval, ap)) break;
-        this.array[i] = ap;
-        i = p;
-    }
-    this.array[i] = myval;
-};
-// for internal use
-FastPriorityQueue.prototype._percolateDown = function(i) {
-    var size = this.size;
-    var hsize = this.size >>> 1;
-    var ai = this.array[i];
-    var l;
-    var r;
-    var bestc;
-    while(i < hsize){
-        l = (i << 1) + 1;
-        r = l + 1;
-        bestc = this.array[l];
-        if (r < size) {
-            if (this.compare(this.array[r], bestc)) {
-                l = r;
-                bestc = this.array[r];
-            }
-        }
-        if (!this.compare(bestc, ai)) break;
-        this.array[i] = bestc;
-        i = l;
-    }
-    this.array[i] = ai;
-};
-// internal
-// _removeAt(index) will remove the item at the given index from the queue,
-// retaining balance. returns the removed item, or undefined if nothing is removed.
-FastPriorityQueue.prototype._removeAt = function(index) {
-    if (index > this.size - 1 || index < 0) return undefined;
-    // impl1:
-    //this.array.splice(index, 1);
-    //this.heapify(this.array);
-    // impl2:
-    this._percolateUp(index, true);
-    return this.poll();
-};
-// remove(myval) will remove an item matching the provided value from the
-// queue, checked for equality by using the queue's comparator.
-// return true if removed, false otherwise.
-FastPriorityQueue.prototype.remove = function(myval) {
-    for(var i = 0; i < this.size; i++)if (!this.compare(this.array[i], myval) && !this.compare(myval, this.array[i])) {
-        // items match, comparator returns false both ways, remove item
-        this._removeAt(i);
-        return true;
-    }
-    return false;
-};
-// removeOne(callback) will execute the callback function for each item of the queue
-// and will remove the first item for which the callback will return true.
-// return the removed item, or undefined if nothing is removed.
-FastPriorityQueue.prototype.removeOne = function(callback) {
-    if (typeof callback !== "function") return undefined;
-    for(var i = 0; i < this.size; i++){
-        if (callback(this.array[i])) return this._removeAt(i);
-    }
-};
-// remove(callback[, limit]) will execute the callback function for each item of
-// the queue and will remove each item for which the callback returns true, up to
-// a max limit of removed items if specified or no limit if unspecified.
-// return an array containing the removed items.
-// The callback function should be a pure function.
-FastPriorityQueue.prototype.removeMany = function(callback, limit) {
-    // Skip unnecessary processing for edge cases
-    if (typeof callback !== "function" || this.size < 1) return [];
-    limit = limit ? Math.min(limit, this.size) : this.size;
-    // Prepare the results container to hold up to the results limit
-    var resultSize = 0;
-    var result = new Array(limit);
-    // Prepare a temporary array to hold items we'll traverse through and need to keep
-    var tmpSize = 0;
-    var tmp = new Array(this.size);
-    while(resultSize < limit && !this.isEmpty()){
-        // Dequeue items into either the results or our temporary array
-        var item = this.poll();
-        if (callback(item)) result[resultSize++] = item;
-        else tmp[tmpSize++] = item;
-    }
-    // Update the result array with the exact number of results
-    result.length = resultSize;
-    // Re-add all the items we can keep
-    var i = 0;
-    while(i < tmpSize)this.add(tmp[i++]);
-    return result;
-};
-// Look at the top of the queue (one of the smallest elements) without removing it
-// executes in constant time
-//
-// Calling peek on an empty priority queue returns
-// the "undefined" value.
-// https://developer.mozilla.org/en/docs/Web/JavaScript/Reference/Global_Objects/undefined
-//
-FastPriorityQueue.prototype.peek = function() {
-    if (this.size == 0) return undefined;
-    return this.array[0];
-};
-// remove the element on top of the heap (one of the smallest elements)
-// runs in logarithmic time
-//
-// If the priority queue is empty, the function returns the
-// "undefined" value.
-// https://developer.mozilla.org/en/docs/Web/JavaScript/Reference/Global_Objects/undefined
-//
-// For long-running and large priority queues, or priority queues
-// storing large objects, you may  want to call the trim function
-// at strategic times to recover allocated memory.
-FastPriorityQueue.prototype.poll = function() {
-    if (this.size == 0) return undefined;
-    var ans = this.array[0];
-    if (this.size > 1) {
-        this.array[0] = this.array[--this.size];
-        this._percolateDown(0);
-    } else this.size -= 1;
-    return ans;
-};
-// This function adds the provided value to the heap, while removing
-// and returning one of the smallest elements (like poll). The size of the queue
-// thus remains unchanged.
-FastPriorityQueue.prototype.replaceTop = function(myval) {
-    if (this.size == 0) return undefined;
-    var ans = this.array[0];
-    this.array[0] = myval;
-    this._percolateDown(0);
-    return ans;
-};
-// recover unused memory (for long-running priority queues)
-FastPriorityQueue.prototype.trim = function() {
-    this.array = this.array.slice(0, this.size);
-};
-// Check whether the heap is empty
-FastPriorityQueue.prototype.isEmpty = function() {
-    return this.size === 0;
-};
-// iterate over the items in order, pass a callback that receives (item, index) as args.
-// TODO once we transpile, uncomment
-// if (Symbol && Symbol.iterator) {
-//   FastPriorityQueue.prototype[Symbol.iterator] = function*() {
-//     if (this.isEmpty()) return;
-//     var fpq = this.clone();
-//     while (!fpq.isEmpty()) {
-//       yield fpq.poll();
-//     }
-//   };
-// }
-FastPriorityQueue.prototype.forEach = function(callback) {
-    if (this.isEmpty() || typeof callback != 'function') return;
-    var i = 0;
-    var fpq = this.clone();
-    while(!fpq.isEmpty())callback(fpq.poll(), i++);
-};
-// return the k 'smallest' elements of the queue as an array,
-// runs in O(k log k) time, the elements are not removed
-// from the priority queue.
-FastPriorityQueue.prototype.kSmallest = function(k) {
-    if (this.size == 0 || k <= 0) return [];
-    k = Math.min(this.size, k);
-    const newSize = Math.min(this.size, 2 ** (k - 1) + 1);
-    if (newSize < 2) return [
-        this.peek()
-    ];
-    const fpq = new FastPriorityQueue(this.compare);
-    fpq.size = newSize;
-    fpq.array = this.array.slice(0, newSize);
-    const smallest = new Array(k);
-    for(let i = 0; i < k; i++)smallest[i] = fpq.poll();
-    return smallest;
-};
-module.exports = FastPriorityQueue;
-
-},{}],"2N5f4":[function(require,module,exports,__globalThis) {
-var parcelHelpers = require("@parcel/transformer-js/src/esmodule-helpers.js");
-parcelHelpers.defineInteropFlag(exports);
-class SpatialIndex {
-    query() {
-        if (arguments.length === 1) {
-            const searchEnv = arguments[0];
-        } else if (arguments.length === 2) {
-            const searchEnv = arguments[0], visitor = arguments[1];
-        }
-    }
-    insert(itemEnv, item) {}
-    remove(itemEnv, item) {}
-}
-exports.default = SpatialIndex;
-
-},{"@parcel/transformer-js/src/esmodule-helpers.js":"jnFvT"}],"1SBma":[function(require,module,exports,__globalThis) {
-var parcelHelpers = require("@parcel/transformer-js/src/esmodule-helpers.js");
-parcelHelpers.defineInteropFlag(exports);
-var _boundableJs = require("./Boundable.js");
-var _boundableJsDefault = parcelHelpers.interopDefault(_boundableJs);
-var _arrayListJs = require("../../../../../java/util/ArrayList.js");
-var _arrayListJsDefault = parcelHelpers.interopDefault(_arrayListJs);
-var _serializableJs = require("../../../../../java/io/Serializable.js");
-var _serializableJsDefault = parcelHelpers.interopDefault(_serializableJs);
-var _assertJs = require("../../util/Assert.js");
-var _assertJsDefault = parcelHelpers.interopDefault(_assertJs);
-class AbstractNode {
-    constructor(){
-        AbstractNode.constructor_.apply(this, arguments);
-    }
-    static constructor_() {
-        this._childBoundables = new (0, _arrayListJsDefault.default)();
-        this._bounds = null;
-        this._level = null;
-        if (arguments.length === 0) ;
-        else if (arguments.length === 1) {
-            const level = arguments[0];
-            this._level = level;
-        }
-    }
-    getLevel() {
-        return this._level;
-    }
-    addChildBoundable(childBoundable) {
-        (0, _assertJsDefault.default).isTrue(this._bounds === null);
-        this._childBoundables.add(childBoundable);
-    }
-    isEmpty() {
-        return this._childBoundables.isEmpty();
-    }
-    getBounds() {
-        if (this._bounds === null) this._bounds = this.computeBounds();
-        return this._bounds;
-    }
-    size() {
-        return this._childBoundables.size();
-    }
-    getChildBoundables() {
-        return this._childBoundables;
-    }
-    get interfaces_() {
-        return [
-            (0, _boundableJsDefault.default),
-            (0, _serializableJsDefault.default)
-        ];
-    }
-}
-exports.default = AbstractNode;
-
-},{"./Boundable.js":"78kNi","../../../../../java/util/ArrayList.js":"gGAQZ","../../../../../java/io/Serializable.js":"5sRbw","../../util/Assert.js":"1vSRy","@parcel/transformer-js/src/esmodule-helpers.js":"jnFvT"}],"bUhyu":[function(require,module,exports,__globalThis) {
-var parcelHelpers = require("@parcel/transformer-js/src/esmodule-helpers.js");
-parcelHelpers.defineInteropFlag(exports);
-var _illegalArgumentExceptionJs = require("../../../../../java/lang/IllegalArgumentException.js");
-var _illegalArgumentExceptionJsDefault = parcelHelpers.interopDefault(_illegalArgumentExceptionJs);
-var _abstractNodeJs = require("./AbstractNode.js");
-var _abstractNodeJsDefault = parcelHelpers.interopDefault(_abstractNodeJs);
-var _envelopeDistanceJs = require("./EnvelopeDistance.js");
-var _envelopeDistanceJsDefault = parcelHelpers.interopDefault(_envelopeDistanceJs);
-var _comparableJs = require("../../../../../java/lang/Comparable.js");
-var _comparableJsDefault = parcelHelpers.interopDefault(_comparableJs);
-class BoundablePair {
-    constructor(){
-        BoundablePair.constructor_.apply(this, arguments);
-    }
-    static constructor_() {
-        this._boundable1 = null;
-        this._boundable2 = null;
-        this._distance = null;
-        this._itemDistance = null;
-        const boundable1 = arguments[0], boundable2 = arguments[1], itemDistance = arguments[2];
-        this._boundable1 = boundable1;
-        this._boundable2 = boundable2;
-        this._itemDistance = itemDistance;
-        this._distance = this.distance();
-    }
-    static area(b) {
-        return b.getBounds().getArea();
-    }
-    static isComposite(item) {
-        return item instanceof (0, _abstractNodeJsDefault.default);
-    }
-    maximumDistance() {
-        return (0, _envelopeDistanceJsDefault.default).maximumDistance(this._boundable1.getBounds(), this._boundable2.getBounds());
-    }
-    expandToQueue(priQ, minDistance) {
-        const isComp1 = BoundablePair.isComposite(this._boundable1);
-        const isComp2 = BoundablePair.isComposite(this._boundable2);
-        if (isComp1 && isComp2) {
-            if (BoundablePair.area(this._boundable1) > BoundablePair.area(this._boundable2)) {
-                this.expand(this._boundable1, this._boundable2, false, priQ, minDistance);
-                return null;
-            } else {
-                this.expand(this._boundable2, this._boundable1, true, priQ, minDistance);
-                return null;
-            }
-        } else if (isComp1) {
-            this.expand(this._boundable1, this._boundable2, false, priQ, minDistance);
-            return null;
-        } else if (isComp2) {
-            this.expand(this._boundable2, this._boundable1, true, priQ, minDistance);
-            return null;
-        }
-        throw new (0, _illegalArgumentExceptionJsDefault.default)('neither boundable is composite');
-    }
-    isLeaves() {
-        return !(BoundablePair.isComposite(this._boundable1) || BoundablePair.isComposite(this._boundable2));
-    }
-    getBoundable(i) {
-        if (i === 0) return this._boundable1;
-        return this._boundable2;
-    }
-    getDistance() {
-        return this._distance;
-    }
-    distance() {
-        if (this.isLeaves()) return this._itemDistance.distance(this._boundable1, this._boundable2);
-        return this._boundable1.getBounds().distance(this._boundable2.getBounds());
-    }
-    compareTo(o) {
-        const nd = o;
-        if (this._distance < nd._distance) return -1;
-        if (this._distance > nd._distance) return 1;
-        return 0;
-    }
-    expand(bndComposite, bndOther, isFlipped, priQ, minDistance) {
-        const children = bndComposite.getChildBoundables();
-        for(let i = children.iterator(); i.hasNext();){
-            const child = i.next();
-            let bp = null;
-            if (isFlipped) bp = new BoundablePair(bndOther, child, this._itemDistance);
-            else bp = new BoundablePair(child, bndOther, this._itemDistance);
-            if (bp.getDistance() < minDistance) priQ.add(bp);
-        }
-    }
-    get interfaces_() {
-        return [
-            (0, _comparableJsDefault.default)
-        ];
-    }
-}
-exports.default = BoundablePair;
-
-},{"../../../../../java/lang/IllegalArgumentException.js":"9ppVW","./AbstractNode.js":"1SBma","./EnvelopeDistance.js":"aOul4","../../../../../java/lang/Comparable.js":"WFeEu","@parcel/transformer-js/src/esmodule-helpers.js":"jnFvT"}],"aOul4":[function(require,module,exports,__globalThis) {
-var parcelHelpers = require("@parcel/transformer-js/src/esmodule-helpers.js");
-parcelHelpers.defineInteropFlag(exports);
-class EnvelopeDistance {
-    static distance(x1, y1, x2, y2) {
-        const dx = x2 - x1;
-        const dy = y2 - y1;
-        return Math.sqrt(dx * dx + dy * dy);
-    }
-    static maximumDistance(env1, env2) {
-        const minx = Math.min(env1.getMinX(), env2.getMinX());
-        const miny = Math.min(env1.getMinY(), env2.getMinY());
-        const maxx = Math.max(env1.getMaxX(), env2.getMaxX());
-        const maxy = Math.max(env1.getMaxY(), env2.getMaxY());
-        return EnvelopeDistance.distance(minx, miny, maxx, maxy);
-    }
-    static minMaxDistance(a, b) {
-        const aminx = a.getMinX();
-        const aminy = a.getMinY();
-        const amaxx = a.getMaxX();
-        const amaxy = a.getMaxY();
-        const bminx = b.getMinX();
-        const bminy = b.getMinY();
-        const bmaxx = b.getMaxX();
-        const bmaxy = b.getMaxY();
-        let dist = EnvelopeDistance.maxDistance(aminx, aminy, aminx, amaxy, bminx, bminy, bminx, bmaxy);
-        dist = Math.min(dist, EnvelopeDistance.maxDistance(aminx, aminy, aminx, amaxy, bminx, bminy, bmaxx, bminy));
-        dist = Math.min(dist, EnvelopeDistance.maxDistance(aminx, aminy, aminx, amaxy, bmaxx, bmaxy, bminx, bmaxy));
-        dist = Math.min(dist, EnvelopeDistance.maxDistance(aminx, aminy, aminx, amaxy, bmaxx, bmaxy, bmaxx, bminy));
-        dist = Math.min(dist, EnvelopeDistance.maxDistance(aminx, aminy, amaxx, aminy, bminx, bminy, bminx, bmaxy));
-        dist = Math.min(dist, EnvelopeDistance.maxDistance(aminx, aminy, amaxx, aminy, bminx, bminy, bmaxx, bminy));
-        dist = Math.min(dist, EnvelopeDistance.maxDistance(aminx, aminy, amaxx, aminy, bmaxx, bmaxy, bminx, bmaxy));
-        dist = Math.min(dist, EnvelopeDistance.maxDistance(aminx, aminy, amaxx, aminy, bmaxx, bmaxy, bmaxx, bminy));
-        dist = Math.min(dist, EnvelopeDistance.maxDistance(amaxx, amaxy, aminx, amaxy, bminx, bminy, bminx, bmaxy));
-        dist = Math.min(dist, EnvelopeDistance.maxDistance(amaxx, amaxy, aminx, amaxy, bminx, bminy, bmaxx, bminy));
-        dist = Math.min(dist, EnvelopeDistance.maxDistance(amaxx, amaxy, aminx, amaxy, bmaxx, bmaxy, bminx, bmaxy));
-        dist = Math.min(dist, EnvelopeDistance.maxDistance(amaxx, amaxy, aminx, amaxy, bmaxx, bmaxy, bmaxx, bminy));
-        dist = Math.min(dist, EnvelopeDistance.maxDistance(amaxx, amaxy, amaxx, aminy, bminx, bminy, bminx, bmaxy));
-        dist = Math.min(dist, EnvelopeDistance.maxDistance(amaxx, amaxy, amaxx, aminy, bminx, bminy, bmaxx, bminy));
-        dist = Math.min(dist, EnvelopeDistance.maxDistance(amaxx, amaxy, amaxx, aminy, bmaxx, bmaxy, bminx, bmaxy));
-        dist = Math.min(dist, EnvelopeDistance.maxDistance(amaxx, amaxy, amaxx, aminy, bmaxx, bmaxy, bmaxx, bminy));
-        return dist;
-    }
-    static maxDistance(ax1, ay1, ax2, ay2, bx1, by1, bx2, by2) {
-        let dist = EnvelopeDistance.distance(ax1, ay1, bx1, by1);
-        dist = Math.max(dist, EnvelopeDistance.distance(ax1, ay1, bx2, by2));
-        dist = Math.max(dist, EnvelopeDistance.distance(ax2, ay2, bx1, by1));
-        dist = Math.max(dist, EnvelopeDistance.distance(ax2, ay2, bx2, by2));
-        return dist;
-    }
-}
-exports.default = EnvelopeDistance;
-
-},{"@parcel/transformer-js/src/esmodule-helpers.js":"jnFvT"}],"4MW3s":[function(require,module,exports,__globalThis) {
-var parcelHelpers = require("@parcel/transformer-js/src/esmodule-helpers.js");
-parcelHelpers.defineInteropFlag(exports);
-var _itemBoundableJs = require("./ItemBoundable.js");
-var _itemBoundableJsDefault = parcelHelpers.interopDefault(_itemBoundableJs);
-var _hasInterfaceJs = require("../../../../../hasInterface.js");
-var _hasInterfaceJsDefault = parcelHelpers.interopDefault(_hasInterfaceJs);
-var _itemVisitorJs = require("../ItemVisitor.js");
-var _itemVisitorJsDefault = parcelHelpers.interopDefault(_itemVisitorJs);
-var _abstractNodeJs = require("./AbstractNode.js");
-var _abstractNodeJsDefault = parcelHelpers.interopDefault(_abstractNodeJs);
-var _collectionsJs = require("../../../../../java/util/Collections.js");
-var _collectionsJsDefault = parcelHelpers.interopDefault(_collectionsJs);
-var _arrayListJs = require("../../../../../java/util/ArrayList.js");
-var _arrayListJsDefault = parcelHelpers.interopDefault(_arrayListJs);
-var _serializableJs = require("../../../../../java/io/Serializable.js");
-var _serializableJsDefault = parcelHelpers.interopDefault(_serializableJs);
-var _assertJs = require("../../util/Assert.js");
-var _assertJsDefault = parcelHelpers.interopDefault(_assertJs);
-var _listJs = require("../../../../../java/util/List.js");
-var _listJsDefault = parcelHelpers.interopDefault(_listJs);
-class AbstractSTRtree {
-    constructor(){
-        AbstractSTRtree.constructor_.apply(this, arguments);
-    }
-    static constructor_() {
-        this._root = null;
-        this._built = false;
-        this._itemBoundables = new (0, _arrayListJsDefault.default)();
-        this._nodeCapacity = null;
-        if (arguments.length === 0) AbstractSTRtree.constructor_.call(this, AbstractSTRtree.DEFAULT_NODE_CAPACITY);
-        else if (arguments.length === 1) {
-            const nodeCapacity = arguments[0];
-            (0, _assertJsDefault.default).isTrue(nodeCapacity > 1, 'Node capacity must be greater than 1');
-            this._nodeCapacity = nodeCapacity;
-        }
-    }
-    static compareDoubles(a, b) {
-        return a > b ? 1 : a < b ? -1 : 0;
-    }
-    queryInternal() {
-        if ((0, _hasInterfaceJsDefault.default)(arguments[2], (0, _itemVisitorJsDefault.default)) && arguments[0] instanceof Object && arguments[1] instanceof (0, _abstractNodeJsDefault.default)) {
-            const searchBounds = arguments[0], node = arguments[1], visitor = arguments[2];
-            const childBoundables = node.getChildBoundables();
-            for(let i = 0; i < childBoundables.size(); i++){
-                const childBoundable = childBoundables.get(i);
-                if (!this.getIntersectsOp().intersects(childBoundable.getBounds(), searchBounds)) continue;
-                if (childBoundable instanceof (0, _abstractNodeJsDefault.default)) this.queryInternal(searchBounds, childBoundable, visitor);
-                else if (childBoundable instanceof (0, _itemBoundableJsDefault.default)) visitor.visitItem(childBoundable.getItem());
-                else (0, _assertJsDefault.default).shouldNeverReachHere();
-            }
-        } else if ((0, _hasInterfaceJsDefault.default)(arguments[2], (0, _listJsDefault.default)) && arguments[0] instanceof Object && arguments[1] instanceof (0, _abstractNodeJsDefault.default)) {
-            const searchBounds = arguments[0], node = arguments[1], matches = arguments[2];
-            const childBoundables = node.getChildBoundables();
-            for(let i = 0; i < childBoundables.size(); i++){
-                const childBoundable = childBoundables.get(i);
-                if (!this.getIntersectsOp().intersects(childBoundable.getBounds(), searchBounds)) continue;
-                if (childBoundable instanceof (0, _abstractNodeJsDefault.default)) this.queryInternal(searchBounds, childBoundable, matches);
-                else if (childBoundable instanceof (0, _itemBoundableJsDefault.default)) matches.add(childBoundable.getItem());
-                else (0, _assertJsDefault.default).shouldNeverReachHere();
-            }
-        }
-    }
-    insert(bounds, item) {
-        (0, _assertJsDefault.default).isTrue(!this._built, 'Cannot insert items into an STR packed R-tree after it has been built.');
-        this._itemBoundables.add(new (0, _itemBoundableJsDefault.default)(bounds, item));
-    }
-    boundablesAtLevel() {
-        if (arguments.length === 1) {
-            const level = arguments[0];
-            const boundables = new (0, _arrayListJsDefault.default)();
-            this.boundablesAtLevel(level, this._root, boundables);
-            return boundables;
-        } else if (arguments.length === 3) {
-            const level = arguments[0], top = arguments[1], boundables = arguments[2];
-            (0, _assertJsDefault.default).isTrue(level > -2);
-            if (top.getLevel() === level) {
-                boundables.add(top);
-                return null;
-            }
-            for(let i = top.getChildBoundables().iterator(); i.hasNext();){
-                const boundable = i.next();
-                if (boundable instanceof (0, _abstractNodeJsDefault.default)) this.boundablesAtLevel(level, boundable, boundables);
-                else {
-                    (0, _assertJsDefault.default).isTrue(boundable instanceof (0, _itemBoundableJsDefault.default));
-                    if (level === -1) boundables.add(boundable);
-                }
-            }
-            return null;
-        }
-    }
-    getRoot() {
-        this.build();
-        return this._root;
-    }
-    remove() {
-        if (arguments.length === 2) {
-            const searchBounds = arguments[0], item = arguments[1];
-            this.build();
-            if (this.getIntersectsOp().intersects(this._root.getBounds(), searchBounds)) return this.remove(searchBounds, this._root, item);
-            return false;
-        } else if (arguments.length === 3) {
-            const searchBounds = arguments[0], node = arguments[1], item = arguments[2];
-            let found = this.removeItem(node, item);
-            if (found) return true;
-            let childToPrune = null;
-            for(let i = node.getChildBoundables().iterator(); i.hasNext();){
-                const childBoundable = i.next();
-                if (!this.getIntersectsOp().intersects(childBoundable.getBounds(), searchBounds)) continue;
-                if (childBoundable instanceof (0, _abstractNodeJsDefault.default)) {
-                    found = this.remove(searchBounds, childBoundable, item);
-                    if (found) {
-                        childToPrune = childBoundable;
-                        break;
-                    }
-                }
-            }
-            if (childToPrune !== null) {
-                if (childToPrune.getChildBoundables().isEmpty()) node.getChildBoundables().remove(childToPrune);
-            }
-            return found;
-        }
-    }
-    createHigherLevels(boundablesOfALevel, level) {
-        (0, _assertJsDefault.default).isTrue(!boundablesOfALevel.isEmpty());
-        const parentBoundables = this.createParentBoundables(boundablesOfALevel, level + 1);
-        if (parentBoundables.size() === 1) return parentBoundables.get(0);
-        return this.createHigherLevels(parentBoundables, level + 1);
-    }
-    depth() {
-        if (arguments.length === 0) {
-            if (this.isEmpty()) return 0;
-            this.build();
-            return this.depth(this._root);
-        } else if (arguments.length === 1) {
-            const node = arguments[0];
-            let maxChildDepth = 0;
-            for(let i = node.getChildBoundables().iterator(); i.hasNext();){
-                const childBoundable = i.next();
-                if (childBoundable instanceof (0, _abstractNodeJsDefault.default)) {
-                    const childDepth = this.depth(childBoundable);
-                    if (childDepth > maxChildDepth) maxChildDepth = childDepth;
-                }
-            }
-            return maxChildDepth + 1;
-        }
-    }
-    createParentBoundables(childBoundables, newLevel) {
-        (0, _assertJsDefault.default).isTrue(!childBoundables.isEmpty());
-        const parentBoundables = new (0, _arrayListJsDefault.default)();
-        parentBoundables.add(this.createNode(newLevel));
-        const sortedChildBoundables = new (0, _arrayListJsDefault.default)(childBoundables);
-        (0, _collectionsJsDefault.default).sort(sortedChildBoundables, this.getComparator());
-        for(let i = sortedChildBoundables.iterator(); i.hasNext();){
-            const childBoundable = i.next();
-            if (this.lastNode(parentBoundables).getChildBoundables().size() === this.getNodeCapacity()) parentBoundables.add(this.createNode(newLevel));
-            this.lastNode(parentBoundables).addChildBoundable(childBoundable);
-        }
-        return parentBoundables;
-    }
-    isEmpty() {
-        if (!this._built) return this._itemBoundables.isEmpty();
-        return this._root.isEmpty();
-    }
-    getNodeCapacity() {
-        return this._nodeCapacity;
-    }
-    lastNode(nodes) {
-        return nodes.get(nodes.size() - 1);
-    }
-    size() {
-        if (arguments.length === 0) {
-            if (this.isEmpty()) return 0;
-            this.build();
-            return this.size(this._root);
-        } else if (arguments.length === 1) {
-            const node = arguments[0];
-            let size = 0;
-            for(let i = node.getChildBoundables().iterator(); i.hasNext();){
-                const childBoundable = i.next();
-                if (childBoundable instanceof (0, _abstractNodeJsDefault.default)) size += this.size(childBoundable);
-                else if (childBoundable instanceof (0, _itemBoundableJsDefault.default)) size += 1;
-            }
-            return size;
-        }
-    }
-    removeItem(node, item) {
-        let childToRemove = null;
-        for(let i = node.getChildBoundables().iterator(); i.hasNext();){
-            const childBoundable = i.next();
-            if (childBoundable instanceof (0, _itemBoundableJsDefault.default)) {
-                if (childBoundable.getItem() === item) childToRemove = childBoundable;
-            }
-        }
-        if (childToRemove !== null) {
-            node.getChildBoundables().remove(childToRemove);
-            return true;
-        }
-        return false;
-    }
-    itemsTree() {
-        if (arguments.length === 0) {
-            this.build();
-            const valuesTree = this.itemsTree(this._root);
-            if (valuesTree === null) return new (0, _arrayListJsDefault.default)();
-            return valuesTree;
-        } else if (arguments.length === 1) {
-            const node = arguments[0];
-            const valuesTreeForNode = new (0, _arrayListJsDefault.default)();
-            for(let i = node.getChildBoundables().iterator(); i.hasNext();){
-                const childBoundable = i.next();
-                if (childBoundable instanceof (0, _abstractNodeJsDefault.default)) {
-                    const valuesTreeForChild = this.itemsTree(childBoundable);
-                    if (valuesTreeForChild !== null) valuesTreeForNode.add(valuesTreeForChild);
-                } else if (childBoundable instanceof (0, _itemBoundableJsDefault.default)) valuesTreeForNode.add(childBoundable.getItem());
-                else (0, _assertJsDefault.default).shouldNeverReachHere();
-            }
-            if (valuesTreeForNode.size() <= 0) return null;
-            return valuesTreeForNode;
-        }
-    }
-    query() {
-        if (arguments.length === 1) {
-            const searchBounds = arguments[0];
-            this.build();
-            const matches = new (0, _arrayListJsDefault.default)();
-            if (this.isEmpty()) return matches;
-            if (this.getIntersectsOp().intersects(this._root.getBounds(), searchBounds)) this.queryInternal(searchBounds, this._root, matches);
-            return matches;
-        } else if (arguments.length === 2) {
-            const searchBounds = arguments[0], visitor = arguments[1];
-            this.build();
-            if (this.isEmpty()) return null;
-            if (this.getIntersectsOp().intersects(this._root.getBounds(), searchBounds)) this.queryInternal(searchBounds, this._root, visitor);
-        }
-    }
-    build() {
-        if (this._built) return null;
-        this._root = this._itemBoundables.isEmpty() ? this.createNode(0) : this.createHigherLevels(this._itemBoundables, -1);
-        this._itemBoundables = null;
-        this._built = true;
-    }
-    get interfaces_() {
-        return [
-            (0, _serializableJsDefault.default)
-        ];
-    }
-}
-exports.default = AbstractSTRtree;
-function IntersectsOp() {}
-AbstractSTRtree.IntersectsOp = IntersectsOp;
-AbstractSTRtree.DEFAULT_NODE_CAPACITY = 10;
-
-},{"./ItemBoundable.js":"eO4jy","../../../../../hasInterface.js":"5bpze","../ItemVisitor.js":"nuRea","./AbstractNode.js":"1SBma","../../../../../java/util/Collections.js":"c5dcW","../../../../../java/util/ArrayList.js":"gGAQZ","../../../../../java/io/Serializable.js":"5sRbw","../../util/Assert.js":"1vSRy","../../../../../java/util/List.js":"7jAhK","@parcel/transformer-js/src/esmodule-helpers.js":"jnFvT"}],"d4XWg":[function(require,module,exports,__globalThis) {
-var parcelHelpers = require("@parcel/transformer-js/src/esmodule-helpers.js");
-parcelHelpers.defineInteropFlag(exports);
-class ItemDistance {
-    distance(item1, item2) {}
-}
-exports.default = ItemDistance;
-
-},{"@parcel/transformer-js/src/esmodule-helpers.js":"jnFvT"}],"25ZO4":[function(require,module,exports,__globalThis) {
-var parcelHelpers = require("@parcel/transformer-js/src/esmodule-helpers.js");
-parcelHelpers.defineInteropFlag(exports);
-var _lineSegmentJs = require("../../geom/LineSegment.js");
-var _lineSegmentJsDefault = parcelHelpers.interopDefault(_lineSegmentJs);
-class MonotoneChainOverlapAction {
-    constructor(){
-        MonotoneChainOverlapAction.constructor_.apply(this, arguments);
-    }
-    static constructor_() {
-        this._overlapSeg1 = new (0, _lineSegmentJsDefault.default)();
-        this._overlapSeg2 = new (0, _lineSegmentJsDefault.default)();
-    }
-    overlap() {
-        if (arguments.length === 2) {
-            const seg1 = arguments[0], seg2 = arguments[1];
-        } else if (arguments.length === 4) {
-            const mc1 = arguments[0], start1 = arguments[1], mc2 = arguments[2], start2 = arguments[3];
-            mc1.getLineSegment(start1, this._overlapSeg1);
-            mc2.getLineSegment(start2, this._overlapSeg2);
-            this.overlap(this._overlapSeg1, this._overlapSeg2);
-        }
-    }
-}
-exports.default = MonotoneChainOverlapAction;
-
-},{"../../geom/LineSegment.js":"8Ncbv","@parcel/transformer-js/src/esmodule-helpers.js":"jnFvT"}],"doUZZ":[function(require,module,exports,__globalThis) {
-var parcelHelpers = require("@parcel/transformer-js/src/esmodule-helpers.js");
-parcelHelpers.defineInteropFlag(exports);
-var _monotoneChainJs = require("./MonotoneChain.js");
-var _monotoneChainJsDefault = parcelHelpers.interopDefault(_monotoneChainJs);
-var _arrayListJs = require("../../../../../java/util/ArrayList.js");
-var _arrayListJsDefault = parcelHelpers.interopDefault(_arrayListJs);
-var _quadrantJs = require("../../geomgraph/Quadrant.js");
-var _quadrantJsDefault = parcelHelpers.interopDefault(_quadrantJs);
-class MonotoneChainBuilder {
-    static findChainEnd(pts, start) {
-        let safeStart = start;
-        while(safeStart < pts.length - 1 && pts[safeStart].equals2D(pts[safeStart + 1]))safeStart++;
-        if (safeStart >= pts.length - 1) return pts.length - 1;
-        const chainQuad = (0, _quadrantJsDefault.default).quadrant(pts[safeStart], pts[safeStart + 1]);
-        let last = start + 1;
-        while(last < pts.length){
-            if (!pts[last - 1].equals2D(pts[last])) {
-                const quad = (0, _quadrantJsDefault.default).quadrant(pts[last - 1], pts[last]);
-                if (quad !== chainQuad) break;
-            }
-            last++;
-        }
-        return last - 1;
-    }
-    static getChains() {
-        if (arguments.length === 1) {
-            const pts = arguments[0];
-            return MonotoneChainBuilder.getChains(pts, null);
-        } else if (arguments.length === 2) {
-            const pts = arguments[0], context = arguments[1];
-            const mcList = new (0, _arrayListJsDefault.default)();
-            let chainStart = 0;
-            do {
-                const chainEnd = MonotoneChainBuilder.findChainEnd(pts, chainStart);
-                const mc = new (0, _monotoneChainJsDefault.default)(pts, chainStart, chainEnd, context);
-                mcList.add(mc);
-                chainStart = chainEnd;
-            }while (chainStart < pts.length - 1);
-            return mcList;
-        }
-    }
-}
-exports.default = MonotoneChainBuilder;
-
-},{"./MonotoneChain.js":"5SbYX","../../../../../java/util/ArrayList.js":"gGAQZ","../../geomgraph/Quadrant.js":"86Qmh","@parcel/transformer-js/src/esmodule-helpers.js":"jnFvT"}],"5SbYX":[function(require,module,exports,__globalThis) {
-var parcelHelpers = require("@parcel/transformer-js/src/esmodule-helpers.js");
-parcelHelpers.defineInteropFlag(exports);
-var _envelopeJs = require("../../geom/Envelope.js");
-var _envelopeJsDefault = parcelHelpers.interopDefault(_envelopeJs);
-class MonotoneChain {
-    constructor(){
-        MonotoneChain.constructor_.apply(this, arguments);
-    }
-    static constructor_() {
-        this._pts = null;
-        this._start = null;
-        this._end = null;
-        this._env = null;
-        this._context = null;
-        this._id = null;
-        const pts = arguments[0], start = arguments[1], end = arguments[2], context = arguments[3];
-        this._pts = pts;
-        this._start = start;
-        this._end = end;
-        this._context = context;
-    }
-    computeOverlaps() {
-        if (arguments.length === 2) {
-            const mc = arguments[0], mco = arguments[1];
-            this.computeOverlaps(this._start, this._end, mc, mc._start, mc._end, mco);
-        } else if (arguments.length === 6) {
-            const start0 = arguments[0], end0 = arguments[1], mc = arguments[2], start1 = arguments[3], end1 = arguments[4], mco = arguments[5];
-            if (end0 - start0 === 1 && end1 - start1 === 1) {
-                mco.overlap(this, start0, mc, start1);
-                return null;
-            }
-            if (!this.overlaps(start0, end0, mc, start1, end1)) return null;
-            const mid0 = Math.trunc((start0 + end0) / 2);
-            const mid1 = Math.trunc((start1 + end1) / 2);
-            if (start0 < mid0) {
-                if (start1 < mid1) this.computeOverlaps(start0, mid0, mc, start1, mid1, mco);
-                if (mid1 < end1) this.computeOverlaps(start0, mid0, mc, mid1, end1, mco);
-            }
-            if (mid0 < end0) {
-                if (start1 < mid1) this.computeOverlaps(mid0, end0, mc, start1, mid1, mco);
-                if (mid1 < end1) this.computeOverlaps(mid0, end0, mc, mid1, end1, mco);
-            }
-        }
-    }
-    setId(id) {
-        this._id = id;
-    }
-    select(searchEnv, mcs) {
-        this.computeSelect(searchEnv, this._start, this._end, mcs);
-    }
-    getEnvelope() {
-        if (this._env === null) {
-            const p0 = this._pts[this._start];
-            const p1 = this._pts[this._end];
-            this._env = new (0, _envelopeJsDefault.default)(p0, p1);
-        }
-        return this._env;
-    }
-    overlaps(start0, end0, mc, start1, end1) {
-        return (0, _envelopeJsDefault.default).intersects(this._pts[start0], this._pts[end0], mc._pts[start1], mc._pts[end1]);
-    }
-    getEndIndex() {
-        return this._end;
-    }
-    getStartIndex() {
-        return this._start;
-    }
-    getContext() {
-        return this._context;
-    }
-    getId() {
-        return this._id;
-    }
-    getLineSegment(index, ls) {
-        ls.p0 = this._pts[index];
-        ls.p1 = this._pts[index + 1];
-    }
-    computeSelect(searchEnv, start0, end0, mcs) {
-        const p0 = this._pts[start0];
-        const p1 = this._pts[end0];
-        if (end0 - start0 === 1) {
-            mcs.select(this, start0);
-            return null;
-        }
-        if (!searchEnv.intersects(p0, p1)) return null;
-        const mid = Math.trunc((start0 + end0) / 2);
-        if (start0 < mid) this.computeSelect(searchEnv, start0, mid, mcs);
-        if (mid < end0) this.computeSelect(searchEnv, mid, end0, mcs);
-    }
-    getCoordinates() {
-        const coord = new Array(this._end - this._start + 1).fill(null);
-        let index = 0;
-        for(let i = this._start; i <= this._end; i++)coord[index++] = this._pts[i];
-        return coord;
-    }
-}
-exports.default = MonotoneChain;
-
-},{"../../geom/Envelope.js":"h2zeM","@parcel/transformer-js/src/esmodule-helpers.js":"jnFvT"}],"h7eIw":[function(require,module,exports,__globalThis) {
-var parcelHelpers = require("@parcel/transformer-js/src/esmodule-helpers.js");
-parcelHelpers.defineInteropFlag(exports);
-var _noderJs = require("./Noder.js");
-var _noderJsDefault = parcelHelpers.interopDefault(_noderJs);
-class SinglePassNoder {
-    constructor(){
-        SinglePassNoder.constructor_.apply(this, arguments);
-    }
-    static constructor_() {
-        this._segInt = null;
-        if (arguments.length === 0) ;
-        else if (arguments.length === 1) {
-            const segInt = arguments[0];
-            this.setSegmentIntersector(segInt);
-        }
-    }
-    setSegmentIntersector(segInt) {
-        this._segInt = segInt;
-    }
-    get interfaces_() {
-        return [
-            (0, _noderJsDefault.default)
-        ];
-    }
-}
-exports.default = SinglePassNoder;
-
-},{"./Noder.js":"jKC91","@parcel/transformer-js/src/esmodule-helpers.js":"jnFvT"}],"g53tv":[function(require,module,exports,__globalThis) {
-var parcelHelpers = require("@parcel/transformer-js/src/esmodule-helpers.js");
-parcelHelpers.defineInteropFlag(exports);
-var _coordinateJs = require("../../geom/Coordinate.js");
-var _coordinateJsDefault = parcelHelpers.interopDefault(_coordinateJs);
-var _illegalArgumentExceptionJs = require("../../../../../java/lang/IllegalArgumentException.js");
-var _illegalArgumentExceptionJsDefault = parcelHelpers.interopDefault(_illegalArgumentExceptionJs);
-var _envelopeJs = require("../../geom/Envelope.js");
-var _envelopeJsDefault = parcelHelpers.interopDefault(_envelopeJs);
-var _assertJs = require("../../util/Assert.js");
-var _assertJsDefault = parcelHelpers.interopDefault(_assertJs);
-class HotPixel {
-    constructor(){
-        HotPixel.constructor_.apply(this, arguments);
-    }
-    static constructor_() {
-        this._li = null;
-        this._pt = null;
-        this._originalPt = null;
-        this._ptScaled = null;
-        this._p0Scaled = null;
-        this._p1Scaled = null;
-        this._scaleFactor = null;
-        this._minx = null;
-        this._maxx = null;
-        this._miny = null;
-        this._maxy = null;
-        this._corner = new Array(4).fill(null);
-        this._safeEnv = null;
-        const pt = arguments[0], scaleFactor = arguments[1], li = arguments[2];
-        this._originalPt = pt;
-        this._pt = pt;
-        this._scaleFactor = scaleFactor;
-        this._li = li;
-        if (scaleFactor <= 0) throw new (0, _illegalArgumentExceptionJsDefault.default)('Scale factor must be non-zero');
-        if (scaleFactor !== 1.0) {
-            this._pt = new (0, _coordinateJsDefault.default)(this.scale(pt.x), this.scale(pt.y));
-            this._p0Scaled = new (0, _coordinateJsDefault.default)();
-            this._p1Scaled = new (0, _coordinateJsDefault.default)();
-        }
-        this.initCorners(this._pt);
-    }
-    intersectsScaled(p0, p1) {
-        const segMinx = Math.min(p0.x, p1.x);
-        const segMaxx = Math.max(p0.x, p1.x);
-        const segMiny = Math.min(p0.y, p1.y);
-        const segMaxy = Math.max(p0.y, p1.y);
-        const isOutsidePixelEnv = this._maxx < segMinx || this._minx > segMaxx || this._maxy < segMiny || this._miny > segMaxy;
-        if (isOutsidePixelEnv) return false;
-        const intersects = this.intersectsToleranceSquare(p0, p1);
-        (0, _assertJsDefault.default).isTrue(!(isOutsidePixelEnv && intersects), 'Found bad envelope test');
-        return intersects;
-    }
-    copyScaled(p, pScaled) {
-        pScaled.x = this.scale(p.x);
-        pScaled.y = this.scale(p.y);
-    }
-    getSafeEnvelope() {
-        if (this._safeEnv === null) {
-            const safeTolerance = HotPixel.SAFE_ENV_EXPANSION_FACTOR / this._scaleFactor;
-            this._safeEnv = new (0, _envelopeJsDefault.default)(this._originalPt.x - safeTolerance, this._originalPt.x + safeTolerance, this._originalPt.y - safeTolerance, this._originalPt.y + safeTolerance);
-        }
-        return this._safeEnv;
-    }
-    intersectsPixelClosure(p0, p1) {
-        this._li.computeIntersection(p0, p1, this._corner[0], this._corner[1]);
-        if (this._li.hasIntersection()) return true;
-        this._li.computeIntersection(p0, p1, this._corner[1], this._corner[2]);
-        if (this._li.hasIntersection()) return true;
-        this._li.computeIntersection(p0, p1, this._corner[2], this._corner[3]);
-        if (this._li.hasIntersection()) return true;
-        this._li.computeIntersection(p0, p1, this._corner[3], this._corner[0]);
-        if (this._li.hasIntersection()) return true;
-        return false;
-    }
-    intersectsToleranceSquare(p0, p1) {
-        let intersectsLeft = false;
-        let intersectsBottom = false;
-        this._li.computeIntersection(p0, p1, this._corner[0], this._corner[1]);
-        if (this._li.isProper()) return true;
-        this._li.computeIntersection(p0, p1, this._corner[1], this._corner[2]);
-        if (this._li.isProper()) return true;
-        if (this._li.hasIntersection()) intersectsLeft = true;
-        this._li.computeIntersection(p0, p1, this._corner[2], this._corner[3]);
-        if (this._li.isProper()) return true;
-        if (this._li.hasIntersection()) intersectsBottom = true;
-        this._li.computeIntersection(p0, p1, this._corner[3], this._corner[0]);
-        if (this._li.isProper()) return true;
-        if (intersectsLeft && intersectsBottom) return true;
-        if (p0.equals(this._pt)) return true;
-        if (p1.equals(this._pt)) return true;
-        return false;
-    }
-    addSnappedNode(segStr, segIndex) {
-        const p0 = segStr.getCoordinate(segIndex);
-        const p1 = segStr.getCoordinate(segIndex + 1);
-        if (this.intersects(p0, p1)) {
-            segStr.addIntersection(this.getCoordinate(), segIndex);
-            return true;
-        }
-        return false;
-    }
-    initCorners(pt) {
-        const tolerance = 0.5;
-        this._minx = pt.x - tolerance;
-        this._maxx = pt.x + tolerance;
-        this._miny = pt.y - tolerance;
-        this._maxy = pt.y + tolerance;
-        this._corner[0] = new (0, _coordinateJsDefault.default)(this._maxx, this._maxy);
-        this._corner[1] = new (0, _coordinateJsDefault.default)(this._minx, this._maxy);
-        this._corner[2] = new (0, _coordinateJsDefault.default)(this._minx, this._miny);
-        this._corner[3] = new (0, _coordinateJsDefault.default)(this._maxx, this._miny);
-    }
-    intersects(p0, p1) {
-        if (this._scaleFactor === 1.0) return this.intersectsScaled(p0, p1);
-        this.copyScaled(p0, this._p0Scaled);
-        this.copyScaled(p1, this._p1Scaled);
-        return this.intersectsScaled(this._p0Scaled, this._p1Scaled);
-    }
-    scale(val) {
-        return Math.round(val * this._scaleFactor);
-    }
-    getCoordinate() {
-        return this._originalPt;
-    }
-}
-exports.default = HotPixel;
-HotPixel.SAFE_ENV_EXPANSION_FACTOR = 0.75;
-
-},{"../../geom/Coordinate.js":"ii2fh","../../../../../java/lang/IllegalArgumentException.js":"9ppVW","../../geom/Envelope.js":"h2zeM","../../util/Assert.js":"1vSRy","@parcel/transformer-js/src/esmodule-helpers.js":"jnFvT"}],"lR2tW":[function(require,module,exports,__globalThis) {
-var parcelHelpers = require("@parcel/transformer-js/src/esmodule-helpers.js");
-parcelHelpers.defineInteropFlag(exports);
-var _monotoneChainSelectActionJs = require("../../index/chain/MonotoneChainSelectAction.js");
-var _monotoneChainSelectActionJsDefault = parcelHelpers.interopDefault(_monotoneChainSelectActionJs);
-var _monotoneChainJs = require("../../index/chain/MonotoneChain.js");
-var _monotoneChainJsDefault = parcelHelpers.interopDefault(_monotoneChainJs);
-var _itemVisitorJs = require("../../index/ItemVisitor.js");
-var _itemVisitorJsDefault = parcelHelpers.interopDefault(_itemVisitorJs);
-class MCIndexPointSnapper {
-    constructor(){
-        MCIndexPointSnapper.constructor_.apply(this, arguments);
-    }
-    static constructor_() {
-        this._index = null;
-        const index = arguments[0];
-        this._index = index;
-    }
-    snap() {
-        if (arguments.length === 1) {
-            const hotPixel = arguments[0];
-            return this.snap(hotPixel, null, -1);
-        } else if (arguments.length === 3) {
-            const hotPixel = arguments[0], parentEdge = arguments[1], hotPixelVertexIndex = arguments[2];
-            const pixelEnv = hotPixel.getSafeEnvelope();
-            const hotPixelSnapAction = new HotPixelSnapAction(hotPixel, parentEdge, hotPixelVertexIndex);
-            this._index.query(pixelEnv, new class {
-                get interfaces_() {
-                    return [
-                        (0, _itemVisitorJsDefault.default)
-                    ];
-                }
-                visitItem(item) {
-                    const testChain = item;
-                    testChain.select(pixelEnv, hotPixelSnapAction);
-                }
-            }());
-            return hotPixelSnapAction.isNodeAdded();
-        }
-    }
-}
-exports.default = MCIndexPointSnapper;
-class HotPixelSnapAction extends (0, _monotoneChainSelectActionJsDefault.default) {
-    constructor(){
-        super();
-        HotPixelSnapAction.constructor_.apply(this, arguments);
-    }
-    static constructor_() {
-        this._hotPixel = null;
-        this._parentEdge = null;
-        this._hotPixelVertexIndex = null;
-        this._isNodeAdded = false;
-        const hotPixel = arguments[0], parentEdge = arguments[1], hotPixelVertexIndex = arguments[2];
-        this._hotPixel = hotPixel;
-        this._parentEdge = parentEdge;
-        this._hotPixelVertexIndex = hotPixelVertexIndex;
-    }
-    select() {
-        if (arguments.length === 2 && Number.isInteger(arguments[1]) && arguments[0] instanceof (0, _monotoneChainJsDefault.default)) {
-            const mc = arguments[0], startIndex = arguments[1];
-            const ss = mc.getContext();
-            if (this._parentEdge === ss) {
-                if (startIndex === this._hotPixelVertexIndex || startIndex + 1 === this._hotPixelVertexIndex) return null;
-            }
-            this._isNodeAdded |= this._hotPixel.addSnappedNode(ss, startIndex);
-        } else return super.select.apply(this, arguments);
-    }
-    isNodeAdded() {
-        return this._isNodeAdded;
-    }
-}
-MCIndexPointSnapper.HotPixelSnapAction = HotPixelSnapAction;
-
-},{"../../index/chain/MonotoneChainSelectAction.js":"il549","../../index/chain/MonotoneChain.js":"5SbYX","../../index/ItemVisitor.js":"nuRea","@parcel/transformer-js/src/esmodule-helpers.js":"jnFvT"}],"il549":[function(require,module,exports,__globalThis) {
-var parcelHelpers = require("@parcel/transformer-js/src/esmodule-helpers.js");
-parcelHelpers.defineInteropFlag(exports);
-var _lineSegmentJs = require("../../geom/LineSegment.js");
-var _lineSegmentJsDefault = parcelHelpers.interopDefault(_lineSegmentJs);
-class MonotoneChainSelectAction {
-    constructor(){
-        MonotoneChainSelectAction.constructor_.apply(this, arguments);
-    }
-    static constructor_() {
-        this.selectedSegment = new (0, _lineSegmentJsDefault.default)();
-    }
-    select() {
-        if (arguments.length === 1) {
-            const seg = arguments[0];
-        } else if (arguments.length === 2) {
-            const mc = arguments[0], startIndex = arguments[1];
-            mc.getLineSegment(startIndex, this.selectedSegment);
-            this.select(this.selectedSegment);
-        }
-    }
-}
-exports.default = MonotoneChainSelectAction;
-
-},{"../../geom/LineSegment.js":"8Ncbv","@parcel/transformer-js/src/esmodule-helpers.js":"jnFvT"}],"esmGM":[function(require,module,exports,__globalThis) {
-var parcelHelpers = require("@parcel/transformer-js/src/esmodule-helpers.js");
-parcelHelpers.defineInteropFlag(exports);
-var _segmentIntersectorJs = require("./SegmentIntersector.js");
-var _segmentIntersectorJsDefault = parcelHelpers.interopDefault(_segmentIntersectorJs);
-var _arrayListJs = require("../../../../java/util/ArrayList.js");
-var _arrayListJsDefault = parcelHelpers.interopDefault(_arrayListJs);
-class InteriorIntersectionFinderAdder {
-    constructor(){
-        InteriorIntersectionFinderAdder.constructor_.apply(this, arguments);
-    }
-    static constructor_() {
-        this._li = null;
-        this._interiorIntersections = null;
-        const li = arguments[0];
-        this._li = li;
-        this._interiorIntersections = new (0, _arrayListJsDefault.default)();
-    }
-    isDone() {
-        return false;
-    }
-    processIntersections(e0, segIndex0, e1, segIndex1) {
-        if (e0 === e1 && segIndex0 === segIndex1) return null;
-        const p00 = e0.getCoordinates()[segIndex0];
-        const p01 = e0.getCoordinates()[segIndex0 + 1];
-        const p10 = e1.getCoordinates()[segIndex1];
-        const p11 = e1.getCoordinates()[segIndex1 + 1];
-        this._li.computeIntersection(p00, p01, p10, p11);
-        if (this._li.hasIntersection()) {
-            if (this._li.isInteriorIntersection()) {
-                for(let intIndex = 0; intIndex < this._li.getIntersectionNum(); intIndex++)this._interiorIntersections.add(this._li.getIntersection(intIndex));
-                e0.addIntersections(this._li, segIndex0, 0);
-                e1.addIntersections(this._li, segIndex1, 1);
-            }
-        }
-    }
-    getInteriorIntersections() {
-        return this._interiorIntersections;
-    }
-    get interfaces_() {
-        return [
-            (0, _segmentIntersectorJsDefault.default)
-        ];
-    }
-}
-exports.default = InteriorIntersectionFinderAdder;
-
-},{"./SegmentIntersector.js":"jNast","../../../../java/util/ArrayList.js":"gGAQZ","@parcel/transformer-js/src/esmodule-helpers.js":"jnFvT"}],"jNast":[function(require,module,exports,__globalThis) {
-var parcelHelpers = require("@parcel/transformer-js/src/esmodule-helpers.js");
-parcelHelpers.defineInteropFlag(exports);
-class SegmentIntersector {
-    isDone() {}
-    processIntersections(e0, segIndex0, e1, segIndex1) {}
-}
-exports.default = SegmentIntersector;
-
-},{"@parcel/transformer-js/src/esmodule-helpers.js":"jnFvT"}],"a6cSc":[function(require,module,exports,__globalThis) {
-var parcelHelpers = require("@parcel/transformer-js/src/esmodule-helpers.js");
-parcelHelpers.defineInteropFlag(exports);
-var _locationJs = require("../../geom/Location.js");
-var _locationJsDefault = parcelHelpers.interopDefault(_locationJs);
-var _bufferSubgraphJs = require("./BufferSubgraph.js");
-var _bufferSubgraphJsDefault = parcelHelpers.interopDefault(_bufferSubgraphJs);
-var _positionJs = require("../../geomgraph/Position.js");
-var _positionJsDefault = parcelHelpers.interopDefault(_positionJs);
-var _mcindexNoderJs = require("../../noding/MCIndexNoder.js");
-var _mcindexNoderJsDefault = parcelHelpers.interopDefault(_mcindexNoderJs);
-var _offsetCurveBuilderJs = require("./OffsetCurveBuilder.js");
-var _offsetCurveBuilderJsDefault = parcelHelpers.interopDefault(_offsetCurveBuilderJs);
-var _collectionsJs = require("../../../../../java/util/Collections.js");
-var _collectionsJsDefault = parcelHelpers.interopDefault(_collectionsJs);
-var _labelJs = require("../../geomgraph/Label.js");
-var _labelJsDefault = parcelHelpers.interopDefault(_labelJs);
-var _planarGraphJs = require("../../geomgraph/PlanarGraph.js");
-var _planarGraphJsDefault = parcelHelpers.interopDefault(_planarGraphJs);
-var _polygonBuilderJs = require("../overlay/PolygonBuilder.js");
-var _polygonBuilderJsDefault = parcelHelpers.interopDefault(_polygonBuilderJs);
-var _geometryFactoryJs = require("../../geom/GeometryFactory.js");
-var _geometryFactoryJsDefault = parcelHelpers.interopDefault(_geometryFactoryJs);
-var _subgraphDepthLocaterJs = require("./SubgraphDepthLocater.js");
-var _subgraphDepthLocaterJsDefault = parcelHelpers.interopDefault(_subgraphDepthLocaterJs);
-var _offsetCurveSetBuilderJs = require("./OffsetCurveSetBuilder.js");
-var _offsetCurveSetBuilderJsDefault = parcelHelpers.interopDefault(_offsetCurveSetBuilderJs);
-var _overlayNodeFactoryJs = require("../overlay/OverlayNodeFactory.js");
-var _overlayNodeFactoryJsDefault = parcelHelpers.interopDefault(_overlayNodeFactoryJs);
-var _edgeListJs = require("../../geomgraph/EdgeList.js");
-var _edgeListJsDefault = parcelHelpers.interopDefault(_edgeListJs);
-var _arrayListJs = require("../../../../../java/util/ArrayList.js");
-var _arrayListJsDefault = parcelHelpers.interopDefault(_arrayListJs);
-var _robustLineIntersectorJs = require("../../algorithm/RobustLineIntersector.js");
-var _robustLineIntersectorJsDefault = parcelHelpers.interopDefault(_robustLineIntersectorJs);
-var _intersectionAdderJs = require("../../noding/IntersectionAdder.js");
-var _intersectionAdderJsDefault = parcelHelpers.interopDefault(_intersectionAdderJs);
-var _edgeJs = require("../../geomgraph/Edge.js");
-var _edgeJsDefault = parcelHelpers.interopDefault(_edgeJs);
-class BufferBuilder {
-    constructor(){
-        BufferBuilder.constructor_.apply(this, arguments);
-    }
-    static constructor_() {
-        this._bufParams = null;
-        this._workingPrecisionModel = null;
-        this._workingNoder = null;
-        this._geomFact = null;
-        this._graph = null;
-        this._edgeList = new (0, _edgeListJsDefault.default)();
-        const bufParams = arguments[0];
-        this._bufParams = bufParams;
-    }
-    static convertSegStrings(it) {
-        const fact = new (0, _geometryFactoryJsDefault.default)();
-        const lines = new (0, _arrayListJsDefault.default)();
-        while(it.hasNext()){
-            const ss = it.next();
-            const line = fact.createLineString(ss.getCoordinates());
-            lines.add(line);
-        }
-        return fact.buildGeometry(lines);
-    }
-    static depthDelta(label) {
-        const lLoc = label.getLocation(0, (0, _positionJsDefault.default).LEFT);
-        const rLoc = label.getLocation(0, (0, _positionJsDefault.default).RIGHT);
-        if (lLoc === (0, _locationJsDefault.default).INTERIOR && rLoc === (0, _locationJsDefault.default).EXTERIOR) return 1;
-        else if (lLoc === (0, _locationJsDefault.default).EXTERIOR && rLoc === (0, _locationJsDefault.default).INTERIOR) return -1;
-        return 0;
-    }
-    createEmptyResultGeometry() {
-        const emptyGeom = this._geomFact.createPolygon();
-        return emptyGeom;
-    }
-    getNoder(precisionModel) {
-        if (this._workingNoder !== null) return this._workingNoder;
-        const noder = new (0, _mcindexNoderJsDefault.default)();
-        const li = new (0, _robustLineIntersectorJsDefault.default)();
-        li.setPrecisionModel(precisionModel);
-        noder.setSegmentIntersector(new (0, _intersectionAdderJsDefault.default)(li));
-        return noder;
-    }
-    buffer(g, distance) {
-        let precisionModel = this._workingPrecisionModel;
-        if (precisionModel === null) precisionModel = g.getPrecisionModel();
-        this._geomFact = g.getFactory();
-        const curveBuilder = new (0, _offsetCurveBuilderJsDefault.default)(precisionModel, this._bufParams);
-        const curveSetBuilder = new (0, _offsetCurveSetBuilderJsDefault.default)(g, distance, curveBuilder);
-        const bufferSegStrList = curveSetBuilder.getCurves();
-        if (bufferSegStrList.size() <= 0) return this.createEmptyResultGeometry();
-        this.computeNodedEdges(bufferSegStrList, precisionModel);
-        this._graph = new (0, _planarGraphJsDefault.default)(new (0, _overlayNodeFactoryJsDefault.default)());
-        this._graph.addEdges(this._edgeList.getEdges());
-        const subgraphList = this.createSubgraphs(this._graph);
-        const polyBuilder = new (0, _polygonBuilderJsDefault.default)(this._geomFact);
-        this.buildSubgraphs(subgraphList, polyBuilder);
-        const resultPolyList = polyBuilder.getPolygons();
-        if (resultPolyList.size() <= 0) return this.createEmptyResultGeometry();
-        const resultGeom = this._geomFact.buildGeometry(resultPolyList);
-        return resultGeom;
-    }
-    computeNodedEdges(bufferSegStrList, precisionModel) {
-        const noder = this.getNoder(precisionModel);
-        noder.computeNodes(bufferSegStrList);
-        const nodedSegStrings = noder.getNodedSubstrings();
-        for(let i = nodedSegStrings.iterator(); i.hasNext();){
-            const segStr = i.next();
-            const pts = segStr.getCoordinates();
-            if (pts.length === 2 && pts[0].equals2D(pts[1])) continue;
-            const oldLabel = segStr.getData();
-            const edge = new (0, _edgeJsDefault.default)(segStr.getCoordinates(), new (0, _labelJsDefault.default)(oldLabel));
-            this.insertUniqueEdge(edge);
-        }
-    }
-    setNoder(noder) {
-        this._workingNoder = noder;
-    }
-    setWorkingPrecisionModel(pm) {
-        this._workingPrecisionModel = pm;
-    }
-    insertUniqueEdge(e) {
-        const existingEdge = this._edgeList.findEqualEdge(e);
-        if (existingEdge !== null) {
-            const existingLabel = existingEdge.getLabel();
-            let labelToMerge = e.getLabel();
-            if (!existingEdge.isPointwiseEqual(e)) {
-                labelToMerge = new (0, _labelJsDefault.default)(e.getLabel());
-                labelToMerge.flip();
-            }
-            existingLabel.merge(labelToMerge);
-            const mergeDelta = BufferBuilder.depthDelta(labelToMerge);
-            const existingDelta = existingEdge.getDepthDelta();
-            const newDelta = existingDelta + mergeDelta;
-            existingEdge.setDepthDelta(newDelta);
-        } else {
-            this._edgeList.add(e);
-            e.setDepthDelta(BufferBuilder.depthDelta(e.getLabel()));
-        }
-    }
-    buildSubgraphs(subgraphList, polyBuilder) {
-        const processedGraphs = new (0, _arrayListJsDefault.default)();
-        for(let i = subgraphList.iterator(); i.hasNext();){
-            const subgraph = i.next();
-            const p = subgraph.getRightmostCoordinate();
-            const locater = new (0, _subgraphDepthLocaterJsDefault.default)(processedGraphs);
-            const outsideDepth = locater.getDepth(p);
-            subgraph.computeDepth(outsideDepth);
-            subgraph.findResultEdges();
-            processedGraphs.add(subgraph);
-            polyBuilder.add(subgraph.getDirectedEdges(), subgraph.getNodes());
-        }
-    }
-    createSubgraphs(graph) {
-        const subgraphList = new (0, _arrayListJsDefault.default)();
-        for(let i = graph.getNodes().iterator(); i.hasNext();){
-            const node = i.next();
-            if (!node.isVisited()) {
-                const subgraph = new (0, _bufferSubgraphJsDefault.default)();
-                subgraph.create(node);
-                subgraphList.add(subgraph);
-            }
-        }
-        (0, _collectionsJsDefault.default).sort(subgraphList, (0, _collectionsJsDefault.default).reverseOrder());
-        return subgraphList;
-    }
-}
-exports.default = BufferBuilder;
-
-},{"../../geom/Location.js":"9aPCX","./BufferSubgraph.js":"8yllK","../../geomgraph/Position.js":"13raO","../../noding/MCIndexNoder.js":"1deq0","./OffsetCurveBuilder.js":"aBCRI","../../../../../java/util/Collections.js":"c5dcW","../../geomgraph/Label.js":"dJJOo","../../geomgraph/PlanarGraph.js":"etG4v","../overlay/PolygonBuilder.js":"crM1Q","../../geom/GeometryFactory.js":"cGt0T","./SubgraphDepthLocater.js":"9iVKl","./OffsetCurveSetBuilder.js":"elu3d","../overlay/OverlayNodeFactory.js":"2jxBb","../../geomgraph/EdgeList.js":"cqdlm","../../../../../java/util/ArrayList.js":"gGAQZ","../../algorithm/RobustLineIntersector.js":"kLdG9","../../noding/IntersectionAdder.js":"dL4Dk","../../geomgraph/Edge.js":"gQhhu","@parcel/transformer-js/src/esmodule-helpers.js":"jnFvT"}],"8yllK":[function(require,module,exports,__globalThis) {
-var parcelHelpers = require("@parcel/transformer-js/src/esmodule-helpers.js");
-parcelHelpers.defineInteropFlag(exports);
-var _hashSetJs = require("../../../../../java/util/HashSet.js");
-var _hashSetJsDefault = parcelHelpers.interopDefault(_hashSetJs);
-var _positionJs = require("../../geomgraph/Position.js");
-var _positionJsDefault = parcelHelpers.interopDefault(_positionJs);
-var _stackJs = require("../../../../../java/util/Stack.js");
-var _stackJsDefault = parcelHelpers.interopDefault(_stackJs);
-var _rightmostEdgeFinderJs = require("./RightmostEdgeFinder.js");
-var _rightmostEdgeFinderJsDefault = parcelHelpers.interopDefault(_rightmostEdgeFinderJs);
-var _topologyExceptionJs = require("../../geom/TopologyException.js");
-var _topologyExceptionJsDefault = parcelHelpers.interopDefault(_topologyExceptionJs);
-var _linkedListJs = require("../../../../../java/util/LinkedList.js");
-var _linkedListJsDefault = parcelHelpers.interopDefault(_linkedListJs);
-var _comparableJs = require("../../../../../java/lang/Comparable.js");
-var _comparableJsDefault = parcelHelpers.interopDefault(_comparableJs);
-var _arrayListJs = require("../../../../../java/util/ArrayList.js");
-var _arrayListJsDefault = parcelHelpers.interopDefault(_arrayListJs);
-var _envelopeJs = require("../../geom/Envelope.js");
-var _envelopeJsDefault = parcelHelpers.interopDefault(_envelopeJs);
-class BufferSubgraph {
-    constructor(){
-        BufferSubgraph.constructor_.apply(this, arguments);
-    }
-    static constructor_() {
-        this._finder = null;
-        this._dirEdgeList = new (0, _arrayListJsDefault.default)();
-        this._nodes = new (0, _arrayListJsDefault.default)();
-        this._rightMostCoord = null;
-        this._env = null;
-        this._finder = new (0, _rightmostEdgeFinderJsDefault.default)();
-    }
-    clearVisitedEdges() {
-        for(let it = this._dirEdgeList.iterator(); it.hasNext();){
-            const de = it.next();
-            de.setVisited(false);
-        }
-    }
-    compareTo(o) {
-        const graph = o;
-        if (this._rightMostCoord.x < graph._rightMostCoord.x) return -1;
-        if (this._rightMostCoord.x > graph._rightMostCoord.x) return 1;
-        return 0;
-    }
-    getEnvelope() {
-        if (this._env === null) {
-            const edgeEnv = new (0, _envelopeJsDefault.default)();
-            for(let it = this._dirEdgeList.iterator(); it.hasNext();){
-                const dirEdge = it.next();
-                const pts = dirEdge.getEdge().getCoordinates();
-                for(let i = 0; i < pts.length - 1; i++)edgeEnv.expandToInclude(pts[i]);
-            }
-            this._env = edgeEnv;
-        }
-        return this._env;
-    }
-    addReachable(startNode) {
-        const nodeStack = new (0, _stackJsDefault.default)();
-        nodeStack.add(startNode);
-        while(!nodeStack.empty()){
-            const node = nodeStack.pop();
-            this.add(node, nodeStack);
-        }
-    }
-    copySymDepths(de) {
-        const sym = de.getSym();
-        sym.setDepth((0, _positionJsDefault.default).LEFT, de.getDepth((0, _positionJsDefault.default).RIGHT));
-        sym.setDepth((0, _positionJsDefault.default).RIGHT, de.getDepth((0, _positionJsDefault.default).LEFT));
-    }
-    add(node, nodeStack) {
-        node.setVisited(true);
-        this._nodes.add(node);
-        for(let i = node.getEdges().iterator(); i.hasNext();){
-            const de = i.next();
-            this._dirEdgeList.add(de);
-            const sym = de.getSym();
-            const symNode = sym.getNode();
-            if (!symNode.isVisited()) nodeStack.push(symNode);
-        }
-    }
-    getRightmostCoordinate() {
-        return this._rightMostCoord;
-    }
-    computeNodeDepth(n) {
-        let startEdge = null;
-        for(let i = n.getEdges().iterator(); i.hasNext();){
-            const de = i.next();
-            if (de.isVisited() || de.getSym().isVisited()) {
-                startEdge = de;
-                break;
-            }
-        }
-        if (startEdge === null) throw new (0, _topologyExceptionJsDefault.default)('unable to find edge to compute depths at ' + n.getCoordinate());
-        n.getEdges().computeDepths(startEdge);
-        for(let i = n.getEdges().iterator(); i.hasNext();){
-            const de = i.next();
-            de.setVisited(true);
-            this.copySymDepths(de);
-        }
-    }
-    computeDepth(outsideDepth) {
-        this.clearVisitedEdges();
-        const de = this._finder.getEdge();
-        const n = de.getNode();
-        const label = de.getLabel();
-        de.setEdgeDepths((0, _positionJsDefault.default).RIGHT, outsideDepth);
-        this.copySymDepths(de);
-        this.computeDepths(de);
-    }
-    create(node) {
-        this.addReachable(node);
-        this._finder.findEdge(this._dirEdgeList);
-        this._rightMostCoord = this._finder.getCoordinate();
-    }
-    findResultEdges() {
-        for(let it = this._dirEdgeList.iterator(); it.hasNext();){
-            const de = it.next();
-            if (de.getDepth((0, _positionJsDefault.default).RIGHT) >= 1 && de.getDepth((0, _positionJsDefault.default).LEFT) <= 0 && !de.isInteriorAreaEdge()) de.setInResult(true);
-        }
-    }
-    computeDepths(startEdge) {
-        const nodesVisited = new (0, _hashSetJsDefault.default)();
-        const nodeQueue = new (0, _linkedListJsDefault.default)();
-        const startNode = startEdge.getNode();
-        nodeQueue.addLast(startNode);
-        nodesVisited.add(startNode);
-        startEdge.setVisited(true);
-        while(!nodeQueue.isEmpty()){
-            const n = nodeQueue.removeFirst();
-            nodesVisited.add(n);
-            this.computeNodeDepth(n);
-            for(let i = n.getEdges().iterator(); i.hasNext();){
-                const de = i.next();
-                const sym = de.getSym();
-                if (sym.isVisited()) continue;
-                const adjNode = sym.getNode();
-                if (!nodesVisited.contains(adjNode)) {
-                    nodeQueue.addLast(adjNode);
-                    nodesVisited.add(adjNode);
-                }
-            }
-        }
-    }
-    getNodes() {
-        return this._nodes;
-    }
-    getDirectedEdges() {
-        return this._dirEdgeList;
-    }
-    get interfaces_() {
-        return [
-            (0, _comparableJsDefault.default)
-        ];
-    }
-}
-exports.default = BufferSubgraph;
-
-},{"../../../../../java/util/HashSet.js":"a1U62","../../geomgraph/Position.js":"13raO","../../../../../java/util/Stack.js":"7AeBO","./RightmostEdgeFinder.js":"1uf1p","../../geom/TopologyException.js":"bOVA5","../../../../../java/util/LinkedList.js":"iokEz","../../../../../java/lang/Comparable.js":"WFeEu","../../../../../java/util/ArrayList.js":"gGAQZ","../../geom/Envelope.js":"h2zeM","@parcel/transformer-js/src/esmodule-helpers.js":"jnFvT"}],"7AeBO":[function(require,module,exports,__globalThis) {
-var parcelHelpers = require("@parcel/transformer-js/src/esmodule-helpers.js");
-parcelHelpers.defineInteropFlag(exports);
-var _emptyStackExceptionJs = require("./EmptyStackException.js");
-var _emptyStackExceptionJsDefault = parcelHelpers.interopDefault(_emptyStackExceptionJs);
-var _indexOutOfBoundsExceptionJs = require("../lang/IndexOutOfBoundsException.js");
-var _indexOutOfBoundsExceptionJsDefault = parcelHelpers.interopDefault(_indexOutOfBoundsExceptionJs);
-var _listJs = require("./List.js");
-var _listJsDefault = parcelHelpers.interopDefault(_listJs);
-class Stack extends (0, _listJsDefault.default) {
-    constructor(){
-        super();
-        this.array = [];
-    }
-    add(e) {
-        this.array.push(e);
-        return true;
-    }
-    get(index) {
-        if (index < 0 || index >= this.size()) throw new (0, _indexOutOfBoundsExceptionJsDefault.default)();
-        return this.array[index];
-    }
-    /**
-   * Pushes an item onto the top of this stack.
-   * @param {Object} e
-   * @return {Object}
-   */ push(e) {
-        this.array.push(e);
-        return e;
-    }
-    /**
-   * Removes the object at the top of this stack and returns that object as the value of this function.
-   * @return {Object}
-   */ pop() {
-        if (this.array.length === 0) throw new (0, _emptyStackExceptionJsDefault.default)();
-        return this.array.pop();
-    }
-    /**
-   * Looks at the object at the top of this stack without removing it from the
-   * stack.
-   * @return {Object}
-   */ peek() {
-        if (this.array.length === 0) throw new (0, _emptyStackExceptionJsDefault.default)();
-        return this.array[this.array.length - 1];
-    }
-    /**
-   * Tests if this stack is empty.
-   * @return {boolean} true if and only if this stack contains no items; false
-   *         otherwise.
-   */ empty() {
-        return this.array.length === 0;
-    }
-    /**
-   * @return {boolean}
-   */ isEmpty() {
-        return this.empty();
-    }
-    /**
-   * Returns the 1-based position where an object is on this stack. If the object
-   * o occurs as an item in this stack, this method returns the distance from the
-   * top of the stack of the occurrence nearest the top of the stack; the topmost
-   * item on the stack is considered to be at distance 1. The equals method is
-   * used to compare o to the items in this stack.
-   *
-   * NOTE: does not currently actually use equals. (=== is used)
-   *
-   * @param {Object} o
-   * @return {number} the 1-based position from the top of the stack where the
-   *         object is located; the return value -1 indicates that the object is
-   *         not on the stack.
-   */ search(o) {
-        return this.array.indexOf(o);
-    }
-    /**
-   * @return {number}
-   */ size() {
-        return this.array.length;
-    }
-    /**
-   * @return {Array}
-   */ toArray() {
-        return this.array.slice();
-    }
-}
-exports.default = Stack;
-
-},{"./EmptyStackException.js":"lzH4a","../lang/IndexOutOfBoundsException.js":"bQ4AR","./List.js":"7jAhK","@parcel/transformer-js/src/esmodule-helpers.js":"jnFvT"}],"lzH4a":[function(require,module,exports,__globalThis) {
-var parcelHelpers = require("@parcel/transformer-js/src/esmodule-helpers.js");
-parcelHelpers.defineInteropFlag(exports);
-var _exceptionJs = require("../lang/Exception.js");
-var _exceptionJsDefault = parcelHelpers.interopDefault(_exceptionJs);
-class EmptyStackException extends (0, _exceptionJsDefault.default) {
-    constructor(message){
-        super(message);
-        this.name = Object.keys({
-            EmptyStackException
-        })[0];
-    }
-}
-exports.default = EmptyStackException;
-
-},{"../lang/Exception.js":"8tbsL","@parcel/transformer-js/src/esmodule-helpers.js":"jnFvT"}],"1uf1p":[function(require,module,exports,__globalThis) {
-var parcelHelpers = require("@parcel/transformer-js/src/esmodule-helpers.js");
-parcelHelpers.defineInteropFlag(exports);
-var _positionJs = require("../../geomgraph/Position.js");
-var _positionJsDefault = parcelHelpers.interopDefault(_positionJs);
-var _orientationJs = require("../../algorithm/Orientation.js");
-var _orientationJsDefault = parcelHelpers.interopDefault(_orientationJs);
-var _assertJs = require("../../util/Assert.js");
-var _assertJsDefault = parcelHelpers.interopDefault(_assertJs);
-class RightmostEdgeFinder {
-    constructor(){
-        RightmostEdgeFinder.constructor_.apply(this, arguments);
-    }
-    static constructor_() {
-        this._minIndex = -1;
-        this._minCoord = null;
-        this._minDe = null;
-        this._orientedDe = null;
-    }
-    getCoordinate() {
-        return this._minCoord;
-    }
-    getRightmostSide(de, index) {
-        let side = this.getRightmostSideOfSegment(de, index);
-        if (side < 0) side = this.getRightmostSideOfSegment(de, index - 1);
-        if (side < 0) {
-            this._minCoord = null;
-            this.checkForRightmostCoordinate(de);
-        }
-        return side;
-    }
-    findRightmostEdgeAtVertex() {
-        const pts = this._minDe.getEdge().getCoordinates();
-        (0, _assertJsDefault.default).isTrue(this._minIndex > 0 && this._minIndex < pts.length, 'rightmost point expected to be interior vertex of edge');
-        const pPrev = pts[this._minIndex - 1];
-        const pNext = pts[this._minIndex + 1];
-        const orientation = (0, _orientationJsDefault.default).index(this._minCoord, pNext, pPrev);
-        let usePrev = false;
-        if (pPrev.y < this._minCoord.y && pNext.y < this._minCoord.y && orientation === (0, _orientationJsDefault.default).COUNTERCLOCKWISE) usePrev = true;
-        else if (pPrev.y > this._minCoord.y && pNext.y > this._minCoord.y && orientation === (0, _orientationJsDefault.default).CLOCKWISE) usePrev = true;
-        if (usePrev) this._minIndex = this._minIndex - 1;
-    }
-    getRightmostSideOfSegment(de, i) {
-        const e = de.getEdge();
-        const coord = e.getCoordinates();
-        if (i < 0 || i + 1 >= coord.length) return -1;
-        if (coord[i].y === coord[i + 1].y) return -1;
-        let pos = (0, _positionJsDefault.default).LEFT;
-        if (coord[i].y < coord[i + 1].y) pos = (0, _positionJsDefault.default).RIGHT;
-        return pos;
-    }
-    getEdge() {
-        return this._orientedDe;
-    }
-    checkForRightmostCoordinate(de) {
-        const coord = de.getEdge().getCoordinates();
-        for(let i = 0; i < coord.length - 1; i++)if (this._minCoord === null || coord[i].x > this._minCoord.x) {
-            this._minDe = de;
-            this._minIndex = i;
-            this._minCoord = coord[i];
-        }
-    }
-    findRightmostEdgeAtNode() {
-        const node = this._minDe.getNode();
-        const star = node.getEdges();
-        this._minDe = star.getRightmostEdge();
-        if (!this._minDe.isForward()) {
-            this._minDe = this._minDe.getSym();
-            this._minIndex = this._minDe.getEdge().getCoordinates().length - 1;
-        }
-    }
-    findEdge(dirEdgeList) {
-        for(let i = dirEdgeList.iterator(); i.hasNext();){
-            const de = i.next();
-            if (!de.isForward()) continue;
-            this.checkForRightmostCoordinate(de);
-        }
-        (0, _assertJsDefault.default).isTrue(this._minIndex !== 0 || this._minCoord.equals(this._minDe.getCoordinate()), 'inconsistency in rightmost processing');
-        if (this._minIndex === 0) this.findRightmostEdgeAtNode();
-        else this.findRightmostEdgeAtVertex();
-        this._orientedDe = this._minDe;
-        const rightmostSide = this.getRightmostSide(this._minDe, this._minIndex);
-        if (rightmostSide === (0, _positionJsDefault.default).LEFT) this._orientedDe = this._minDe.getSym();
-    }
-}
-exports.default = RightmostEdgeFinder;
-
-},{"../../geomgraph/Position.js":"13raO","../../algorithm/Orientation.js":"avl08","../../util/Assert.js":"1vSRy","@parcel/transformer-js/src/esmodule-helpers.js":"jnFvT"}],"iokEz":[function(require,module,exports,__globalThis) {
-var parcelHelpers = require("@parcel/transformer-js/src/esmodule-helpers.js");
-parcelHelpers.defineInteropFlag(exports);
-class LinkedList {
-    constructor(){
-        this.array = [];
-    }
-    addLast(e) {
-        this.array.push(e);
-    }
-    removeFirst() {
-        return this.array.shift();
-    }
-    isEmpty() {
-        return this.array.length === 0;
-    }
-}
-exports.default = LinkedList;
-
-},{"@parcel/transformer-js/src/esmodule-helpers.js":"jnFvT"}],"aBCRI":[function(require,module,exports,__globalThis) {
-var parcelHelpers = require("@parcel/transformer-js/src/esmodule-helpers.js");
-parcelHelpers.defineInteropFlag(exports);
-var _bufferParametersJs = require("./BufferParameters.js");
-var _bufferParametersJsDefault = parcelHelpers.interopDefault(_bufferParametersJs);
-var _positionJs = require("../../geomgraph/Position.js");
-var _positionJsDefault = parcelHelpers.interopDefault(_positionJs);
-var _coordinateJs = require("../../geom/Coordinate.js");
-var _coordinateJsDefault = parcelHelpers.interopDefault(_coordinateJs);
-var _bufferInputLineSimplifierJs = require("./BufferInputLineSimplifier.js");
-var _bufferInputLineSimplifierJsDefault = parcelHelpers.interopDefault(_bufferInputLineSimplifierJs);
-var _coordinateArraysJs = require("../../geom/CoordinateArrays.js");
-var _coordinateArraysJsDefault = parcelHelpers.interopDefault(_coordinateArraysJs);
-var _offsetSegmentGeneratorJs = require("./OffsetSegmentGenerator.js");
-var _offsetSegmentGeneratorJsDefault = parcelHelpers.interopDefault(_offsetSegmentGeneratorJs);
-class OffsetCurveBuilder {
-    constructor(){
-        OffsetCurveBuilder.constructor_.apply(this, arguments);
-    }
-    static constructor_() {
-        this._distance = 0.0;
-        this._precisionModel = null;
-        this._bufParams = null;
-        const precisionModel = arguments[0], bufParams = arguments[1];
-        this._precisionModel = precisionModel;
-        this._bufParams = bufParams;
-    }
-    static copyCoordinates(pts) {
-        const copy = new Array(pts.length).fill(null);
-        for(let i = 0; i < copy.length; i++)copy[i] = new (0, _coordinateJsDefault.default)(pts[i]);
-        return copy;
-    }
-    getOffsetCurve(inputPts, distance) {
-        this._distance = distance;
-        if (distance === 0.0) return null;
-        const isRightSide = distance < 0.0;
-        const posDistance = Math.abs(distance);
-        const segGen = this.getSegGen(posDistance);
-        if (inputPts.length <= 1) this.computePointCurve(inputPts[0], segGen);
-        else this.computeOffsetCurve(inputPts, isRightSide, segGen);
-        const curvePts = segGen.getCoordinates();
-        if (isRightSide) (0, _coordinateArraysJsDefault.default).reverse(curvePts);
-        return curvePts;
-    }
-    computeSingleSidedBufferCurve(inputPts, isRightSide, segGen) {
-        const distTol = this.simplifyTolerance(this._distance);
-        if (isRightSide) {
-            segGen.addSegments(inputPts, true);
-            const simp2 = (0, _bufferInputLineSimplifierJsDefault.default).simplify(inputPts, -distTol);
-            const n2 = simp2.length - 1;
-            segGen.initSideSegments(simp2[n2], simp2[n2 - 1], (0, _positionJsDefault.default).LEFT);
-            segGen.addFirstSegment();
-            for(let i = n2 - 2; i >= 0; i--)segGen.addNextSegment(simp2[i], true);
-        } else {
-            segGen.addSegments(inputPts, false);
-            const simp1 = (0, _bufferInputLineSimplifierJsDefault.default).simplify(inputPts, distTol);
-            const n1 = simp1.length - 1;
-            segGen.initSideSegments(simp1[0], simp1[1], (0, _positionJsDefault.default).LEFT);
-            segGen.addFirstSegment();
-            for(let i = 2; i <= n1; i++)segGen.addNextSegment(simp1[i], true);
-        }
-        segGen.addLastSegment();
-        segGen.closeRing();
-    }
-    computeRingBufferCurve(inputPts, side, segGen) {
-        let distTol = this.simplifyTolerance(this._distance);
-        if (side === (0, _positionJsDefault.default).RIGHT) distTol = -distTol;
-        const simp = (0, _bufferInputLineSimplifierJsDefault.default).simplify(inputPts, distTol);
-        const n = simp.length - 1;
-        segGen.initSideSegments(simp[n - 1], simp[0], side);
-        for(let i = 1; i <= n; i++){
-            const addStartPoint = i !== 1;
-            segGen.addNextSegment(simp[i], addStartPoint);
-        }
-        segGen.closeRing();
-    }
-    computeLineBufferCurve(inputPts, segGen) {
-        const distTol = this.simplifyTolerance(this._distance);
-        const simp1 = (0, _bufferInputLineSimplifierJsDefault.default).simplify(inputPts, distTol);
-        const n1 = simp1.length - 1;
-        segGen.initSideSegments(simp1[0], simp1[1], (0, _positionJsDefault.default).LEFT);
-        for(let i = 2; i <= n1; i++)segGen.addNextSegment(simp1[i], true);
-        segGen.addLastSegment();
-        segGen.addLineEndCap(simp1[n1 - 1], simp1[n1]);
-        const simp2 = (0, _bufferInputLineSimplifierJsDefault.default).simplify(inputPts, -distTol);
-        const n2 = simp2.length - 1;
-        segGen.initSideSegments(simp2[n2], simp2[n2 - 1], (0, _positionJsDefault.default).LEFT);
-        for(let i = n2 - 2; i >= 0; i--)segGen.addNextSegment(simp2[i], true);
-        segGen.addLastSegment();
-        segGen.addLineEndCap(simp2[1], simp2[0]);
-        segGen.closeRing();
-    }
-    computePointCurve(pt, segGen) {
-        switch(this._bufParams.getEndCapStyle()){
-            case (0, _bufferParametersJsDefault.default).CAP_ROUND:
-                segGen.createCircle(pt);
-                break;
-            case (0, _bufferParametersJsDefault.default).CAP_SQUARE:
-                segGen.createSquare(pt);
-                break;
-        }
-    }
-    getLineCurve(inputPts, distance) {
-        this._distance = distance;
-        if (this.isLineOffsetEmpty(distance)) return null;
-        const posDistance = Math.abs(distance);
-        const segGen = this.getSegGen(posDistance);
-        if (inputPts.length <= 1) this.computePointCurve(inputPts[0], segGen);
-        else if (this._bufParams.isSingleSided()) {
-            const isRightSide = distance < 0.0;
-            this.computeSingleSidedBufferCurve(inputPts, isRightSide, segGen);
-        } else this.computeLineBufferCurve(inputPts, segGen);
-        const lineCoord = segGen.getCoordinates();
-        return lineCoord;
-    }
-    getBufferParameters() {
-        return this._bufParams;
-    }
-    simplifyTolerance(bufDistance) {
-        return bufDistance * this._bufParams.getSimplifyFactor();
-    }
-    getRingCurve(inputPts, side, distance) {
-        this._distance = distance;
-        if (inputPts.length <= 2) return this.getLineCurve(inputPts, distance);
-        if (distance === 0.0) return OffsetCurveBuilder.copyCoordinates(inputPts);
-        const segGen = this.getSegGen(distance);
-        this.computeRingBufferCurve(inputPts, side, segGen);
-        return segGen.getCoordinates();
-    }
-    computeOffsetCurve(inputPts, isRightSide, segGen) {
-        const distTol = this.simplifyTolerance(this._distance);
-        if (isRightSide) {
-            const simp2 = (0, _bufferInputLineSimplifierJsDefault.default).simplify(inputPts, -distTol);
-            const n2 = simp2.length - 1;
-            segGen.initSideSegments(simp2[n2], simp2[n2 - 1], (0, _positionJsDefault.default).LEFT);
-            segGen.addFirstSegment();
-            for(let i = n2 - 2; i >= 0; i--)segGen.addNextSegment(simp2[i], true);
-        } else {
-            const simp1 = (0, _bufferInputLineSimplifierJsDefault.default).simplify(inputPts, distTol);
-            const n1 = simp1.length - 1;
-            segGen.initSideSegments(simp1[0], simp1[1], (0, _positionJsDefault.default).LEFT);
-            segGen.addFirstSegment();
-            for(let i = 2; i <= n1; i++)segGen.addNextSegment(simp1[i], true);
-        }
-        segGen.addLastSegment();
-    }
-    isLineOffsetEmpty(distance) {
-        if (distance === 0.0) return true;
-        if (distance < 0.0 && !this._bufParams.isSingleSided()) return true;
-        return false;
-    }
-    getSegGen(distance) {
-        return new (0, _offsetSegmentGeneratorJsDefault.default)(this._precisionModel, this._bufParams, distance);
-    }
-}
-exports.default = OffsetCurveBuilder;
-
-},{"./BufferParameters.js":"idesX","../../geomgraph/Position.js":"13raO","../../geom/Coordinate.js":"ii2fh","./BufferInputLineSimplifier.js":"3wzkz","../../geom/CoordinateArrays.js":"lncg4","./OffsetSegmentGenerator.js":"dVlaz","@parcel/transformer-js/src/esmodule-helpers.js":"jnFvT"}],"3wzkz":[function(require,module,exports,__globalThis) {
-var parcelHelpers = require("@parcel/transformer-js/src/esmodule-helpers.js");
-parcelHelpers.defineInteropFlag(exports);
-var _coordinateListJs = require("../../geom/CoordinateList.js");
-var _coordinateListJsDefault = parcelHelpers.interopDefault(_coordinateListJs);
-var _orientationJs = require("../../algorithm/Orientation.js");
-var _orientationJsDefault = parcelHelpers.interopDefault(_orientationJs);
-var _distanceJs = require("../../algorithm/Distance.js");
-var _distanceJsDefault = parcelHelpers.interopDefault(_distanceJs);
-class BufferInputLineSimplifier {
-    constructor(){
-        BufferInputLineSimplifier.constructor_.apply(this, arguments);
-    }
-    static constructor_() {
-        this._inputLine = null;
-        this._distanceTol = null;
-        this._isDeleted = null;
-        this._angleOrientation = (0, _orientationJsDefault.default).COUNTERCLOCKWISE;
-        const inputLine = arguments[0];
-        this._inputLine = inputLine;
-    }
-    static simplify(inputLine, distanceTol) {
-        const simp = new BufferInputLineSimplifier(inputLine);
-        return simp.simplify(distanceTol);
-    }
-    isDeletable(i0, i1, i2, distanceTol) {
-        const p0 = this._inputLine[i0];
-        const p1 = this._inputLine[i1];
-        const p2 = this._inputLine[i2];
-        if (!this.isConcave(p0, p1, p2)) return false;
-        if (!this.isShallow(p0, p1, p2, distanceTol)) return false;
-        return this.isShallowSampled(p0, p1, i0, i2, distanceTol);
-    }
-    deleteShallowConcavities() {
-        let index = 1;
-        let midIndex = this.findNextNonDeletedIndex(index);
-        let lastIndex = this.findNextNonDeletedIndex(midIndex);
-        let isChanged = false;
-        while(lastIndex < this._inputLine.length){
-            let isMiddleVertexDeleted = false;
-            if (this.isDeletable(index, midIndex, lastIndex, this._distanceTol)) {
-                this._isDeleted[midIndex] = BufferInputLineSimplifier.DELETE;
-                isMiddleVertexDeleted = true;
-                isChanged = true;
-            }
-            if (isMiddleVertexDeleted) index = lastIndex;
-            else index = midIndex;
-            midIndex = this.findNextNonDeletedIndex(index);
-            lastIndex = this.findNextNonDeletedIndex(midIndex);
-        }
-        return isChanged;
-    }
-    isShallowConcavity(p0, p1, p2, distanceTol) {
-        const orientation = (0, _orientationJsDefault.default).index(p0, p1, p2);
-        const isAngleToSimplify = orientation === this._angleOrientation;
-        if (!isAngleToSimplify) return false;
-        const dist = (0, _distanceJsDefault.default).pointToSegment(p1, p0, p2);
-        return dist < distanceTol;
-    }
-    isShallowSampled(p0, p2, i0, i2, distanceTol) {
-        let inc = Math.trunc((i2 - i0) / BufferInputLineSimplifier.NUM_PTS_TO_CHECK);
-        if (inc <= 0) inc = 1;
-        for(let i = i0; i < i2; i += inc)if (!this.isShallow(p0, p2, this._inputLine[i], distanceTol)) return false;
-        return true;
-    }
-    isConcave(p0, p1, p2) {
-        const orientation = (0, _orientationJsDefault.default).index(p0, p1, p2);
-        const isConcave = orientation === this._angleOrientation;
-        return isConcave;
-    }
-    simplify(distanceTol) {
-        this._distanceTol = Math.abs(distanceTol);
-        if (distanceTol < 0) this._angleOrientation = (0, _orientationJsDefault.default).CLOCKWISE;
-        this._isDeleted = new Array(this._inputLine.length).fill(null);
-        let isChanged = false;
-        do isChanged = this.deleteShallowConcavities();
-        while (isChanged);
-        return this.collapseLine();
-    }
-    findNextNonDeletedIndex(index) {
-        let next = index + 1;
-        while(next < this._inputLine.length && this._isDeleted[next] === BufferInputLineSimplifier.DELETE)next++;
-        return next;
-    }
-    isShallow(p0, p1, p2, distanceTol) {
-        const dist = (0, _distanceJsDefault.default).pointToSegment(p1, p0, p2);
-        return dist < distanceTol;
-    }
-    collapseLine() {
-        const coordList = new (0, _coordinateListJsDefault.default)();
-        for(let i = 0; i < this._inputLine.length; i++)if (this._isDeleted[i] !== BufferInputLineSimplifier.DELETE) coordList.add(this._inputLine[i]);
-        return coordList.toCoordinateArray();
-    }
-}
-exports.default = BufferInputLineSimplifier;
-BufferInputLineSimplifier.INIT = 0;
-BufferInputLineSimplifier.DELETE = 1;
-BufferInputLineSimplifier.KEEP = 1;
-BufferInputLineSimplifier.NUM_PTS_TO_CHECK = 10;
-
-},{"../../geom/CoordinateList.js":"ibs54","../../algorithm/Orientation.js":"avl08","../../algorithm/Distance.js":"4ZaWr","@parcel/transformer-js/src/esmodule-helpers.js":"jnFvT"}],"dVlaz":[function(require,module,exports,__globalThis) {
-var parcelHelpers = require("@parcel/transformer-js/src/esmodule-helpers.js");
-parcelHelpers.defineInteropFlag(exports);
-var _bufferParametersJs = require("./BufferParameters.js");
-var _bufferParametersJsDefault = parcelHelpers.interopDefault(_bufferParametersJs);
-var _positionJs = require("../../geomgraph/Position.js");
-var _positionJsDefault = parcelHelpers.interopDefault(_positionJs);
-var _coordinateJs = require("../../geom/Coordinate.js");
-var _coordinateJsDefault = parcelHelpers.interopDefault(_coordinateJs);
-var _lineSegmentJs = require("../../geom/LineSegment.js");
-var _lineSegmentJsDefault = parcelHelpers.interopDefault(_lineSegmentJs);
-var _offsetSegmentStringJs = require("./OffsetSegmentString.js");
-var _offsetSegmentStringJsDefault = parcelHelpers.interopDefault(_offsetSegmentStringJs);
-var _orientationJs = require("../../algorithm/Orientation.js");
-var _orientationJsDefault = parcelHelpers.interopDefault(_orientationJs);
-var _intersectionJs = require("../../algorithm/Intersection.js");
-var _intersectionJsDefault = parcelHelpers.interopDefault(_intersectionJs);
-var _angleJs = require("../../algorithm/Angle.js");
-var _angleJsDefault = parcelHelpers.interopDefault(_angleJs);
-var _robustLineIntersectorJs = require("../../algorithm/RobustLineIntersector.js");
-var _robustLineIntersectorJsDefault = parcelHelpers.interopDefault(_robustLineIntersectorJs);
-class OffsetSegmentGenerator {
-    constructor(){
-        OffsetSegmentGenerator.constructor_.apply(this, arguments);
-    }
-    static constructor_() {
-        this._maxCurveSegmentError = 0.0;
-        this._filletAngleQuantum = null;
-        this._closingSegLengthFactor = 1;
-        this._segList = null;
-        this._distance = 0.0;
-        this._precisionModel = null;
-        this._bufParams = null;
-        this._li = null;
-        this._s0 = null;
-        this._s1 = null;
-        this._s2 = null;
-        this._seg0 = new (0, _lineSegmentJsDefault.default)();
-        this._seg1 = new (0, _lineSegmentJsDefault.default)();
-        this._offset0 = new (0, _lineSegmentJsDefault.default)();
-        this._offset1 = new (0, _lineSegmentJsDefault.default)();
-        this._side = 0;
-        this._hasNarrowConcaveAngle = false;
-        const precisionModel = arguments[0], bufParams = arguments[1], distance = arguments[2];
-        this._precisionModel = precisionModel;
-        this._bufParams = bufParams;
-        this._li = new (0, _robustLineIntersectorJsDefault.default)();
-        this._filletAngleQuantum = Math.PI / 2.0 / bufParams.getQuadrantSegments();
-        if (bufParams.getQuadrantSegments() >= 8 && bufParams.getJoinStyle() === (0, _bufferParametersJsDefault.default).JOIN_ROUND) this._closingSegLengthFactor = OffsetSegmentGenerator.MAX_CLOSING_SEG_LEN_FACTOR;
-        this.init(distance);
-    }
-    getCoordinates() {
-        const pts = this._segList.getCoordinates();
-        return pts;
-    }
-    addMitreJoin(p, offset0, offset1, distance) {
-        const intPt = (0, _intersectionJsDefault.default).intersection(offset0.p0, offset0.p1, offset1.p0, offset1.p1);
-        if (intPt !== null) {
-            const mitreRatio = distance <= 0.0 ? 1.0 : intPt.distance(p) / Math.abs(distance);
-            if (mitreRatio <= this._bufParams.getMitreLimit()) {
-                this._segList.addPt(intPt);
-                return null;
-            }
-        }
-        this.addLimitedMitreJoin(offset0, offset1, distance, this._bufParams.getMitreLimit());
-    }
-    addLastSegment() {
-        this._segList.addPt(this._offset1.p1);
-    }
-    initSideSegments(s1, s2, side) {
-        this._s1 = s1;
-        this._s2 = s2;
-        this._side = side;
-        this._seg1.setCoordinates(s1, s2);
-        this.computeOffsetSegment(this._seg1, side, this._distance, this._offset1);
-    }
-    addLimitedMitreJoin(offset0, offset1, distance, mitreLimit) {
-        const basePt = this._seg0.p1;
-        const ang0 = (0, _angleJsDefault.default).angle(basePt, this._seg0.p0);
-        const angDiff = (0, _angleJsDefault.default).angleBetweenOriented(this._seg0.p0, basePt, this._seg1.p1);
-        const angDiffHalf = angDiff / 2;
-        const midAng = (0, _angleJsDefault.default).normalize(ang0 + angDiffHalf);
-        const mitreMidAng = (0, _angleJsDefault.default).normalize(midAng + Math.PI);
-        const mitreDist = mitreLimit * distance;
-        const bevelDelta = mitreDist * Math.abs(Math.sin(angDiffHalf));
-        const bevelHalfLen = distance - bevelDelta;
-        const bevelMidX = basePt.x + mitreDist * Math.cos(mitreMidAng);
-        const bevelMidY = basePt.y + mitreDist * Math.sin(mitreMidAng);
-        const bevelMidPt = new (0, _coordinateJsDefault.default)(bevelMidX, bevelMidY);
-        const mitreMidLine = new (0, _lineSegmentJsDefault.default)(basePt, bevelMidPt);
-        const bevelEndLeft = mitreMidLine.pointAlongOffset(1.0, bevelHalfLen);
-        const bevelEndRight = mitreMidLine.pointAlongOffset(1.0, -bevelHalfLen);
-        if (this._side === (0, _positionJsDefault.default).LEFT) {
-            this._segList.addPt(bevelEndLeft);
-            this._segList.addPt(bevelEndRight);
-        } else {
-            this._segList.addPt(bevelEndRight);
-            this._segList.addPt(bevelEndLeft);
-        }
-    }
-    addDirectedFillet(p, startAngle, endAngle, direction, radius) {
-        const directionFactor = direction === (0, _orientationJsDefault.default).CLOCKWISE ? -1 : 1;
-        const totalAngle = Math.abs(startAngle - endAngle);
-        const nSegs = Math.trunc(totalAngle / this._filletAngleQuantum + 0.5);
-        if (nSegs < 1) return null;
-        const angleInc = totalAngle / nSegs;
-        const pt = new (0, _coordinateJsDefault.default)();
-        for(let i = 0; i < nSegs; i++){
-            const angle = startAngle + directionFactor * i * angleInc;
-            pt.x = p.x + radius * Math.cos(angle);
-            pt.y = p.y + radius * Math.sin(angle);
-            this._segList.addPt(pt);
-        }
-    }
-    computeOffsetSegment(seg, side, distance, offset) {
-        const sideSign = side === (0, _positionJsDefault.default).LEFT ? 1 : -1;
-        const dx = seg.p1.x - seg.p0.x;
-        const dy = seg.p1.y - seg.p0.y;
-        const len = Math.sqrt(dx * dx + dy * dy);
-        const ux = sideSign * distance * dx / len;
-        const uy = sideSign * distance * dy / len;
-        offset.p0.x = seg.p0.x - uy;
-        offset.p0.y = seg.p0.y + ux;
-        offset.p1.x = seg.p1.x - uy;
-        offset.p1.y = seg.p1.y + ux;
-    }
-    addInsideTurn(orientation, addStartPoint) {
-        this._li.computeIntersection(this._offset0.p0, this._offset0.p1, this._offset1.p0, this._offset1.p1);
-        if (this._li.hasIntersection()) this._segList.addPt(this._li.getIntersection(0));
-        else {
-            this._hasNarrowConcaveAngle = true;
-            if (this._offset0.p1.distance(this._offset1.p0) < this._distance * OffsetSegmentGenerator.INSIDE_TURN_VERTEX_SNAP_DISTANCE_FACTOR) this._segList.addPt(this._offset0.p1);
-            else {
-                this._segList.addPt(this._offset0.p1);
-                if (this._closingSegLengthFactor > 0) {
-                    const mid0 = new (0, _coordinateJsDefault.default)((this._closingSegLengthFactor * this._offset0.p1.x + this._s1.x) / (this._closingSegLengthFactor + 1), (this._closingSegLengthFactor * this._offset0.p1.y + this._s1.y) / (this._closingSegLengthFactor + 1));
-                    this._segList.addPt(mid0);
-                    const mid1 = new (0, _coordinateJsDefault.default)((this._closingSegLengthFactor * this._offset1.p0.x + this._s1.x) / (this._closingSegLengthFactor + 1), (this._closingSegLengthFactor * this._offset1.p0.y + this._s1.y) / (this._closingSegLengthFactor + 1));
-                    this._segList.addPt(mid1);
-                } else this._segList.addPt(this._s1);
-                this._segList.addPt(this._offset1.p0);
-            }
-        }
-    }
-    createCircle(p) {
-        const pt = new (0, _coordinateJsDefault.default)(p.x + this._distance, p.y);
-        this._segList.addPt(pt);
-        this.addDirectedFillet(p, 0.0, 2.0 * Math.PI, -1, this._distance);
-        this._segList.closeRing();
-    }
-    addBevelJoin(offset0, offset1) {
-        this._segList.addPt(offset0.p1);
-        this._segList.addPt(offset1.p0);
-    }
-    init(distance) {
-        this._distance = distance;
-        this._maxCurveSegmentError = distance * (1 - Math.cos(this._filletAngleQuantum / 2.0));
-        this._segList = new (0, _offsetSegmentStringJsDefault.default)();
-        this._segList.setPrecisionModel(this._precisionModel);
-        this._segList.setMinimumVertexDistance(distance * OffsetSegmentGenerator.CURVE_VERTEX_SNAP_DISTANCE_FACTOR);
-    }
-    addCollinear(addStartPoint) {
-        this._li.computeIntersection(this._s0, this._s1, this._s1, this._s2);
-        const numInt = this._li.getIntersectionNum();
-        if (numInt >= 2) {
-            if (this._bufParams.getJoinStyle() === (0, _bufferParametersJsDefault.default).JOIN_BEVEL || this._bufParams.getJoinStyle() === (0, _bufferParametersJsDefault.default).JOIN_MITRE) {
-                if (addStartPoint) this._segList.addPt(this._offset0.p1);
-                this._segList.addPt(this._offset1.p0);
-            } else this.addCornerFillet(this._s1, this._offset0.p1, this._offset1.p0, (0, _orientationJsDefault.default).CLOCKWISE, this._distance);
-        }
-    }
-    addNextSegment(p, addStartPoint) {
-        this._s0 = this._s1;
-        this._s1 = this._s2;
-        this._s2 = p;
-        this._seg0.setCoordinates(this._s0, this._s1);
-        this.computeOffsetSegment(this._seg0, this._side, this._distance, this._offset0);
-        this._seg1.setCoordinates(this._s1, this._s2);
-        this.computeOffsetSegment(this._seg1, this._side, this._distance, this._offset1);
-        if (this._s1.equals(this._s2)) return null;
-        const orientation = (0, _orientationJsDefault.default).index(this._s0, this._s1, this._s2);
-        const outsideTurn = orientation === (0, _orientationJsDefault.default).CLOCKWISE && this._side === (0, _positionJsDefault.default).LEFT || orientation === (0, _orientationJsDefault.default).COUNTERCLOCKWISE && this._side === (0, _positionJsDefault.default).RIGHT;
-        if (orientation === 0) this.addCollinear(addStartPoint);
-        else if (outsideTurn) this.addOutsideTurn(orientation, addStartPoint);
-        else this.addInsideTurn(orientation, addStartPoint);
-    }
-    addLineEndCap(p0, p1) {
-        const seg = new (0, _lineSegmentJsDefault.default)(p0, p1);
-        const offsetL = new (0, _lineSegmentJsDefault.default)();
-        this.computeOffsetSegment(seg, (0, _positionJsDefault.default).LEFT, this._distance, offsetL);
-        const offsetR = new (0, _lineSegmentJsDefault.default)();
-        this.computeOffsetSegment(seg, (0, _positionJsDefault.default).RIGHT, this._distance, offsetR);
-        const dx = p1.x - p0.x;
-        const dy = p1.y - p0.y;
-        const angle = Math.atan2(dy, dx);
-        switch(this._bufParams.getEndCapStyle()){
-            case (0, _bufferParametersJsDefault.default).CAP_ROUND:
-                this._segList.addPt(offsetL.p1);
-                this.addDirectedFillet(p1, angle + Math.PI / 2, angle - Math.PI / 2, (0, _orientationJsDefault.default).CLOCKWISE, this._distance);
-                this._segList.addPt(offsetR.p1);
-                break;
-            case (0, _bufferParametersJsDefault.default).CAP_FLAT:
-                this._segList.addPt(offsetL.p1);
-                this._segList.addPt(offsetR.p1);
-                break;
-            case (0, _bufferParametersJsDefault.default).CAP_SQUARE:
-                const squareCapSideOffset = new (0, _coordinateJsDefault.default)();
-                squareCapSideOffset.x = Math.abs(this._distance) * Math.cos(angle);
-                squareCapSideOffset.y = Math.abs(this._distance) * Math.sin(angle);
-                const squareCapLOffset = new (0, _coordinateJsDefault.default)(offsetL.p1.x + squareCapSideOffset.x, offsetL.p1.y + squareCapSideOffset.y);
-                const squareCapROffset = new (0, _coordinateJsDefault.default)(offsetR.p1.x + squareCapSideOffset.x, offsetR.p1.y + squareCapSideOffset.y);
-                this._segList.addPt(squareCapLOffset);
-                this._segList.addPt(squareCapROffset);
-                break;
-        }
-    }
-    addOutsideTurn(orientation, addStartPoint) {
-        if (this._offset0.p1.distance(this._offset1.p0) < this._distance * OffsetSegmentGenerator.OFFSET_SEGMENT_SEPARATION_FACTOR) {
-            this._segList.addPt(this._offset0.p1);
-            return null;
-        }
-        if (this._bufParams.getJoinStyle() === (0, _bufferParametersJsDefault.default).JOIN_MITRE) this.addMitreJoin(this._s1, this._offset0, this._offset1, this._distance);
-        else if (this._bufParams.getJoinStyle() === (0, _bufferParametersJsDefault.default).JOIN_BEVEL) this.addBevelJoin(this._offset0, this._offset1);
-        else {
-            if (addStartPoint) this._segList.addPt(this._offset0.p1);
-            this.addCornerFillet(this._s1, this._offset0.p1, this._offset1.p0, orientation, this._distance);
-            this._segList.addPt(this._offset1.p0);
-        }
-    }
-    createSquare(p) {
-        this._segList.addPt(new (0, _coordinateJsDefault.default)(p.x + this._distance, p.y + this._distance));
-        this._segList.addPt(new (0, _coordinateJsDefault.default)(p.x + this._distance, p.y - this._distance));
-        this._segList.addPt(new (0, _coordinateJsDefault.default)(p.x - this._distance, p.y - this._distance));
-        this._segList.addPt(new (0, _coordinateJsDefault.default)(p.x - this._distance, p.y + this._distance));
-        this._segList.closeRing();
-    }
-    addSegments(pt, isForward) {
-        this._segList.addPts(pt, isForward);
-    }
-    addFirstSegment() {
-        this._segList.addPt(this._offset1.p0);
-    }
-    addCornerFillet(p, p0, p1, direction, radius) {
-        const dx0 = p0.x - p.x;
-        const dy0 = p0.y - p.y;
-        let startAngle = Math.atan2(dy0, dx0);
-        const dx1 = p1.x - p.x;
-        const dy1 = p1.y - p.y;
-        const endAngle = Math.atan2(dy1, dx1);
-        if (direction === (0, _orientationJsDefault.default).CLOCKWISE) {
-            if (startAngle <= endAngle) startAngle += 2.0 * Math.PI;
-        } else if (startAngle >= endAngle) startAngle -= 2.0 * Math.PI;
-        this._segList.addPt(p0);
-        this.addDirectedFillet(p, startAngle, endAngle, direction, radius);
-        this._segList.addPt(p1);
-    }
-    closeRing() {
-        this._segList.closeRing();
-    }
-    hasNarrowConcaveAngle() {
-        return this._hasNarrowConcaveAngle;
-    }
-}
-exports.default = OffsetSegmentGenerator;
-OffsetSegmentGenerator.OFFSET_SEGMENT_SEPARATION_FACTOR = 1.0E-3;
-OffsetSegmentGenerator.INSIDE_TURN_VERTEX_SNAP_DISTANCE_FACTOR = 1.0E-3;
-OffsetSegmentGenerator.CURVE_VERTEX_SNAP_DISTANCE_FACTOR = 1.0E-6;
-OffsetSegmentGenerator.MAX_CLOSING_SEG_LEN_FACTOR = 80;
-
-},{"./BufferParameters.js":"idesX","../../geomgraph/Position.js":"13raO","../../geom/Coordinate.js":"ii2fh","../../geom/LineSegment.js":"8Ncbv","./OffsetSegmentString.js":"dQ6jS","../../algorithm/Orientation.js":"avl08","../../algorithm/Intersection.js":"bynFG","../../algorithm/Angle.js":"61NBK","../../algorithm/RobustLineIntersector.js":"kLdG9","@parcel/transformer-js/src/esmodule-helpers.js":"jnFvT"}],"dQ6jS":[function(require,module,exports,__globalThis) {
-var parcelHelpers = require("@parcel/transformer-js/src/esmodule-helpers.js");
-parcelHelpers.defineInteropFlag(exports);
-var _geometryFactoryJs = require("../../geom/GeometryFactory.js");
-var _geometryFactoryJsDefault = parcelHelpers.interopDefault(_geometryFactoryJs);
-var _coordinateJs = require("../../geom/Coordinate.js");
-var _coordinateJsDefault = parcelHelpers.interopDefault(_coordinateJs);
-var _arrayListJs = require("../../../../../java/util/ArrayList.js");
-var _arrayListJsDefault = parcelHelpers.interopDefault(_arrayListJs);
-class OffsetSegmentString {
-    constructor(){
-        OffsetSegmentString.constructor_.apply(this, arguments);
-    }
-    static constructor_() {
-        this._ptList = null;
-        this._precisionModel = null;
-        this._minimimVertexDistance = 0.0;
-        this._ptList = new (0, _arrayListJsDefault.default)();
-    }
-    getCoordinates() {
-        const coord = this._ptList.toArray(OffsetSegmentString.COORDINATE_ARRAY_TYPE);
-        return coord;
-    }
-    setPrecisionModel(precisionModel) {
-        this._precisionModel = precisionModel;
-    }
-    addPt(pt) {
-        const bufPt = new (0, _coordinateJsDefault.default)(pt);
-        this._precisionModel.makePrecise(bufPt);
-        if (this.isRedundant(bufPt)) return null;
-        this._ptList.add(bufPt);
-    }
-    reverse() {}
-    addPts(pt, isForward) {
-        if (isForward) for(let i = 0; i < pt.length; i++)this.addPt(pt[i]);
-        else for(let i = pt.length - 1; i >= 0; i--)this.addPt(pt[i]);
-    }
-    isRedundant(pt) {
-        if (this._ptList.size() < 1) return false;
-        const lastPt = this._ptList.get(this._ptList.size() - 1);
-        const ptDist = pt.distance(lastPt);
-        if (ptDist < this._minimimVertexDistance) return true;
-        return false;
-    }
-    toString() {
-        const fact = new (0, _geometryFactoryJsDefault.default)();
-        const line = fact.createLineString(this.getCoordinates());
-        return line.toString();
-    }
-    closeRing() {
-        if (this._ptList.size() < 1) return null;
-        const startPt = new (0, _coordinateJsDefault.default)(this._ptList.get(0));
-        const lastPt = this._ptList.get(this._ptList.size() - 1);
-        if (startPt.equals(lastPt)) return null;
-        this._ptList.add(startPt);
-    }
-    setMinimumVertexDistance(minimimVertexDistance) {
-        this._minimimVertexDistance = minimimVertexDistance;
-    }
-}
-exports.default = OffsetSegmentString;
-OffsetSegmentString.COORDINATE_ARRAY_TYPE = new Array(0).fill(null);
-
-},{"../../geom/GeometryFactory.js":"cGt0T","../../geom/Coordinate.js":"ii2fh","../../../../../java/util/ArrayList.js":"gGAQZ","@parcel/transformer-js/src/esmodule-helpers.js":"jnFvT"}],"61NBK":[function(require,module,exports,__globalThis) {
-var parcelHelpers = require("@parcel/transformer-js/src/esmodule-helpers.js");
-parcelHelpers.defineInteropFlag(exports);
-var _orientationJs = require("./Orientation.js");
-var _orientationJsDefault = parcelHelpers.interopDefault(_orientationJs);
-class Angle {
-    static toDegrees(radians) {
-        return radians * 180 / Math.PI;
-    }
-    static isAcute(p0, p1, p2) {
-        const dx0 = p0.x - p1.x;
-        const dy0 = p0.y - p1.y;
-        const dx1 = p2.x - p1.x;
-        const dy1 = p2.y - p1.y;
-        const dotprod = dx0 * dx1 + dy0 * dy1;
-        return dotprod > 0;
-    }
-    static isObtuse(p0, p1, p2) {
-        const dx0 = p0.x - p1.x;
-        const dy0 = p0.y - p1.y;
-        const dx1 = p2.x - p1.x;
-        const dy1 = p2.y - p1.y;
-        const dotprod = dx0 * dx1 + dy0 * dy1;
-        return dotprod < 0;
-    }
-    static interiorAngle(p0, p1, p2) {
-        const anglePrev = Angle.angle(p1, p0);
-        const angleNext = Angle.angle(p1, p2);
-        return Math.abs(angleNext - anglePrev);
-    }
-    static normalizePositive(angle) {
-        if (angle < 0.0) {
-            while(angle < 0.0)angle += Angle.PI_TIMES_2;
-            if (angle >= Angle.PI_TIMES_2) angle = 0.0;
-        } else {
-            while(angle >= Angle.PI_TIMES_2)angle -= Angle.PI_TIMES_2;
-            if (angle < 0.0) angle = 0.0;
-        }
-        return angle;
-    }
-    static angleBetween(tip1, tail, tip2) {
-        const a1 = Angle.angle(tail, tip1);
-        const a2 = Angle.angle(tail, tip2);
-        return Angle.diff(a1, a2);
-    }
-    static diff(ang1, ang2) {
-        let delAngle = null;
-        if (ang1 < ang2) delAngle = ang2 - ang1;
-        else delAngle = ang1 - ang2;
-        if (delAngle > Math.PI) delAngle = 2 * Math.PI - delAngle;
-        return delAngle;
-    }
-    static toRadians(angleDegrees) {
-        return angleDegrees * Math.PI / 180.0;
-    }
-    static normalize(angle) {
-        while(angle > Math.PI)angle -= Angle.PI_TIMES_2;
-        while(angle <= -Math.PI)angle += Angle.PI_TIMES_2;
-        return angle;
-    }
-    static angle() {
-        if (arguments.length === 1) {
-            const p = arguments[0];
-            return Math.atan2(p.y, p.x);
-        } else if (arguments.length === 2) {
-            const p0 = arguments[0], p1 = arguments[1];
-            const dx = p1.x - p0.x;
-            const dy = p1.y - p0.y;
-            return Math.atan2(dy, dx);
-        }
-    }
-    static getTurn(ang1, ang2) {
-        const crossproduct = Math.sin(ang2 - ang1);
-        if (crossproduct > 0) return Angle.COUNTERCLOCKWISE;
-        if (crossproduct < 0) return Angle.CLOCKWISE;
-        return Angle.NONE;
-    }
-    static angleBetweenOriented(tip1, tail, tip2) {
-        const a1 = Angle.angle(tail, tip1);
-        const a2 = Angle.angle(tail, tip2);
-        const angDel = a2 - a1;
-        if (angDel <= -Math.PI) return angDel + Angle.PI_TIMES_2;
-        if (angDel > Math.PI) return angDel - Angle.PI_TIMES_2;
-        return angDel;
-    }
-}
-exports.default = Angle;
-Angle.PI_TIMES_2 = 2.0 * Math.PI;
-Angle.PI_OVER_2 = Math.PI / 2.0;
-Angle.PI_OVER_4 = Math.PI / 4.0;
-Angle.COUNTERCLOCKWISE = (0, _orientationJsDefault.default).COUNTERCLOCKWISE;
-Angle.CLOCKWISE = (0, _orientationJsDefault.default).CLOCKWISE;
-Angle.NONE = (0, _orientationJsDefault.default).COLLINEAR;
-
-},{"./Orientation.js":"avl08","@parcel/transformer-js/src/esmodule-helpers.js":"jnFvT"}],"crM1Q":[function(require,module,exports,__globalThis) {
-var parcelHelpers = require("@parcel/transformer-js/src/esmodule-helpers.js");
-parcelHelpers.defineInteropFlag(exports);
-var _pointLocationJs = require("../../algorithm/PointLocation.js");
-var _pointLocationJsDefault = parcelHelpers.interopDefault(_pointLocationJs);
-var _topologyExceptionJs = require("../../geom/TopologyException.js");
-var _topologyExceptionJsDefault = parcelHelpers.interopDefault(_topologyExceptionJs);
-var _maximalEdgeRingJs = require("./MaximalEdgeRing.js");
-var _maximalEdgeRingJsDefault = parcelHelpers.interopDefault(_maximalEdgeRingJs);
-var _coordinateArraysJs = require("../../geom/CoordinateArrays.js");
-var _coordinateArraysJsDefault = parcelHelpers.interopDefault(_coordinateArraysJs);
-var _arrayListJs = require("../../../../../java/util/ArrayList.js");
-var _arrayListJsDefault = parcelHelpers.interopDefault(_arrayListJs);
-var _assertJs = require("../../util/Assert.js");
-var _assertJsDefault = parcelHelpers.interopDefault(_assertJs);
-var _planarGraphJs = require("../../geomgraph/PlanarGraph.js");
-var _planarGraphJsDefault = parcelHelpers.interopDefault(_planarGraphJs);
-class PolygonBuilder {
-    constructor(){
-        PolygonBuilder.constructor_.apply(this, arguments);
-    }
-    static constructor_() {
-        this._geometryFactory = null;
-        this._shellList = new (0, _arrayListJsDefault.default)();
-        const geometryFactory = arguments[0];
-        this._geometryFactory = geometryFactory;
-    }
-    static findEdgeRingContaining(testEr, shellList) {
-        const testRing = testEr.getLinearRing();
-        const testEnv = testRing.getEnvelopeInternal();
-        let testPt = testRing.getCoordinateN(0);
-        let minShell = null;
-        let minShellEnv = null;
-        for(let it = shellList.iterator(); it.hasNext();){
-            const tryShell = it.next();
-            const tryShellRing = tryShell.getLinearRing();
-            const tryShellEnv = tryShellRing.getEnvelopeInternal();
-            if (tryShellEnv.equals(testEnv)) continue;
-            if (!tryShellEnv.contains(testEnv)) continue;
-            testPt = (0, _coordinateArraysJsDefault.default).ptNotInList(testRing.getCoordinates(), tryShellRing.getCoordinates());
-            let isContained = false;
-            if ((0, _pointLocationJsDefault.default).isInRing(testPt, tryShellRing.getCoordinates())) isContained = true;
-            if (isContained) {
-                if (minShell === null || minShellEnv.contains(tryShellEnv)) {
-                    minShell = tryShell;
-                    minShellEnv = minShell.getLinearRing().getEnvelopeInternal();
-                }
-            }
-        }
-        return minShell;
-    }
-    sortShellsAndHoles(edgeRings, shellList, freeHoleList) {
-        for(let it = edgeRings.iterator(); it.hasNext();){
-            const er = it.next();
-            if (er.isHole()) freeHoleList.add(er);
-            else shellList.add(er);
-        }
-    }
-    computePolygons(shellList) {
-        const resultPolyList = new (0, _arrayListJsDefault.default)();
-        for(let it = shellList.iterator(); it.hasNext();){
-            const er = it.next();
-            const poly = er.toPolygon(this._geometryFactory);
-            resultPolyList.add(poly);
-        }
-        return resultPolyList;
-    }
-    placeFreeHoles(shellList, freeHoleList) {
-        for(let it = freeHoleList.iterator(); it.hasNext();){
-            const hole = it.next();
-            if (hole.getShell() === null) {
-                const shell = PolygonBuilder.findEdgeRingContaining(hole, shellList);
-                if (shell === null) throw new (0, _topologyExceptionJsDefault.default)('unable to assign hole to a shell', hole.getCoordinate(0));
-                hole.setShell(shell);
-            }
-        }
-    }
-    buildMinimalEdgeRings(maxEdgeRings, shellList, freeHoleList) {
-        const edgeRings = new (0, _arrayListJsDefault.default)();
-        for(let it = maxEdgeRings.iterator(); it.hasNext();){
-            const er = it.next();
-            if (er.getMaxNodeDegree() > 2) {
-                er.linkDirectedEdgesForMinimalEdgeRings();
-                const minEdgeRings = er.buildMinimalRings();
-                const shell = this.findShell(minEdgeRings);
-                if (shell !== null) {
-                    this.placePolygonHoles(shell, minEdgeRings);
-                    shellList.add(shell);
-                } else freeHoleList.addAll(minEdgeRings);
-            } else edgeRings.add(er);
-        }
-        return edgeRings;
-    }
-    buildMaximalEdgeRings(dirEdges) {
-        const maxEdgeRings = new (0, _arrayListJsDefault.default)();
-        for(let it = dirEdges.iterator(); it.hasNext();){
-            const de = it.next();
-            if (de.isInResult() && de.getLabel().isArea()) {
-                if (de.getEdgeRing() === null) {
-                    const er = new (0, _maximalEdgeRingJsDefault.default)(de, this._geometryFactory);
-                    maxEdgeRings.add(er);
-                    er.setInResult();
-                }
-            }
-        }
-        return maxEdgeRings;
-    }
-    placePolygonHoles(shell, minEdgeRings) {
-        for(let it = minEdgeRings.iterator(); it.hasNext();){
-            const er = it.next();
-            if (er.isHole()) er.setShell(shell);
-        }
-    }
-    getPolygons() {
-        const resultPolyList = this.computePolygons(this._shellList);
-        return resultPolyList;
-    }
-    findShell(minEdgeRings) {
-        let shellCount = 0;
-        let shell = null;
-        for(let it = minEdgeRings.iterator(); it.hasNext();){
-            const er = it.next();
-            if (!er.isHole()) {
-                shell = er;
-                shellCount++;
-            }
-        }
-        (0, _assertJsDefault.default).isTrue(shellCount <= 1, 'found two shells in MinimalEdgeRing list');
-        return shell;
-    }
-    add() {
-        if (arguments.length === 1) {
-            const graph = arguments[0];
-            this.add(graph.getEdgeEnds(), graph.getNodes());
-        } else if (arguments.length === 2) {
-            const dirEdges = arguments[0], nodes = arguments[1];
-            (0, _planarGraphJsDefault.default).linkResultDirectedEdges(nodes);
-            const maxEdgeRings = this.buildMaximalEdgeRings(dirEdges);
-            const freeHoleList = new (0, _arrayListJsDefault.default)();
-            const edgeRings = this.buildMinimalEdgeRings(maxEdgeRings, this._shellList, freeHoleList);
-            this.sortShellsAndHoles(edgeRings, this._shellList, freeHoleList);
-            this.placeFreeHoles(this._shellList, freeHoleList);
-        }
-    }
-}
-exports.default = PolygonBuilder;
-
-},{"../../algorithm/PointLocation.js":"l7FlP","../../geom/TopologyException.js":"bOVA5","./MaximalEdgeRing.js":"4ayjA","../../geom/CoordinateArrays.js":"lncg4","../../../../../java/util/ArrayList.js":"gGAQZ","../../util/Assert.js":"1vSRy","../../geomgraph/PlanarGraph.js":"etG4v","@parcel/transformer-js/src/esmodule-helpers.js":"jnFvT"}],"4ayjA":[function(require,module,exports,__globalThis) {
-var parcelHelpers = require("@parcel/transformer-js/src/esmodule-helpers.js");
-parcelHelpers.defineInteropFlag(exports);
-var _minimalEdgeRingJs = require("./MinimalEdgeRing.js");
-var _minimalEdgeRingJsDefault = parcelHelpers.interopDefault(_minimalEdgeRingJs);
-var _edgeRingJs = require("../../geomgraph/EdgeRing.js");
-var _edgeRingJsDefault = parcelHelpers.interopDefault(_edgeRingJs);
-var _arrayListJs = require("../../../../../java/util/ArrayList.js");
-var _arrayListJsDefault = parcelHelpers.interopDefault(_arrayListJs);
-class MaximalEdgeRing extends (0, _edgeRingJsDefault.default) {
-    constructor(){
-        super();
-        MaximalEdgeRing.constructor_.apply(this, arguments);
-    }
-    static constructor_() {
-        const start = arguments[0], geometryFactory = arguments[1];
-        (0, _edgeRingJsDefault.default).constructor_.call(this, start, geometryFactory);
-    }
-    linkDirectedEdgesForMinimalEdgeRings() {
-        let de = this._startDe;
-        do {
-            const node = de.getNode();
-            node.getEdges().linkMinimalDirectedEdges(this);
-            de = de.getNext();
-        }while (de !== this._startDe);
-    }
-    buildMinimalRings() {
-        const minEdgeRings = new (0, _arrayListJsDefault.default)();
-        let de = this._startDe;
-        do {
-            if (de.getMinEdgeRing() === null) {
-                const minEr = new (0, _minimalEdgeRingJsDefault.default)(de, this._geometryFactory);
-                minEdgeRings.add(minEr);
-            }
-            de = de.getNext();
-        }while (de !== this._startDe);
-        return minEdgeRings;
-    }
-    getNext(de) {
-        return de.getNext();
-    }
-    setEdgeRing(de, er) {
-        de.setEdgeRing(er);
-    }
-}
-exports.default = MaximalEdgeRing;
-
-},{"./MinimalEdgeRing.js":"jJ8Uz","../../geomgraph/EdgeRing.js":"bsyLp","../../../../../java/util/ArrayList.js":"gGAQZ","@parcel/transformer-js/src/esmodule-helpers.js":"jnFvT"}],"jJ8Uz":[function(require,module,exports,__globalThis) {
-var parcelHelpers = require("@parcel/transformer-js/src/esmodule-helpers.js");
-parcelHelpers.defineInteropFlag(exports);
-var _edgeRingJs = require("../../geomgraph/EdgeRing.js");
-var _edgeRingJsDefault = parcelHelpers.interopDefault(_edgeRingJs);
-class MinimalEdgeRing extends (0, _edgeRingJsDefault.default) {
-    constructor(){
-        super();
-        MinimalEdgeRing.constructor_.apply(this, arguments);
-    }
-    static constructor_() {
-        const start = arguments[0], geometryFactory = arguments[1];
-        (0, _edgeRingJsDefault.default).constructor_.call(this, start, geometryFactory);
-    }
-    getNext(de) {
-        return de.getNextMin();
-    }
-    setEdgeRing(de, er) {
-        de.setMinEdgeRing(er);
-    }
-}
-exports.default = MinimalEdgeRing;
-
-},{"../../geomgraph/EdgeRing.js":"bsyLp","@parcel/transformer-js/src/esmodule-helpers.js":"jnFvT"}],"bsyLp":[function(require,module,exports,__globalThis) {
-var parcelHelpers = require("@parcel/transformer-js/src/esmodule-helpers.js");
-parcelHelpers.defineInteropFlag(exports);
-var _locationJs = require("../geom/Location.js");
-var _locationJsDefault = parcelHelpers.interopDefault(_locationJs);
-var _positionJs = require("./Position.js");
-var _positionJsDefault = parcelHelpers.interopDefault(_positionJs);
-var _pointLocationJs = require("../algorithm/PointLocation.js");
-var _pointLocationJsDefault = parcelHelpers.interopDefault(_pointLocationJs);
-var _topologyExceptionJs = require("../geom/TopologyException.js");
-var _topologyExceptionJsDefault = parcelHelpers.interopDefault(_topologyExceptionJs);
-var _orientationJs = require("../algorithm/Orientation.js");
-var _orientationJsDefault = parcelHelpers.interopDefault(_orientationJs);
-var _labelJs = require("./Label.js");
-var _labelJsDefault = parcelHelpers.interopDefault(_labelJs);
-var _arrayListJs = require("../../../../java/util/ArrayList.js");
-var _arrayListJsDefault = parcelHelpers.interopDefault(_arrayListJs);
-var _assertJs = require("../util/Assert.js");
-var _assertJsDefault = parcelHelpers.interopDefault(_assertJs);
-class EdgeRing {
-    constructor(){
-        EdgeRing.constructor_.apply(this, arguments);
-    }
-    static constructor_() {
-        this._startDe = null;
-        this._maxNodeDegree = -1;
-        this._edges = new (0, _arrayListJsDefault.default)();
-        this._pts = new (0, _arrayListJsDefault.default)();
-        this._label = new (0, _labelJsDefault.default)((0, _locationJsDefault.default).NONE);
-        this._ring = null;
-        this._isHole = null;
-        this._shell = null;
-        this._holes = new (0, _arrayListJsDefault.default)();
-        this._geometryFactory = null;
-        if (arguments.length === 0) ;
-        else if (arguments.length === 2) {
-            const start = arguments[0], geometryFactory = arguments[1];
-            this._geometryFactory = geometryFactory;
-            this.computePoints(start);
-            this.computeRing();
-        }
-    }
-    computeRing() {
-        if (this._ring !== null) return null;
-        const coord = new Array(this._pts.size()).fill(null);
-        for(let i = 0; i < this._pts.size(); i++)coord[i] = this._pts.get(i);
-        this._ring = this._geometryFactory.createLinearRing(coord);
-        this._isHole = (0, _orientationJsDefault.default).isCCW(this._ring.getCoordinates());
-    }
-    isIsolated() {
-        return this._label.getGeometryCount() === 1;
-    }
-    computePoints(start) {
-        this._startDe = start;
-        let de = start;
-        let isFirstEdge = true;
-        do {
-            if (de === null) throw new (0, _topologyExceptionJsDefault.default)('Found null DirectedEdge');
-            if (de.getEdgeRing() === this) throw new (0, _topologyExceptionJsDefault.default)('Directed Edge visited twice during ring-building at ' + de.getCoordinate());
-            this._edges.add(de);
-            const label = de.getLabel();
-            (0, _assertJsDefault.default).isTrue(label.isArea());
-            this.mergeLabel(label);
-            this.addPoints(de.getEdge(), de.isForward(), isFirstEdge);
-            isFirstEdge = false;
-            this.setEdgeRing(de, this);
-            de = this.getNext(de);
-        }while (de !== this._startDe);
-    }
-    getLinearRing() {
-        return this._ring;
-    }
-    getCoordinate(i) {
-        return this._pts.get(i);
-    }
-    computeMaxNodeDegree() {
-        this._maxNodeDegree = 0;
-        let de = this._startDe;
-        do {
-            const node = de.getNode();
-            const degree = node.getEdges().getOutgoingDegree(this);
-            if (degree > this._maxNodeDegree) this._maxNodeDegree = degree;
-            de = this.getNext(de);
-        }while (de !== this._startDe);
-        this._maxNodeDegree *= 2;
-    }
-    addPoints(edge, isForward, isFirstEdge) {
-        const edgePts = edge.getCoordinates();
-        if (isForward) {
-            let startIndex = 1;
-            if (isFirstEdge) startIndex = 0;
-            for(let i = startIndex; i < edgePts.length; i++)this._pts.add(edgePts[i]);
-        } else {
-            let startIndex = edgePts.length - 2;
-            if (isFirstEdge) startIndex = edgePts.length - 1;
-            for(let i = startIndex; i >= 0; i--)this._pts.add(edgePts[i]);
-        }
-    }
-    containsPoint(p) {
-        const shell = this.getLinearRing();
-        const env = shell.getEnvelopeInternal();
-        if (!env.contains(p)) return false;
-        if (!(0, _pointLocationJsDefault.default).isInRing(p, shell.getCoordinates())) return false;
-        for(let i = this._holes.iterator(); i.hasNext();){
-            const hole = i.next();
-            if (hole.containsPoint(p)) return false;
-        }
-        return true;
-    }
-    getMaxNodeDegree() {
-        if (this._maxNodeDegree < 0) this.computeMaxNodeDegree();
-        return this._maxNodeDegree;
-    }
-    setShell(shell) {
-        this._shell = shell;
-        if (shell !== null) shell.addHole(this);
-    }
-    toPolygon(geometryFactory) {
-        const holeLR = new Array(this._holes.size()).fill(null);
-        for(let i = 0; i < this._holes.size(); i++)holeLR[i] = this._holes.get(i).getLinearRing();
-        const poly = geometryFactory.createPolygon(this.getLinearRing(), holeLR);
-        return poly;
-    }
-    isHole() {
-        return this._isHole;
-    }
-    setInResult() {
-        let de = this._startDe;
-        do {
-            de.getEdge().setInResult(true);
-            de = de.getNext();
-        }while (de !== this._startDe);
-    }
-    addHole(ring) {
-        this._holes.add(ring);
-    }
-    isShell() {
-        return this._shell === null;
-    }
-    getLabel() {
-        return this._label;
-    }
-    getEdges() {
-        return this._edges;
-    }
-    getShell() {
-        return this._shell;
-    }
-    mergeLabel() {
-        if (arguments.length === 1) {
-            const deLabel = arguments[0];
-            this.mergeLabel(deLabel, 0);
-            this.mergeLabel(deLabel, 1);
-        } else if (arguments.length === 2) {
-            const deLabel = arguments[0], geomIndex = arguments[1];
-            const loc = deLabel.getLocation(geomIndex, (0, _positionJsDefault.default).RIGHT);
-            if (loc === (0, _locationJsDefault.default).NONE) return null;
-            if (this._label.getLocation(geomIndex) === (0, _locationJsDefault.default).NONE) {
-                this._label.setLocation(geomIndex, loc);
-                return null;
-            }
-        }
-    }
-}
-exports.default = EdgeRing;
-
-},{"../geom/Location.js":"9aPCX","./Position.js":"13raO","../algorithm/PointLocation.js":"l7FlP","../geom/TopologyException.js":"bOVA5","../algorithm/Orientation.js":"avl08","./Label.js":"dJJOo","../../../../java/util/ArrayList.js":"gGAQZ","../util/Assert.js":"1vSRy","@parcel/transformer-js/src/esmodule-helpers.js":"jnFvT"}],"9iVKl":[function(require,module,exports,__globalThis) {
-var parcelHelpers = require("@parcel/transformer-js/src/esmodule-helpers.js");
-parcelHelpers.defineInteropFlag(exports);
-var _hasInterfaceJs = require("../../../../../hasInterface.js");
-var _hasInterfaceJsDefault = parcelHelpers.interopDefault(_hasInterfaceJs);
-var _positionJs = require("../../geomgraph/Position.js");
-var _positionJsDefault = parcelHelpers.interopDefault(_positionJs);
-var _coordinateJs = require("../../geom/Coordinate.js");
-var _coordinateJsDefault = parcelHelpers.interopDefault(_coordinateJs);
-var _lineSegmentJs = require("../../geom/LineSegment.js");
-var _lineSegmentJsDefault = parcelHelpers.interopDefault(_lineSegmentJs);
-var _comparableJs = require("../../../../../java/lang/Comparable.js");
-var _comparableJsDefault = parcelHelpers.interopDefault(_comparableJs);
-var _arrayListJs = require("../../../../../java/util/ArrayList.js");
-var _arrayListJsDefault = parcelHelpers.interopDefault(_arrayListJs);
-var _listJs = require("../../../../../java/util/List.js");
-var _listJsDefault = parcelHelpers.interopDefault(_listJs);
-var _directedEdgeJs = require("../../geomgraph/DirectedEdge.js");
-var _directedEdgeJsDefault = parcelHelpers.interopDefault(_directedEdgeJs);
-var _orientationJs = require("../../algorithm/Orientation.js");
-var _orientationJsDefault = parcelHelpers.interopDefault(_orientationJs);
-var _collectionsJs = require("../../../../../java/util/Collections.js");
-var _collectionsJsDefault = parcelHelpers.interopDefault(_collectionsJs);
-class SubgraphDepthLocater {
-    constructor(){
-        SubgraphDepthLocater.constructor_.apply(this, arguments);
-    }
-    static constructor_() {
-        this._subgraphs = null;
-        this._seg = new (0, _lineSegmentJsDefault.default)();
-        const subgraphs = arguments[0];
-        this._subgraphs = subgraphs;
-    }
-    findStabbedSegments() {
-        if (arguments.length === 1) {
-            const stabbingRayLeftPt = arguments[0];
-            const stabbedSegments = new (0, _arrayListJsDefault.default)();
-            for(let i = this._subgraphs.iterator(); i.hasNext();){
-                const bsg = i.next();
-                const env = bsg.getEnvelope();
-                if (stabbingRayLeftPt.y < env.getMinY() || stabbingRayLeftPt.y > env.getMaxY()) continue;
-                this.findStabbedSegments(stabbingRayLeftPt, bsg.getDirectedEdges(), stabbedSegments);
-            }
-            return stabbedSegments;
-        } else if (arguments.length === 3) {
-            if ((0, _hasInterfaceJsDefault.default)(arguments[2], (0, _listJsDefault.default)) && arguments[0] instanceof (0, _coordinateJsDefault.default) && arguments[1] instanceof (0, _directedEdgeJsDefault.default)) {
-                const stabbingRayLeftPt = arguments[0], dirEdge = arguments[1], stabbedSegments = arguments[2];
-                const pts = dirEdge.getEdge().getCoordinates();
-                for(let i = 0; i < pts.length - 1; i++){
-                    this._seg.p0 = pts[i];
-                    this._seg.p1 = pts[i + 1];
-                    if (this._seg.p0.y > this._seg.p1.y) this._seg.reverse();
-                    const maxx = Math.max(this._seg.p0.x, this._seg.p1.x);
-                    if (maxx < stabbingRayLeftPt.x) continue;
-                    if (this._seg.isHorizontal()) continue;
-                    if (stabbingRayLeftPt.y < this._seg.p0.y || stabbingRayLeftPt.y > this._seg.p1.y) continue;
-                    if ((0, _orientationJsDefault.default).index(this._seg.p0, this._seg.p1, stabbingRayLeftPt) === (0, _orientationJsDefault.default).RIGHT) continue;
-                    let depth = dirEdge.getDepth((0, _positionJsDefault.default).LEFT);
-                    if (!this._seg.p0.equals(pts[i])) depth = dirEdge.getDepth((0, _positionJsDefault.default).RIGHT);
-                    const ds = new DepthSegment(this._seg, depth);
-                    stabbedSegments.add(ds);
-                }
-            } else if ((0, _hasInterfaceJsDefault.default)(arguments[2], (0, _listJsDefault.default)) && arguments[0] instanceof (0, _coordinateJsDefault.default) && (0, _hasInterfaceJsDefault.default)(arguments[1], (0, _listJsDefault.default))) {
-                const stabbingRayLeftPt = arguments[0], dirEdges = arguments[1], stabbedSegments = arguments[2];
-                for(let i = dirEdges.iterator(); i.hasNext();){
-                    const de = i.next();
-                    if (!de.isForward()) continue;
-                    this.findStabbedSegments(stabbingRayLeftPt, de, stabbedSegments);
-                }
-            }
-        }
-    }
-    getDepth(p) {
-        const stabbedSegments = this.findStabbedSegments(p);
-        if (stabbedSegments.size() === 0) return 0;
-        const ds = (0, _collectionsJsDefault.default).min(stabbedSegments);
-        return ds._leftDepth;
-    }
-}
-exports.default = SubgraphDepthLocater;
-class DepthSegment {
-    constructor(){
-        DepthSegment.constructor_.apply(this, arguments);
-    }
-    static constructor_() {
-        this._upwardSeg = null;
-        this._leftDepth = null;
-        const seg = arguments[0], depth = arguments[1];
-        this._upwardSeg = new (0, _lineSegmentJsDefault.default)(seg);
-        this._leftDepth = depth;
-    }
-    compareX(seg0, seg1) {
-        const compare0 = seg0.p0.compareTo(seg1.p0);
-        if (compare0 !== 0) return compare0;
-        return seg0.p1.compareTo(seg1.p1);
-    }
-    toString() {
-        return this._upwardSeg.toString();
-    }
-    compareTo(obj) {
-        const other = obj;
-        if (this._upwardSeg.minX() >= other._upwardSeg.maxX()) return 1;
-        if (this._upwardSeg.maxX() <= other._upwardSeg.minX()) return -1;
-        let orientIndex = this._upwardSeg.orientationIndex(other._upwardSeg);
-        if (orientIndex !== 0) return orientIndex;
-        orientIndex = -1 * other._upwardSeg.orientationIndex(this._upwardSeg);
-        if (orientIndex !== 0) return orientIndex;
-        return this._upwardSeg.compareTo(other._upwardSeg);
-    }
-    get interfaces_() {
-        return [
-            (0, _comparableJsDefault.default)
-        ];
-    }
-}
-SubgraphDepthLocater.DepthSegment = DepthSegment;
-
-},{"../../../../../hasInterface.js":"5bpze","../../geomgraph/Position.js":"13raO","../../geom/Coordinate.js":"ii2fh","../../geom/LineSegment.js":"8Ncbv","../../../../../java/lang/Comparable.js":"WFeEu","../../../../../java/util/ArrayList.js":"gGAQZ","../../../../../java/util/List.js":"7jAhK","../../geomgraph/DirectedEdge.js":"aFTwO","../../algorithm/Orientation.js":"avl08","../../../../../java/util/Collections.js":"c5dcW","@parcel/transformer-js/src/esmodule-helpers.js":"jnFvT"}],"elu3d":[function(require,module,exports,__globalThis) {
-var parcelHelpers = require("@parcel/transformer-js/src/esmodule-helpers.js");
-parcelHelpers.defineInteropFlag(exports);
-var _locationJs = require("../../geom/Location.js");
-var _locationJsDefault = parcelHelpers.interopDefault(_locationJs);
-var _lineStringJs = require("../../geom/LineString.js");
-var _lineStringJsDefault = parcelHelpers.interopDefault(_lineStringJs);
-var _positionJs = require("../../geomgraph/Position.js");
-var _positionJsDefault = parcelHelpers.interopDefault(_positionJs);
-var _pointJs = require("../../geom/Point.js");
-var _pointJsDefault = parcelHelpers.interopDefault(_pointJs);
-var _linearRingJs = require("../../geom/LinearRing.js");
-var _linearRingJsDefault = parcelHelpers.interopDefault(_linearRingJs);
-var _orientationJs = require("../../algorithm/Orientation.js");
-var _orientationJsDefault = parcelHelpers.interopDefault(_orientationJs);
-var _multiPolygonJs = require("../../geom/MultiPolygon.js");
-var _multiPolygonJsDefault = parcelHelpers.interopDefault(_multiPolygonJs);
-var _labelJs = require("../../geomgraph/Label.js");
-var _labelJsDefault = parcelHelpers.interopDefault(_labelJs);
-var _coordinateArraysJs = require("../../geom/CoordinateArrays.js");
-var _coordinateArraysJsDefault = parcelHelpers.interopDefault(_coordinateArraysJs);
-var _arrayListJs = require("../../../../../java/util/ArrayList.js");
-var _arrayListJsDefault = parcelHelpers.interopDefault(_arrayListJs);
-var _distanceJs = require("../../algorithm/Distance.js");
-var _distanceJsDefault = parcelHelpers.interopDefault(_distanceJs);
-var _multiLineStringJs = require("../../geom/MultiLineString.js");
-var _multiLineStringJsDefault = parcelHelpers.interopDefault(_multiLineStringJs);
-var _triangleJs = require("../../geom/Triangle.js");
-var _triangleJsDefault = parcelHelpers.interopDefault(_triangleJs);
-var _nodedSegmentStringJs = require("../../noding/NodedSegmentString.js");
-var _nodedSegmentStringJsDefault = parcelHelpers.interopDefault(_nodedSegmentStringJs);
-var _polygonJs = require("../../geom/Polygon.js");
-var _polygonJsDefault = parcelHelpers.interopDefault(_polygonJs);
-var _multiPointJs = require("../../geom/MultiPoint.js");
-var _multiPointJsDefault = parcelHelpers.interopDefault(_multiPointJs);
-var _geometryCollectionJs = require("../../geom/GeometryCollection.js");
-var _geometryCollectionJsDefault = parcelHelpers.interopDefault(_geometryCollectionJs);
-var _unsupportedOperationExceptionJs = require("../../../../../java/lang/UnsupportedOperationException.js");
-var _unsupportedOperationExceptionJsDefault = parcelHelpers.interopDefault(_unsupportedOperationExceptionJs);
-class OffsetCurveSetBuilder {
-    constructor(){
-        OffsetCurveSetBuilder.constructor_.apply(this, arguments);
-    }
-    static constructor_() {
-        this._inputGeom = null;
-        this._distance = null;
-        this._curveBuilder = null;
-        this._curveList = new (0, _arrayListJsDefault.default)();
-        const inputGeom = arguments[0], distance = arguments[1], curveBuilder = arguments[2];
-        this._inputGeom = inputGeom;
-        this._distance = distance;
-        this._curveBuilder = curveBuilder;
-    }
-    addRingSide(coord, offsetDistance, side, cwLeftLoc, cwRightLoc) {
-        if (offsetDistance === 0.0 && coord.length < (0, _linearRingJsDefault.default).MINIMUM_VALID_SIZE) return null;
-        let leftLoc = cwLeftLoc;
-        let rightLoc = cwRightLoc;
-        if (coord.length >= (0, _linearRingJsDefault.default).MINIMUM_VALID_SIZE && (0, _orientationJsDefault.default).isCCW(coord)) {
-            leftLoc = cwRightLoc;
-            rightLoc = cwLeftLoc;
-            side = (0, _positionJsDefault.default).opposite(side);
-        }
-        const curve = this._curveBuilder.getRingCurve(coord, side, offsetDistance);
-        this.addCurve(curve, leftLoc, rightLoc);
-    }
-    addRingBothSides(coord, distance) {
-        this.addRingSide(coord, distance, (0, _positionJsDefault.default).LEFT, (0, _locationJsDefault.default).EXTERIOR, (0, _locationJsDefault.default).INTERIOR);
-        this.addRingSide(coord, distance, (0, _positionJsDefault.default).RIGHT, (0, _locationJsDefault.default).INTERIOR, (0, _locationJsDefault.default).EXTERIOR);
-    }
-    addPoint(p) {
-        if (this._distance <= 0.0) return null;
-        const coord = p.getCoordinates();
-        const curve = this._curveBuilder.getLineCurve(coord, this._distance);
-        this.addCurve(curve, (0, _locationJsDefault.default).EXTERIOR, (0, _locationJsDefault.default).INTERIOR);
-    }
-    addPolygon(p) {
-        let offsetDistance = this._distance;
-        let offsetSide = (0, _positionJsDefault.default).LEFT;
-        if (this._distance < 0.0) {
-            offsetDistance = -this._distance;
-            offsetSide = (0, _positionJsDefault.default).RIGHT;
-        }
-        const shell = p.getExteriorRing();
-        const shellCoord = (0, _coordinateArraysJsDefault.default).removeRepeatedPoints(shell.getCoordinates());
-        if (this._distance < 0.0 && this.isErodedCompletely(shell, this._distance)) return null;
-        if (this._distance <= 0.0 && shellCoord.length < 3) return null;
-        this.addRingSide(shellCoord, offsetDistance, offsetSide, (0, _locationJsDefault.default).EXTERIOR, (0, _locationJsDefault.default).INTERIOR);
-        for(let i = 0; i < p.getNumInteriorRing(); i++){
-            const hole = p.getInteriorRingN(i);
-            const holeCoord = (0, _coordinateArraysJsDefault.default).removeRepeatedPoints(hole.getCoordinates());
-            if (this._distance > 0.0 && this.isErodedCompletely(hole, -this._distance)) continue;
-            this.addRingSide(holeCoord, offsetDistance, (0, _positionJsDefault.default).opposite(offsetSide), (0, _locationJsDefault.default).INTERIOR, (0, _locationJsDefault.default).EXTERIOR);
-        }
-    }
-    isTriangleErodedCompletely(triangleCoord, bufferDistance) {
-        const tri = new (0, _triangleJsDefault.default)(triangleCoord[0], triangleCoord[1], triangleCoord[2]);
-        const inCentre = tri.inCentre();
-        const distToCentre = (0, _distanceJsDefault.default).pointToSegment(inCentre, tri.p0, tri.p1);
-        return distToCentre < Math.abs(bufferDistance);
-    }
-    addLineString(line) {
-        if (this._curveBuilder.isLineOffsetEmpty(this._distance)) return null;
-        const coord = (0, _coordinateArraysJsDefault.default).removeRepeatedPoints(line.getCoordinates());
-        if ((0, _coordinateArraysJsDefault.default).isRing(coord) && !this._curveBuilder.getBufferParameters().isSingleSided()) this.addRingBothSides(coord, this._distance);
-        else {
-            const curve = this._curveBuilder.getLineCurve(coord, this._distance);
-            this.addCurve(curve, (0, _locationJsDefault.default).EXTERIOR, (0, _locationJsDefault.default).INTERIOR);
-        }
-    }
-    add(g) {
-        if (g.isEmpty()) return null;
-        if (g instanceof (0, _polygonJsDefault.default)) this.addPolygon(g);
-        else if (g instanceof (0, _lineStringJsDefault.default)) this.addLineString(g);
-        else if (g instanceof (0, _pointJsDefault.default)) this.addPoint(g);
-        else if (g instanceof (0, _multiPointJsDefault.default)) this.addCollection(g);
-        else if (g instanceof (0, _multiLineStringJsDefault.default)) this.addCollection(g);
-        else if (g instanceof (0, _multiPolygonJsDefault.default)) this.addCollection(g);
-        else if (g instanceof (0, _geometryCollectionJsDefault.default)) this.addCollection(g);
-        else throw new (0, _unsupportedOperationExceptionJsDefault.default)(g.getGeometryType());
-    }
-    addCurve(coord, leftLoc, rightLoc) {
-        if (coord === null || coord.length < 2) return null;
-        const e = new (0, _nodedSegmentStringJsDefault.default)(coord, new (0, _labelJsDefault.default)(0, (0, _locationJsDefault.default).BOUNDARY, leftLoc, rightLoc));
-        this._curveList.add(e);
-    }
-    getCurves() {
-        this.add(this._inputGeom);
-        return this._curveList;
-    }
-    isErodedCompletely(ring, bufferDistance) {
-        const ringCoord = ring.getCoordinates();
-        if (ringCoord.length < 4) return bufferDistance < 0;
-        if (ringCoord.length === 4) return this.isTriangleErodedCompletely(ringCoord, bufferDistance);
-        const env = ring.getEnvelopeInternal();
-        const envMinDimension = Math.min(env.getHeight(), env.getWidth());
-        if (bufferDistance < 0.0 && 2 * Math.abs(bufferDistance) > envMinDimension) return true;
-        return false;
-    }
-    addCollection(gc) {
-        for(let i = 0; i < gc.getNumGeometries(); i++){
-            const g = gc.getGeometryN(i);
-            this.add(g);
-        }
-    }
-}
-exports.default = OffsetCurveSetBuilder;
-
-},{"../../geom/Location.js":"9aPCX","../../geom/LineString.js":"4eIEg","../../geomgraph/Position.js":"13raO","../../geom/Point.js":"lwZpO","../../geom/LinearRing.js":"2x4Ym","../../algorithm/Orientation.js":"avl08","../../geom/MultiPolygon.js":"6Hrab","../../geomgraph/Label.js":"dJJOo","../../geom/CoordinateArrays.js":"lncg4","../../../../../java/util/ArrayList.js":"gGAQZ","../../algorithm/Distance.js":"4ZaWr","../../geom/MultiLineString.js":"5UyOx","../../geom/Triangle.js":"3tGRP","../../noding/NodedSegmentString.js":"gBLDJ","../../geom/Polygon.js":"kpOA5","../../geom/MultiPoint.js":"5w2To","../../geom/GeometryCollection.js":"6RJQO","../../../../../java/lang/UnsupportedOperationException.js":"dV3kx","@parcel/transformer-js/src/esmodule-helpers.js":"jnFvT"}],"3tGRP":[function(require,module,exports,__globalThis) {
-var parcelHelpers = require("@parcel/transformer-js/src/esmodule-helpers.js");
-parcelHelpers.defineInteropFlag(exports);
-var _ddJs = require("../math/DD.js");
-var _ddJsDefault = parcelHelpers.interopDefault(_ddJs);
-var _angleJs = require("../algorithm/Angle.js");
-var _angleJsDefault = parcelHelpers.interopDefault(_angleJs);
-var _hcoordinateJs = require("../algorithm/HCoordinate.js");
-var _hcoordinateJsDefault = parcelHelpers.interopDefault(_hcoordinateJs);
-var _coordinateJs = require("./Coordinate.js");
-var _coordinateJsDefault = parcelHelpers.interopDefault(_coordinateJs);
-var _illegalArgumentExceptionJs = require("../../../../java/lang/IllegalArgumentException.js");
-var _illegalArgumentExceptionJsDefault = parcelHelpers.interopDefault(_illegalArgumentExceptionJs);
-class Triangle {
-    constructor(){
-        Triangle.constructor_.apply(this, arguments);
-    }
-    static constructor_() {
-        this.p0 = null;
-        this.p1 = null;
-        this.p2 = null;
-        const p0 = arguments[0], p1 = arguments[1], p2 = arguments[2];
-        this.p0 = p0;
-        this.p1 = p1;
-        this.p2 = p2;
-    }
-    static isAcute(a, b, c) {
-        if (!(0, _angleJsDefault.default).isAcute(a, b, c)) return false;
-        if (!(0, _angleJsDefault.default).isAcute(b, c, a)) return false;
-        if (!(0, _angleJsDefault.default).isAcute(c, a, b)) return false;
-        return true;
-    }
-    static circumcentre(a, b, c) {
-        const cx = c.x;
-        const cy = c.y;
-        const ax = a.x - cx;
-        const ay = a.y - cy;
-        const bx = b.x - cx;
-        const by = b.y - cy;
-        const denom = 2 * Triangle.det(ax, ay, bx, by);
-        const numx = Triangle.det(ay, ax * ax + ay * ay, by, bx * bx + by * by);
-        const numy = Triangle.det(ax, ax * ax + ay * ay, bx, bx * bx + by * by);
-        const ccx = cx - numx / denom;
-        const ccy = cy + numy / denom;
-        return new (0, _coordinateJsDefault.default)(ccx, ccy);
-    }
-    static perpendicularBisector(a, b) {
-        const dx = b.x - a.x;
-        const dy = b.y - a.y;
-        const l1 = new (0, _hcoordinateJsDefault.default)(a.x + dx / 2.0, a.y + dy / 2.0, 1.0);
-        const l2 = new (0, _hcoordinateJsDefault.default)(a.x - dy + dx / 2.0, a.y + dx + dy / 2.0, 1.0);
-        return new (0, _hcoordinateJsDefault.default)(l1, l2);
-    }
-    static angleBisector(a, b, c) {
-        const len0 = b.distance(a);
-        const len2 = b.distance(c);
-        const frac = len0 / (len0 + len2);
-        const dx = c.x - a.x;
-        const dy = c.y - a.y;
-        const splitPt = new (0, _coordinateJsDefault.default)(a.x + frac * dx, a.y + frac * dy);
-        return splitPt;
-    }
-    static inCentre(a, b, c) {
-        const len0 = b.distance(c);
-        const len1 = a.distance(c);
-        const len2 = a.distance(b);
-        const circum = len0 + len1 + len2;
-        const inCentreX = (len0 * a.x + len1 * b.x + len2 * c.x) / circum;
-        const inCentreY = (len0 * a.y + len1 * b.y + len2 * c.y) / circum;
-        return new (0, _coordinateJsDefault.default)(inCentreX, inCentreY);
-    }
-    static area(a, b, c) {
-        return Math.abs(((c.x - a.x) * (b.y - a.y) - (b.x - a.x) * (c.y - a.y)) / 2);
-    }
-    static signedArea(a, b, c) {
-        return ((c.x - a.x) * (b.y - a.y) - (b.x - a.x) * (c.y - a.y)) / 2;
-    }
-    static det(m00, m01, m10, m11) {
-        return m00 * m11 - m01 * m10;
-    }
-    static interpolateZ(p, v0, v1, v2) {
-        const x0 = v0.x;
-        const y0 = v0.y;
-        const a = v1.x - x0;
-        const b = v2.x - x0;
-        const c = v1.y - y0;
-        const d = v2.y - y0;
-        const det = a * d - b * c;
-        const dx = p.x - x0;
-        const dy = p.y - y0;
-        const t = (d * dx - b * dy) / det;
-        const u = (-c * dx + a * dy) / det;
-        const z = v0.getZ() + t * (v1.getZ() - v0.getZ()) + u * (v2.getZ() - v0.getZ());
-        return z;
-    }
-    static longestSideLength(a, b, c) {
-        const lenAB = a.distance(b);
-        const lenBC = b.distance(c);
-        const lenCA = c.distance(a);
-        let maxLen = lenAB;
-        if (lenBC > maxLen) maxLen = lenBC;
-        if (lenCA > maxLen) maxLen = lenCA;
-        return maxLen;
-    }
-    static circumcentreDD(a, b, c) {
-        const ax = (0, _ddJsDefault.default).valueOf(a.x).subtract(c.x);
-        const ay = (0, _ddJsDefault.default).valueOf(a.y).subtract(c.y);
-        const bx = (0, _ddJsDefault.default).valueOf(b.x).subtract(c.x);
-        const by = (0, _ddJsDefault.default).valueOf(b.y).subtract(c.y);
-        const denom = (0, _ddJsDefault.default).determinant(ax, ay, bx, by).multiply(2);
-        const asqr = ax.sqr().add(ay.sqr());
-        const bsqr = bx.sqr().add(by.sqr());
-        const numx = (0, _ddJsDefault.default).determinant(ay, asqr, by, bsqr);
-        const numy = (0, _ddJsDefault.default).determinant(ax, asqr, bx, bsqr);
-        const ccx = (0, _ddJsDefault.default).valueOf(c.x).subtract(numx.divide(denom)).doubleValue();
-        const ccy = (0, _ddJsDefault.default).valueOf(c.y).add(numy.divide(denom)).doubleValue();
-        return new (0, _coordinateJsDefault.default)(ccx, ccy);
-    }
-    static area3D(a, b, c) {
-        const ux = b.x - a.x;
-        const uy = b.y - a.y;
-        const uz = b.getZ() - a.getZ();
-        const vx = c.x - a.x;
-        const vy = c.y - a.y;
-        const vz = c.getZ() - a.getZ();
-        const crossx = uy * vz - uz * vy;
-        const crossy = uz * vx - ux * vz;
-        const crossz = ux * vy - uy * vx;
-        const absSq = crossx * crossx + crossy * crossy + crossz * crossz;
-        const area3D = Math.sqrt(absSq) / 2;
-        return area3D;
-    }
-    static centroid(a, b, c) {
-        const x = (a.x + b.x + c.x) / 3;
-        const y = (a.y + b.y + c.y) / 3;
-        return new (0, _coordinateJsDefault.default)(x, y);
-    }
-    interpolateZ(p) {
-        if (p === null) throw new (0, _illegalArgumentExceptionJsDefault.default)('Supplied point is null.');
-        return Triangle.interpolateZ(p, this.p0, this.p1, this.p2);
-    }
-    longestSideLength() {
-        return Triangle.longestSideLength(this.p0, this.p1, this.p2);
-    }
-    isAcute() {
-        return Triangle.isAcute(this.p0, this.p1, this.p2);
-    }
-    circumcentre() {
-        return Triangle.circumcentre(this.p0, this.p1, this.p2);
-    }
-    inCentre() {
-        return Triangle.inCentre(this.p0, this.p1, this.p2);
-    }
-    area() {
-        return Triangle.area(this.p0, this.p1, this.p2);
-    }
-    signedArea() {
-        return Triangle.signedArea(this.p0, this.p1, this.p2);
-    }
-    area3D() {
-        return Triangle.area3D(this.p0, this.p1, this.p2);
-    }
-    centroid() {
-        return Triangle.centroid(this.p0, this.p1, this.p2);
-    }
-}
-exports.default = Triangle;
-
-},{"../math/DD.js":"12omc","../algorithm/Angle.js":"61NBK","../algorithm/HCoordinate.js":"1Fobc","./Coordinate.js":"ii2fh","../../../../java/lang/IllegalArgumentException.js":"9ppVW","@parcel/transformer-js/src/esmodule-helpers.js":"jnFvT"}],"1Fobc":[function(require,module,exports,__globalThis) {
-var parcelHelpers = require("@parcel/transformer-js/src/esmodule-helpers.js");
-parcelHelpers.defineInteropFlag(exports);
-var _notRepresentableExceptionJs = require("./NotRepresentableException.js");
-var _notRepresentableExceptionJsDefault = parcelHelpers.interopDefault(_notRepresentableExceptionJs);
-var _coordinateJs = require("../geom/Coordinate.js");
-var _coordinateJsDefault = parcelHelpers.interopDefault(_coordinateJs);
-var _doubleJs = require("../../../../java/lang/Double.js");
-var _doubleJsDefault = parcelHelpers.interopDefault(_doubleJs);
-class HCoordinate {
-    constructor(){
-        HCoordinate.constructor_.apply(this, arguments);
-    }
-    static constructor_() {
-        this.x = null;
-        this.y = null;
-        this.w = null;
-        if (arguments.length === 0) {
-            this.x = 0.0;
-            this.y = 0.0;
-            this.w = 1.0;
-        } else if (arguments.length === 1) {
-            const p = arguments[0];
-            this.x = p.x;
-            this.y = p.y;
-            this.w = 1.0;
-        } else if (arguments.length === 2) {
-            if (typeof arguments[0] === 'number' && typeof arguments[1] === 'number') {
-                const _x = arguments[0], _y = arguments[1];
-                this.x = _x;
-                this.y = _y;
-                this.w = 1.0;
-            } else if (arguments[0] instanceof HCoordinate && arguments[1] instanceof HCoordinate) {
-                const p1 = arguments[0], p2 = arguments[1];
-                this.x = p1.y * p2.w - p2.y * p1.w;
-                this.y = p2.x * p1.w - p1.x * p2.w;
-                this.w = p1.x * p2.y - p2.x * p1.y;
-            } else if (arguments[0] instanceof (0, _coordinateJsDefault.default) && arguments[1] instanceof (0, _coordinateJsDefault.default)) {
-                const p1 = arguments[0], p2 = arguments[1];
-                this.x = p1.y - p2.y;
-                this.y = p2.x - p1.x;
-                this.w = p1.x * p2.y - p2.x * p1.y;
-            }
-        } else if (arguments.length === 3) {
-            const _x = arguments[0], _y = arguments[1], _w = arguments[2];
-            this.x = _x;
-            this.y = _y;
-            this.w = _w;
-        } else if (arguments.length === 4) {
-            const p1 = arguments[0], p2 = arguments[1], q1 = arguments[2], q2 = arguments[3];
-            const px = p1.y - p2.y;
-            const py = p2.x - p1.x;
-            const pw = p1.x * p2.y - p2.x * p1.y;
-            const qx = q1.y - q2.y;
-            const qy = q2.x - q1.x;
-            const qw = q1.x * q2.y - q2.x * q1.y;
-            this.x = py * qw - qy * pw;
-            this.y = qx * pw - px * qw;
-            this.w = px * qy - qx * py;
-        }
-    }
-    getCoordinate() {
-        const p = new (0, _coordinateJsDefault.default)();
-        p.x = this.getX();
-        p.y = this.getY();
-        return p;
-    }
-    getX() {
-        const a = this.x / this.w;
-        if ((0, _doubleJsDefault.default).isNaN(a) || (0, _doubleJsDefault.default).isInfinite(a)) throw new (0, _notRepresentableExceptionJsDefault.default)();
-        return a;
-    }
-    getY() {
-        const a = this.y / this.w;
-        if ((0, _doubleJsDefault.default).isNaN(a) || (0, _doubleJsDefault.default).isInfinite(a)) throw new (0, _notRepresentableExceptionJsDefault.default)();
-        return a;
-    }
-}
-exports.default = HCoordinate;
-
-},{"./NotRepresentableException.js":"2MRq4","../geom/Coordinate.js":"ii2fh","../../../../java/lang/Double.js":"clUxd","@parcel/transformer-js/src/esmodule-helpers.js":"jnFvT"}],"2MRq4":[function(require,module,exports,__globalThis) {
-var parcelHelpers = require("@parcel/transformer-js/src/esmodule-helpers.js");
-parcelHelpers.defineInteropFlag(exports);
-var _exceptionJs = require("../../../../java/lang/Exception.js");
-var _exceptionJsDefault = parcelHelpers.interopDefault(_exceptionJs);
-class NotRepresentableException extends (0, _exceptionJsDefault.default) {
-    constructor(){
-        super();
-        NotRepresentableException.constructor_.apply(this, arguments);
-    }
-    static constructor_() {
-        (0, _exceptionJsDefault.default).constructor_.call(this, 'Projective point not representable on the Cartesian plane.');
-    }
-}
-exports.default = NotRepresentableException;
-
-},{"../../../../java/lang/Exception.js":"8tbsL","@parcel/transformer-js/src/esmodule-helpers.js":"jnFvT"}],"2jxBb":[function(require,module,exports,__globalThis) {
-var parcelHelpers = require("@parcel/transformer-js/src/esmodule-helpers.js");
-parcelHelpers.defineInteropFlag(exports);
-var _directedEdgeStarJs = require("../../geomgraph/DirectedEdgeStar.js");
-var _directedEdgeStarJsDefault = parcelHelpers.interopDefault(_directedEdgeStarJs);
-var _nodeJs = require("../../geomgraph/Node.js");
-var _nodeJsDefault = parcelHelpers.interopDefault(_nodeJs);
-var _nodeFactoryJs = require("../../geomgraph/NodeFactory.js");
-var _nodeFactoryJsDefault = parcelHelpers.interopDefault(_nodeFactoryJs);
-class OverlayNodeFactory extends (0, _nodeFactoryJsDefault.default) {
-    constructor(){
-        super();
-    }
-    createNode(coord) {
-        return new (0, _nodeJsDefault.default)(coord, new (0, _directedEdgeStarJsDefault.default)());
-    }
-}
-exports.default = OverlayNodeFactory;
-
-},{"../../geomgraph/DirectedEdgeStar.js":"1iJ32","../../geomgraph/Node.js":"azV0J","../../geomgraph/NodeFactory.js":"5wP5U","@parcel/transformer-js/src/esmodule-helpers.js":"jnFvT"}],"1iJ32":[function(require,module,exports,__globalThis) {
-var parcelHelpers = require("@parcel/transformer-js/src/esmodule-helpers.js");
-parcelHelpers.defineInteropFlag(exports);
-var _locationJs = require("../geom/Location.js");
-var _locationJsDefault = parcelHelpers.interopDefault(_locationJs);
-var _positionJs = require("./Position.js");
-var _positionJsDefault = parcelHelpers.interopDefault(_positionJs);
-var _topologyExceptionJs = require("../geom/TopologyException.js");
-var _topologyExceptionJsDefault = parcelHelpers.interopDefault(_topologyExceptionJs);
-var _labelJs = require("./Label.js");
-var _labelJsDefault = parcelHelpers.interopDefault(_labelJs);
-var _arrayListJs = require("../../../../java/util/ArrayList.js");
-var _arrayListJsDefault = parcelHelpers.interopDefault(_arrayListJs);
-var _edgeEndStarJs = require("./EdgeEndStar.js");
-var _edgeEndStarJsDefault = parcelHelpers.interopDefault(_edgeEndStarJs);
-var _systemJs = require("../../../../java/lang/System.js");
-var _systemJsDefault = parcelHelpers.interopDefault(_systemJs);
-var _quadrantJs = require("./Quadrant.js");
-var _quadrantJsDefault = parcelHelpers.interopDefault(_quadrantJs);
-var _assertJs = require("../util/Assert.js");
-var _assertJsDefault = parcelHelpers.interopDefault(_assertJs);
-class DirectedEdgeStar extends (0, _edgeEndStarJsDefault.default) {
-    constructor(){
-        super();
-        DirectedEdgeStar.constructor_.apply(this, arguments);
-    }
-    static constructor_() {
-        this._resultAreaEdgeList = null;
-        this._label = null;
-        this._SCANNING_FOR_INCOMING = 1;
-        this._LINKING_TO_OUTGOING = 2;
-    }
-    linkResultDirectedEdges() {
-        this.getResultAreaEdges();
-        let firstOut = null;
-        let incoming = null;
-        let state = this._SCANNING_FOR_INCOMING;
-        for(let i = 0; i < this._resultAreaEdgeList.size(); i++){
-            const nextOut = this._resultAreaEdgeList.get(i);
-            const nextIn = nextOut.getSym();
-            if (!nextOut.getLabel().isArea()) continue;
-            if (firstOut === null && nextOut.isInResult()) firstOut = nextOut;
-            switch(state){
-                case this._SCANNING_FOR_INCOMING:
-                    if (!nextIn.isInResult()) continue;
-                    incoming = nextIn;
-                    state = this._LINKING_TO_OUTGOING;
-                    break;
-                case this._LINKING_TO_OUTGOING:
-                    if (!nextOut.isInResult()) continue;
-                    incoming.setNext(nextOut);
-                    state = this._SCANNING_FOR_INCOMING;
-                    break;
-            }
-        }
-        if (state === this._LINKING_TO_OUTGOING) {
-            if (firstOut === null) throw new (0, _topologyExceptionJsDefault.default)('no outgoing dirEdge found', this.getCoordinate());
-            (0, _assertJsDefault.default).isTrue(firstOut.isInResult(), 'unable to link last incoming dirEdge');
-            incoming.setNext(firstOut);
-        }
-    }
-    insert(ee) {
-        const de = ee;
-        this.insertEdgeEnd(de, de);
-    }
-    getRightmostEdge() {
-        const edges = this.getEdges();
-        const size = edges.size();
-        if (size < 1) return null;
-        const de0 = edges.get(0);
-        if (size === 1) return de0;
-        const deLast = edges.get(size - 1);
-        const quad0 = de0.getQuadrant();
-        const quad1 = deLast.getQuadrant();
-        if ((0, _quadrantJsDefault.default).isNorthern(quad0) && (0, _quadrantJsDefault.default).isNorthern(quad1)) return de0;
-        else if (!(0, _quadrantJsDefault.default).isNorthern(quad0) && !(0, _quadrantJsDefault.default).isNorthern(quad1)) return deLast;
-        else {
-            const nonHorizontalEdge = null;
-            if (de0.getDy() !== 0) return de0;
-            else if (deLast.getDy() !== 0) return deLast;
-        }
-        (0, _assertJsDefault.default).shouldNeverReachHere('found two horizontal edges incident on node');
-        return null;
-    }
-    updateLabelling(nodeLabel) {
-        for(let it = this.iterator(); it.hasNext();){
-            const de = it.next();
-            const label = de.getLabel();
-            label.setAllLocationsIfNull(0, nodeLabel.getLocation(0));
-            label.setAllLocationsIfNull(1, nodeLabel.getLocation(1));
-        }
-    }
-    linkAllDirectedEdges() {
-        this.getEdges();
-        let prevOut = null;
-        let firstIn = null;
-        for(let i = this._edgeList.size() - 1; i >= 0; i--){
-            const nextOut = this._edgeList.get(i);
-            const nextIn = nextOut.getSym();
-            if (firstIn === null) firstIn = nextIn;
-            if (prevOut !== null) nextIn.setNext(prevOut);
-            prevOut = nextOut;
-        }
-        firstIn.setNext(prevOut);
-    }
-    computeDepths() {
-        if (arguments.length === 1) {
-            const de = arguments[0];
-            const edgeIndex = this.findIndex(de);
-            const startDepth = de.getDepth((0, _positionJsDefault.default).LEFT);
-            const targetLastDepth = de.getDepth((0, _positionJsDefault.default).RIGHT);
-            const nextDepth = this.computeDepths(edgeIndex + 1, this._edgeList.size(), startDepth);
-            const lastDepth = this.computeDepths(0, edgeIndex, nextDepth);
-            if (lastDepth !== targetLastDepth) throw new (0, _topologyExceptionJsDefault.default)('depth mismatch at ' + de.getCoordinate());
-        } else if (arguments.length === 3) {
-            const startIndex = arguments[0], endIndex = arguments[1], startDepth = arguments[2];
-            let currDepth = startDepth;
-            for(let i = startIndex; i < endIndex; i++){
-                const nextDe = this._edgeList.get(i);
-                nextDe.setEdgeDepths((0, _positionJsDefault.default).RIGHT, currDepth);
-                currDepth = nextDe.getDepth((0, _positionJsDefault.default).LEFT);
-            }
-            return currDepth;
-        }
-    }
-    mergeSymLabels() {
-        for(let it = this.iterator(); it.hasNext();){
-            const de = it.next();
-            const label = de.getLabel();
-            label.merge(de.getSym().getLabel());
-        }
-    }
-    linkMinimalDirectedEdges(er) {
-        let firstOut = null;
-        let incoming = null;
-        let state = this._SCANNING_FOR_INCOMING;
-        for(let i = this._resultAreaEdgeList.size() - 1; i >= 0; i--){
-            const nextOut = this._resultAreaEdgeList.get(i);
-            const nextIn = nextOut.getSym();
-            if (firstOut === null && nextOut.getEdgeRing() === er) firstOut = nextOut;
-            switch(state){
-                case this._SCANNING_FOR_INCOMING:
-                    if (nextIn.getEdgeRing() !== er) continue;
-                    incoming = nextIn;
-                    state = this._LINKING_TO_OUTGOING;
-                    break;
-                case this._LINKING_TO_OUTGOING:
-                    if (nextOut.getEdgeRing() !== er) continue;
-                    incoming.setNextMin(nextOut);
-                    state = this._SCANNING_FOR_INCOMING;
-                    break;
-            }
-        }
-        if (state === this._LINKING_TO_OUTGOING) {
-            (0, _assertJsDefault.default).isTrue(firstOut !== null, 'found null for first outgoing dirEdge');
-            (0, _assertJsDefault.default).isTrue(firstOut.getEdgeRing() === er, 'unable to link last incoming dirEdge');
-            incoming.setNextMin(firstOut);
-        }
-    }
-    getOutgoingDegree() {
-        if (arguments.length === 0) {
-            let degree = 0;
-            for(let it = this.iterator(); it.hasNext();){
-                const de = it.next();
-                if (de.isInResult()) degree++;
-            }
-            return degree;
-        } else if (arguments.length === 1) {
-            const er = arguments[0];
-            let degree = 0;
-            for(let it = this.iterator(); it.hasNext();){
-                const de = it.next();
-                if (de.getEdgeRing() === er) degree++;
-            }
-            return degree;
-        }
-    }
-    getLabel() {
-        return this._label;
-    }
-    findCoveredLineEdges() {
-        let startLoc = (0, _locationJsDefault.default).NONE;
-        for(let it = this.iterator(); it.hasNext();){
-            const nextOut = it.next();
-            const nextIn = nextOut.getSym();
-            if (!nextOut.isLineEdge()) {
-                if (nextOut.isInResult()) {
-                    startLoc = (0, _locationJsDefault.default).INTERIOR;
-                    break;
-                }
-                if (nextIn.isInResult()) {
-                    startLoc = (0, _locationJsDefault.default).EXTERIOR;
-                    break;
-                }
-            }
-        }
-        if (startLoc === (0, _locationJsDefault.default).NONE) return null;
-        let currLoc = startLoc;
-        for(let it = this.iterator(); it.hasNext();){
-            const nextOut = it.next();
-            const nextIn = nextOut.getSym();
-            if (nextOut.isLineEdge()) nextOut.getEdge().setCovered(currLoc === (0, _locationJsDefault.default).INTERIOR);
-            else {
-                if (nextOut.isInResult()) currLoc = (0, _locationJsDefault.default).EXTERIOR;
-                if (nextIn.isInResult()) currLoc = (0, _locationJsDefault.default).INTERIOR;
-            }
-        }
-    }
-    computeLabelling(geom) {
-        super.computeLabelling.call(this, geom);
-        this._label = new (0, _labelJsDefault.default)((0, _locationJsDefault.default).NONE);
-        for(let it = this.iterator(); it.hasNext();){
-            const ee = it.next();
-            const e = ee.getEdge();
-            const eLabel = e.getLabel();
-            for(let i = 0; i < 2; i++){
-                const eLoc = eLabel.getLocation(i);
-                if (eLoc === (0, _locationJsDefault.default).INTERIOR || eLoc === (0, _locationJsDefault.default).BOUNDARY) this._label.setLocation(i, (0, _locationJsDefault.default).INTERIOR);
-            }
-        }
-    }
-    print(out) {
-        (0, _systemJsDefault.default).out.println('DirectedEdgeStar: ' + this.getCoordinate());
-        for(let it = this.iterator(); it.hasNext();){
-            const de = it.next();
-            out.print('out ');
-            de.print(out);
-            out.println();
-            out.print('in ');
-            de.getSym().print(out);
-            out.println();
-        }
-    }
-    getResultAreaEdges() {
-        if (this._resultAreaEdgeList !== null) return this._resultAreaEdgeList;
-        this._resultAreaEdgeList = new (0, _arrayListJsDefault.default)();
-        for(let it = this.iterator(); it.hasNext();){
-            const de = it.next();
-            if (de.isInResult() || de.getSym().isInResult()) this._resultAreaEdgeList.add(de);
-        }
-        return this._resultAreaEdgeList;
-    }
-}
-exports.default = DirectedEdgeStar;
-
-},{"../geom/Location.js":"9aPCX","./Position.js":"13raO","../geom/TopologyException.js":"bOVA5","./Label.js":"dJJOo","../../../../java/util/ArrayList.js":"gGAQZ","./EdgeEndStar.js":"lc382","../../../../java/lang/System.js":"dYmTx","./Quadrant.js":"86Qmh","../util/Assert.js":"1vSRy","@parcel/transformer-js/src/esmodule-helpers.js":"jnFvT"}],"cqdlm":[function(require,module,exports,__globalThis) {
-var parcelHelpers = require("@parcel/transformer-js/src/esmodule-helpers.js");
-parcelHelpers.defineInteropFlag(exports);
-var _orientedCoordinateArrayJs = require("../noding/OrientedCoordinateArray.js");
-var _orientedCoordinateArrayJsDefault = parcelHelpers.interopDefault(_orientedCoordinateArrayJs);
-var _arrayListJs = require("../../../../java/util/ArrayList.js");
-var _arrayListJsDefault = parcelHelpers.interopDefault(_arrayListJs);
-var _treeMapJs = require("../../../../java/util/TreeMap.js");
-var _treeMapJsDefault = parcelHelpers.interopDefault(_treeMapJs);
-class EdgeList {
-    constructor(){
-        EdgeList.constructor_.apply(this, arguments);
-    }
-    static constructor_() {
-        this._edges = new (0, _arrayListJsDefault.default)();
-        this._ocaMap = new (0, _treeMapJsDefault.default)();
-    }
-    print(out) {
-        out.print('MULTILINESTRING ( ');
-        for(let j = 0; j < this._edges.size(); j++){
-            const e = this._edges.get(j);
-            if (j > 0) out.print(',');
-            out.print('(');
-            const pts = e.getCoordinates();
-            for(let i = 0; i < pts.length; i++){
-                if (i > 0) out.print(',');
-                out.print(pts[i].x + ' ' + pts[i].y);
-            }
-            out.println(')');
-        }
-        out.print(')  ');
-    }
-    addAll(edgeColl) {
-        for(let i = edgeColl.iterator(); i.hasNext();)this.add(i.next());
-    }
-    findEdgeIndex(e) {
-        for(let i = 0; i < this._edges.size(); i++)if (this._edges.get(i).equals(e)) return i;
-        return -1;
-    }
-    iterator() {
-        return this._edges.iterator();
-    }
-    getEdges() {
-        return this._edges;
-    }
-    get(i) {
-        return this._edges.get(i);
-    }
-    findEqualEdge(e) {
-        const oca = new (0, _orientedCoordinateArrayJsDefault.default)(e.getCoordinates());
-        const matchEdge = this._ocaMap.get(oca);
-        return matchEdge;
-    }
-    add(e) {
-        this._edges.add(e);
-        const oca = new (0, _orientedCoordinateArrayJsDefault.default)(e.getCoordinates());
-        this._ocaMap.put(oca, e);
-    }
-}
-exports.default = EdgeList;
-
-},{"../noding/OrientedCoordinateArray.js":"6WFuf","../../../../java/util/ArrayList.js":"gGAQZ","../../../../java/util/TreeMap.js":"dQNYS","@parcel/transformer-js/src/esmodule-helpers.js":"jnFvT"}],"6WFuf":[function(require,module,exports,__globalThis) {
-var parcelHelpers = require("@parcel/transformer-js/src/esmodule-helpers.js");
-parcelHelpers.defineInteropFlag(exports);
-var _comparableJs = require("../../../../java/lang/Comparable.js");
-var _comparableJsDefault = parcelHelpers.interopDefault(_comparableJs);
-var _coordinateArraysJs = require("../geom/CoordinateArrays.js");
-var _coordinateArraysJsDefault = parcelHelpers.interopDefault(_coordinateArraysJs);
-class OrientedCoordinateArray {
-    constructor(){
-        OrientedCoordinateArray.constructor_.apply(this, arguments);
-    }
-    static constructor_() {
-        this._pts = null;
-        this._orientation = null;
-        const pts = arguments[0];
-        this._pts = pts;
-        this._orientation = OrientedCoordinateArray.orientation(pts);
-    }
-    static orientation(pts) {
-        return (0, _coordinateArraysJsDefault.default).increasingDirection(pts) === 1;
-    }
-    static compareOriented(pts1, orientation1, pts2, orientation2) {
-        const dir1 = orientation1 ? 1 : -1;
-        const dir2 = orientation2 ? 1 : -1;
-        const limit1 = orientation1 ? pts1.length : -1;
-        const limit2 = orientation2 ? pts2.length : -1;
-        let i1 = orientation1 ? 0 : pts1.length - 1;
-        let i2 = orientation2 ? 0 : pts2.length - 1;
-        while(true){
-            const compPt = pts1[i1].compareTo(pts2[i2]);
-            if (compPt !== 0) return compPt;
-            i1 += dir1;
-            i2 += dir2;
-            const done1 = i1 === limit1;
-            const done2 = i2 === limit2;
-            if (done1 && !done2) return -1;
-            if (!done1 && done2) return 1;
-            if (done1 && done2) return 0;
-        }
-    }
-    compareTo(o1) {
-        const oca = o1;
-        const comp = OrientedCoordinateArray.compareOriented(this._pts, this._orientation, oca._pts, oca._orientation);
-        return comp;
-    }
-    get interfaces_() {
-        return [
-            (0, _comparableJsDefault.default)
-        ];
-    }
-}
-exports.default = OrientedCoordinateArray;
-
-},{"../../../../java/lang/Comparable.js":"WFeEu","../geom/CoordinateArrays.js":"lncg4","@parcel/transformer-js/src/esmodule-helpers.js":"jnFvT"}],"dL4Dk":[function(require,module,exports,__globalThis) {
-var parcelHelpers = require("@parcel/transformer-js/src/esmodule-helpers.js");
-parcelHelpers.defineInteropFlag(exports);
-var _segmentIntersectorJs = require("./SegmentIntersector.js");
-var _segmentIntersectorJsDefault = parcelHelpers.interopDefault(_segmentIntersectorJs);
-class IntersectionAdder {
-    constructor(){
-        IntersectionAdder.constructor_.apply(this, arguments);
-    }
-    static constructor_() {
-        this._hasIntersection = false;
-        this._hasProper = false;
-        this._hasProperInterior = false;
-        this._hasInterior = false;
-        this._properIntersectionPoint = null;
-        this._li = null;
-        this._isSelfIntersection = null;
-        this.numIntersections = 0;
-        this.numInteriorIntersections = 0;
-        this.numProperIntersections = 0;
-        this.numTests = 0;
-        const li = arguments[0];
-        this._li = li;
-    }
-    static isAdjacentSegments(i1, i2) {
-        return Math.abs(i1 - i2) === 1;
-    }
-    isTrivialIntersection(e0, segIndex0, e1, segIndex1) {
-        if (e0 === e1) {
-            if (this._li.getIntersectionNum() === 1) {
-                if (IntersectionAdder.isAdjacentSegments(segIndex0, segIndex1)) return true;
-                if (e0.isClosed()) {
-                    const maxSegIndex = e0.size() - 1;
-                    if (segIndex0 === 0 && segIndex1 === maxSegIndex || segIndex1 === 0 && segIndex0 === maxSegIndex) return true;
-                }
-            }
-        }
-        return false;
-    }
-    getProperIntersectionPoint() {
-        return this._properIntersectionPoint;
-    }
-    hasProperInteriorIntersection() {
-        return this._hasProperInterior;
-    }
-    getLineIntersector() {
-        return this._li;
-    }
-    hasProperIntersection() {
-        return this._hasProper;
-    }
-    processIntersections(e0, segIndex0, e1, segIndex1) {
-        if (e0 === e1 && segIndex0 === segIndex1) return null;
-        this.numTests++;
-        const p00 = e0.getCoordinates()[segIndex0];
-        const p01 = e0.getCoordinates()[segIndex0 + 1];
-        const p10 = e1.getCoordinates()[segIndex1];
-        const p11 = e1.getCoordinates()[segIndex1 + 1];
-        this._li.computeIntersection(p00, p01, p10, p11);
-        if (this._li.hasIntersection()) {
-            this.numIntersections++;
-            if (this._li.isInteriorIntersection()) {
-                this.numInteriorIntersections++;
-                this._hasInterior = true;
-            }
-            if (!this.isTrivialIntersection(e0, segIndex0, e1, segIndex1)) {
-                this._hasIntersection = true;
-                e0.addIntersections(this._li, segIndex0, 0);
-                e1.addIntersections(this._li, segIndex1, 1);
-                if (this._li.isProper()) {
-                    this.numProperIntersections++;
-                    this._hasProper = true;
-                    this._hasProperInterior = true;
-                }
-            }
-        }
-    }
-    hasIntersection() {
-        return this._hasIntersection;
-    }
-    isDone() {
-        return false;
-    }
-    hasInteriorIntersection() {
-        return this._hasInterior;
-    }
-    get interfaces_() {
-        return [
-            (0, _segmentIntersectorJsDefault.default)
-        ];
-    }
-}
-exports.default = IntersectionAdder;
-
-},{"./SegmentIntersector.js":"jNast","@parcel/transformer-js/src/esmodule-helpers.js":"jnFvT"}],"5Qkjh":[function(require,module,exports,__globalThis) {
+},{"./buffer/BufferOp.js":"1i41m","./buffer/BufferParameters.js":"idesX","@parcel/transformer-js/src/esmodule-helpers.js":"jnFvT"}],"5Qkjh":[function(require,module,exports,__globalThis) {
 var parcelHelpers = require("@parcel/transformer-js/src/esmodule-helpers.js");
 parcelHelpers.defineInteropFlag(exports);
 parcelHelpers.export(exports, "activateSelectInteraction", ()=>activateSelectInteraction);
@@ -72059,6 +74272,195 @@ function activateSelectInteraction(map) {
     };
 }
 
-},{"ol/events/condition.js":"gm0iA","ol/interaction/Select.js":"7h3Zo","ol/layer/Vector.js":"6bOIK","ol/rotationconstraint":"6TPbY","ol/source/Vector.js":"7wT1g","ol/style/Fill.js":"cHc7U","ol/style/Stroke.js":"1uQwy","ol/style/Style.js":"8opjn","@parcel/transformer-js/src/esmodule-helpers.js":"jnFvT"}]},["93v64","lhpGb"], "lhpGb", "parcelRequired761", {})
+},{"ol/events/condition.js":"gm0iA","ol/interaction/Select.js":"7h3Zo","ol/layer/Vector.js":"6bOIK","ol/rotationconstraint":"6TPbY","ol/source/Vector.js":"7wT1g","ol/style/Fill.js":"cHc7U","ol/style/Stroke.js":"1uQwy","ol/style/Style.js":"8opjn","@parcel/transformer-js/src/esmodule-helpers.js":"jnFvT"}],"a2P7c":[function(require,module,exports,__globalThis) {
+var parcelHelpers = require("@parcel/transformer-js/src/esmodule-helpers.js");
+parcelHelpers.defineInteropFlag(exports);
+/**
+ * Class to handle geometry operations like union, intersection, etc.
+ */ parcelHelpers.export(exports, "GeometryOperations", ()=>GeometryOperations);
+parcelHelpers.export(exports, "geometryOps", ()=>geometryOps);
+var _ol3Parser = require("jsts/org/locationtech/jts/io/OL3Parser");
+var _ol3ParserDefault = parcelHelpers.interopDefault(_ol3Parser);
+var _union = require("jsts/org/locationtech/jts/operation/union");
+var _ol = require("ol");
+var _point = require("ol/geom/Point");
+var _pointDefault = parcelHelpers.interopDefault(_point);
+var _lineString = require("ol/geom/LineString");
+var _lineStringDefault = parcelHelpers.interopDefault(_lineString);
+var _linearRing = require("ol/geom/LinearRing");
+var _linearRingDefault = parcelHelpers.interopDefault(_linearRing);
+var _polygon = require("ol/geom/Polygon");
+var _polygonDefault = parcelHelpers.interopDefault(_polygon);
+var _multiPoint = require("ol/geom/MultiPoint");
+var _multiPointDefault = parcelHelpers.interopDefault(_multiPoint);
+var _multiLineString = require("ol/geom/MultiLineString");
+var _multiLineStringDefault = parcelHelpers.interopDefault(_multiLineString);
+var _multiPolygon = require("ol/geom/MultiPolygon");
+var _multiPolygonDefault = parcelHelpers.interopDefault(_multiPolygon);
+var _geometryCollection = require("ol/geom/GeometryCollection");
+var _geometryCollectionDefault = parcelHelpers.interopDefault(_geometryCollection);
+var _popupMessageJs = require("./popup-message.js"); // Using your existing popup message utility
+class GeometryOperations {
+    constructor(){
+        // Initialize JSTS parser
+        this.parser = new (0, _ol3ParserDefault.default)();
+        // Inject OpenLayers geometry classes
+        this.parser.inject((0, _pointDefault.default), (0, _lineStringDefault.default), (0, _linearRingDefault.default), (0, _polygonDefault.default), (0, _multiPointDefault.default), (0, _multiLineStringDefault.default), (0, _multiPolygonDefault.default), (0, _geometryCollectionDefault.default));
+        console.log("GeometryOperations initialized with parser:", this.parser);
+    }
+    /**
+   * Creates a union of multiple features
+   * @param {Array<Feature>} features - Array of OpenLayers features
+   * @returns {Feature|null} - The union result as an OpenLayers feature, or null if operation fails
+   */ unionFeatures(features) {
+        console.log("unionFeatures called with:", features);
+        if (!features || features.length === 0) {
+            (0, _popupMessageJs.showPopupMessage)("No features selected for union", "warning");
+            return null;
+        }
+        if (features.length === 1) {
+            (0, _popupMessageJs.showPopupMessage)("Only one feature selected, no union needed", "info");
+            return features[0].clone();
+        }
+        try {
+            // Check if all features have valid geometries
+            const validFeatures = features.filter((f)=>f.getGeometry() !== null && !f.getGeometry().isEmpty());
+            if (validFeatures.length !== features.length) {
+                console.warn("Some features have invalid geometries:", features.filter((f)=>f.getGeometry() === null || f.getGeometry().isEmpty()));
+                (0, _popupMessageJs.showPopupMessage)("Some features have invalid geometries", "warning");
+            }
+            if (validFeatures.length < 2) {
+                (0, _popupMessageJs.showPopupMessage)("Not enough valid features for union", "warning");
+                return null;
+            }
+            console.log("Valid features for union:", validFeatures);
+            // Convert all OL geometries to JSTS geometries
+            const jstsGeoms = [];
+            for (const feature of validFeatures)try {
+                const jstsGeom = this.parser.read(feature.getGeometry());
+                console.log("Converted geometry:", jstsGeom);
+                jstsGeoms.push(jstsGeom);
+            } catch (error) {
+                console.error("Error converting geometry:", error, feature.getGeometry());
+            }
+            if (jstsGeoms.length < 2) {
+                (0, _popupMessageJs.showPopupMessage)("Failed to convert geometries for union", "error");
+                return null;
+            }
+            // Perform the union operation using UnaryUnionOp
+            console.log("Performing union with geometries:", jstsGeoms);
+            const unionGeom = (0, _union.UnaryUnionOp).union(jstsGeoms);
+            console.log("Union result:", unionGeom);
+            if (!unionGeom) {
+                (0, _popupMessageJs.showPopupMessage)("Union operation returned null", "error");
+                return null;
+            }
+            // Convert back to OL geometry
+            const olGeometry = this.parser.write(unionGeom);
+            console.log("Converted back to OL geometry:", olGeometry);
+            if (!olGeometry) {
+                (0, _popupMessageJs.showPopupMessage)("Failed to convert union result back to OpenLayers", "error");
+                return null;
+            }
+            // Create a new feature with the union geometry
+            const unionFeature = new (0, _ol.Feature)({
+                geometry: olGeometry
+            });
+            // Copy properties from the first feature (optional)
+            const properties = validFeatures[0].getProperties();
+            delete properties.geometry; // Remove geometry property
+            unionFeature.setProperties(properties);
+            (0, _popupMessageJs.showPopupMessage)("Union operation completed successfully", "success");
+            return unionFeature;
+        } catch (error) {
+            console.error("Error performing union:", error);
+            (0, _popupMessageJs.showPopupMessage)("Failed to create union: " + error.message, "error");
+            return null;
+        }
+    }
+}
+const geometryOps = new GeometryOperations();
+
+},{"jsts/org/locationtech/jts/io/OL3Parser":"1NdLK","jsts/org/locationtech/jts/operation/union":"b4ekL","ol":"7JF0u","ol/geom/Point":"6SybV","ol/geom/LineString":"gknRz","ol/geom/LinearRing":"gT85H","ol/geom/Polygon":"8Vwps","ol/geom/MultiPoint":"gXgmP","ol/geom/MultiLineString":"4FjXg","ol/geom/MultiPolygon":"b4GDd","ol/geom/GeometryCollection":"6lIhA","@parcel/transformer-js/src/esmodule-helpers.js":"jnFvT","./popup-message.js":"98E40"}],"bMpAD":[function(require,module,exports,__globalThis) {
+/**
+ * Shows a popup message to the user
+ * @param {string} message - The message to display
+ * @param {string} type - The type of message (success, error, warning, info)
+ */ var parcelHelpers = require("@parcel/transformer-js/src/esmodule-helpers.js");
+parcelHelpers.defineInteropFlag(exports);
+parcelHelpers.export(exports, "showPopupMessage", ()=>showPopupMessage);
+function showPopupMessage(message, type = "info") {
+    // Check if message container exists, create if not
+    let messageContainer = document.getElementById("message-container");
+    if (!messageContainer) {
+        messageContainer = document.createElement("div");
+        messageContainer.id = "message-container";
+        messageContainer.style.position = "fixed";
+        messageContainer.style.top = "20px";
+        messageContainer.style.right = "20px";
+        messageContainer.style.zIndex = "1000";
+        document.body.appendChild(messageContainer);
+    }
+    // Create message element
+    const messageElement = document.createElement("div");
+    messageElement.className = `message ${type}`;
+    messageElement.innerHTML = `
+    <div class="message-content">
+      <span class="message-text">${message}</span>
+      <button class="close-btn">&times;</button>
+    </div>
+  `;
+    // Style the message
+    messageElement.style.padding = "10px 15px";
+    messageElement.style.marginBottom = "10px";
+    messageElement.style.borderRadius = "4px";
+    messageElement.style.boxShadow = "0 2px 5px rgba(0,0,0,0.2)";
+    messageElement.style.display = "flex";
+    messageElement.style.justifyContent = "space-between";
+    messageElement.style.alignItems = "center";
+    // Set color based on type
+    switch(type){
+        case "success":
+            messageElement.style.backgroundColor = "#d4edda";
+            messageElement.style.color = "#155724";
+            messageElement.style.borderLeft = "4px solid #28a745";
+            break;
+        case "error":
+            messageElement.style.backgroundColor = "#f8d7da";
+            messageElement.style.color = "#721c24";
+            messageElement.style.borderLeft = "4px solid #dc3545";
+            break;
+        case "warning":
+            messageElement.style.backgroundColor = "#fff3cd";
+            messageElement.style.color = "#856404";
+            messageElement.style.borderLeft = "4px solid #ffc107";
+            break;
+        default:
+            messageElement.style.backgroundColor = "#d1ecf1";
+            messageElement.style.color = "#0c5460";
+            messageElement.style.borderLeft = "4px solid #17a2b8";
+    }
+    // Add close button functionality
+    const closeBtn = messageElement.querySelector(".close-btn");
+    closeBtn.style.background = "none";
+    closeBtn.style.border = "none";
+    closeBtn.style.cursor = "pointer";
+    closeBtn.style.fontSize = "20px";
+    closeBtn.style.marginLeft = "10px";
+    closeBtn.addEventListener("click", ()=>{
+        messageContainer.removeChild(messageElement);
+    });
+    // Add to container
+    messageContainer.appendChild(messageElement);
+    // Auto-remove after 5 seconds
+    setTimeout(()=>{
+        if (messageElement.parentNode === messageContainer) messageContainer.removeChild(messageElement);
+    }, 5000);
+}
+
+},{"@parcel/transformer-js/src/esmodule-helpers.js":"jnFvT"}],"5IIWm":[function(require,module,exports,__globalThis) {
+module.exports = import("./union-tool.f7f7811a.js").then(()=>module.bundle.root('aZqpL'));
+
+},{"aZqpL":"aZqpL"}]},["93v64","lhpGb"], "lhpGb", "parcelRequired761", {})
 
 //# sourceMappingURL=WebGISTrainingCodeV1.b828852a.js.map

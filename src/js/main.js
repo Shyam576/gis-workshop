@@ -13,6 +13,8 @@ import { Select } from 'ol/interaction';
 import { click } from 'ol/events/condition';
 import { createBuffer } from "./buffer-tools.js";
 import { activateSelectInteraction } from "./select-feature.js";
+import { geometryOps } from "./geometry-operations.js";
+import { showPopupMessage } from "./utils.js";
 
 const geoserverURL = "http://localhost:8080/geoserver";
 const geoserverWFSURL = "http://localhost:8080/geoserver/ows";
@@ -24,14 +26,20 @@ const password = "geoserver"; // Replace with your password
 document.addEventListener("DOMContentLoaded", async () => {
   // Initialize map
   const map = initMap();
+  
+  // Make map available globally for debugging
+  window.map = map;
 
   // Initialize drawing tools with our map instance
   const drawTools = initDrawTools(map);
   
-  // Add a Select interaction for selecting features to delete
+  // Add a Select interaction for selecting features to delete or union
   const select = new Select({
     condition: click
   });
+  
+  // Make select available globally for debugging
+  window.select = select;
   
   map.addInteraction(select);
 
@@ -54,7 +62,7 @@ document.addEventListener("DOMContentLoaded", async () => {
     const features = drawTools.source.getFeatures();
     
     if (features.length === 0) {
-      alert('No features to save');
+      showPopupMessage('No features to save', 'warning');
       return;
     }
     
@@ -69,9 +77,9 @@ document.addEventListener("DOMContentLoaded", async () => {
     );
     
     if (result.status === 'success') {
-      alert(`Successfully saved ${result.totalInserted || features.length} features`);
+      showPopupMessage(`Successfully saved ${result.totalInserted || features.length} features`, 'success');
     } else {
-      alert(`Error: ${result.message || 'Unknown error'}`);
+      showPopupMessage(`Error: ${result.message || 'Unknown error'}`, 'error');
     }
   });
   
@@ -98,9 +106,9 @@ document.addEventListener("DOMContentLoaded", async () => {
         });
       }
       
-      alert(`Loaded ${result.count} features`);
+      showPopupMessage(`Loaded ${result.count} features`, 'success');
     } else {
-      alert(`Error: ${result.message || 'Unknown error'}`);
+      showPopupMessage(`Error: ${result.message || 'Unknown error'}`, 'error');
     }
   });
   
@@ -109,7 +117,7 @@ document.addEventListener("DOMContentLoaded", async () => {
     const selectedFeatures = select.getFeatures().getArray();
     
     if (selectedFeatures.length === 0) {
-      alert('No features selected for deletion');
+      showPopupMessage('No features selected for deletion', 'warning');
       return;
     }
     
@@ -136,200 +144,121 @@ document.addEventListener("DOMContentLoaded", async () => {
       // Clear selection
       select.getFeatures().clear();
       
-      alert(`Successfully deleted ${result.totalDeleted || selectedFeatures.length} features`);
+      showPopupMessage(`Successfully deleted ${result.totalDeleted || selectedFeatures.length} features`, 'success');
     } else {
-      alert(`Error: ${result.message || 'Unknown error'}`);
+      showPopupMessage(`Error: ${result.message || 'Unknown error'}`, 'error');
     }
   });
 
-  setTimeout(() => {
-    document.body.classList.remove("initial-load");
-  }, 3000);
-  //   document.getElementById("loc-button").addEventListener('click', async () => {
-  //     const view = map.getView();
-  //     const hasLocationLayer = map.getLayers().getArray().some(layer => layer.get('title') === 'location-layer');
-  //     if (!hasLocationLayer) {
-  //     current_location(view).then(({ layer }) => {
-  //         map.addLayer(layer);
-  //     });
-  // }
+  // Add union features functionality
+  document.getElementById('union-features')?.addEventListener('click', () => {
+    console.log("Union button clicked");
+    const selectedFeatures = select.getFeatures().getArray();
+    console.log("Selected features:", selectedFeatures);
+    
+    if (selectedFeatures.length < 2) {
+      showPopupMessage('Select at least two features to union', 'warning');
+      return;
+    }
+    
+    // Import the function dynamically to ensure we're using the latest version
+    import('./union-tool.js').then(module => {
+      const unionFeature = module.unionFeatures(selectedFeatures, drawTools.source);
+      console.log("Union result:", unionFeature);
+      
+      if (unionFeature) {
+        // Clear selection
+        select.getFeatures().clear();
+        // Select the new union feature
+        select.getFeatures().push(unionFeature);
+      }
+    }).catch(error => {
+      console.error("Error importing union-tool module:", error);
+      showPopupMessage("Failed to perform union operation: " + error.message, "error");
+    });
+  });
+  
+  // Direct union button event listener
+  document.getElementById('direct-union')?.addEventListener('click', () => {
+    console.log("Direct union button clicked");
+    const selectedFeatures = select.getFeatures().getArray();
+    
+    if (selectedFeatures.length < 2) {
+      showPopupMessage('Select at least two features to union', 'warning');
+      return;
+    }
+    
+    // Import the function dynamically
+    import('./union-tool.js').then(module => {
+      try {
+        const result = module.unionFeatures(selectedFeatures, drawTools.source);
+        console.log("Union result:", result);
+        
+        if (result) {
+          // Clear selection
+          select.getFeatures().clear();
+          // Select the new feature
+          select.getFeatures().push(result);
+          showPopupMessage("Union completed successfully", "success");
+        }
+      } catch (error) {
+        console.error("Error during union operation:", error);
+        showPopupMessage("Error during union: " + error.message, "error");
+      }
+    }).catch(error => {
+      console.error('Error importing module:', error);
+      showPopupMessage("Failed to load union module: " + error.message, "error");
+    });
+  });
+  
+  // Simple union button event listener
+  document.getElementById('simple-union')?.addEventListener('click', () => {
+    console.log("Simple union button clicked");
+    const selectedFeatures = select.getFeatures().getArray();
+    
+    if (selectedFeatures.length < 2) {
+      showPopupMessage('Select at least two features to union', 'warning');
+      return;
+    }
+    
+    // Import the function dynamically
+    import('./union-tool.js').then(module => {
+      try {
+        const result = module.unionFeatures(selectedFeatures, drawTools.source);
+        console.log("Simple union result:", result);
+        
+        if (result) {
+          // Clear selection
+          select.getFeatures().clear();
+          // Select the new feature
+          select.getFeatures().push(result);
+          showPopupMessage("Simple union completed successfully", "success");
+        }
+      } catch (error) {
+        console.error("Error during simple union operation:", error);
+        showPopupMessage("Error during simple union: " + error.message, "error");
+      }
+    }).catch(error => {
+      console.error('Error importing module:', error);
+      showPopupMessage("Failed to load union module: " + error.message, "error");
+    });
+  });
 
-  //     });
+  // Create buffer event listener
+  document.getElementById('create-buffer').addEventListener('click', async () => {
+    const selectedFeatures = select.getFeatures();
 
-  // document
-  //   .getElementById("flight-button")
-  //   .addEventListener("click", async () => {
-  //     const view = map.getView();
-  //     const location = await current_location(view);
-  //     const current_location_point = location.pointFeature;
-  //     const destLocation = current_location_point
-  //       .getGeometry()
-  //       .transform("EPSG:3857", "EPSG:4326")
-  //       .getCoordinates();
+    if (selectedFeatures.getArray().length > 0) {
+      selectedFeatures.forEach((feature) => {
+        createBuffer(feature, 10, wfsLayer);
+      });
+      showPopupMessage("Buffer created successfully", "success");
+    } else {
+      showPopupMessage("No features selected for buffer", "warning");
+    }
+  });
 
-  //     const flight_layer = createFlightRouteLayer(destLocation, view);
-  //     map.addLayer(flight_layer);
-  //   });
-
-  // document.getElementById("add-wfs").addEventListener("click", async () => {
-  //   const features = await fetchFeatures(
-  //     "http://localhost:9090/geoserver/ows",
-  //     "topp",
-  //     "states",
-  //     "admin",
-  //     "geoserver"
-  //   );
-
-  //   const hasWfsLayer = map
-  //     .getLayers()
-  //     .getArray()
-  //     .some((layer) => layer.get("title") === "wfs-layer");
-  //   if (!hasWfsLayer) {
-  //     const wfsLayer = createWfsLayer(features);
-  //     map.getView().fit(wfsLayer.getSource().getExtent(), {
-  //       padding: [50, 50, 50, 50],
-  //       duration: 1000,
-  //     });
-  //     map.addLayer(wfsLayer);
-  //   }
-  // });
-
-  // document.getElementById("add-wms").addEventListener("click", async () => {
-  //   const geoserverURL = "http://localhost:8080/geoserver/ows";
-  //   const workspace = "ne";
-  //   const layer_name = "thromdeBoundary";
-
-  //   // Check if layer already exists
-  //   const hasLayer = map
-  //     .getLayers()
-  //     .getArray()
-  //     .some((layer) => layer.get("title") === "wms-layer-" + layer_name);
-
-  //   if (hasLayer) {
-  //     // Remove layer if it exists
-  //     map.getLayers().forEach((layer) => {
-  //       if (layer.get("title") === "wms-layer-" + layer_name) {
-  //         map.removeLayer(layer);
-  //       }
-  //     });
-  //   } else {
-  //     // Add layer if it doesn't exist
-  //     const layer = loadWms(geoserverURL, layer_name, workspace);
-  //     map.addLayer(layer);
-  //     const thimphuCoords = fromLonLat([89.638427, 27.478586]); // Thimphu coordinates
-
-  //     // Animate to the new location
-  //     map.getView().animate({
-  //       center: thimphuCoords,
-  //       zoom: 14,
-  //       duration: 1000,
-  //     });
-  //   }
-  // });
-
-  // document.getElementById("add-lines").addEventListener("click", async () => {
-  //   const geoserverURL = "http://localhost:8080/geoserver/ows";
-  //   const workspace = "ne";
-  //   const layer_name = "thimphu";
-
-  //   // Check if layer already exists
-  //   const hasLayer = map
-  //     .getLayers()
-  //     .getArray()
-  //     .some((layer) => layer.get("title") === "wms-layer-" + layer_name);
-
-  //   if (hasLayer) {
-  //     // Remove layer if it exists
-  //     map.getLayers().forEach((layer) => {
-  //       if (layer.get("title") === "wms-layer-" + layer_name) {
-  //         map.removeLayer(layer);
-  //       }
-  //     });
-  //   } else {
-  //     // Add layer if it doesn't exist
-  //     const layer = loadWms(geoserverURL, layer_name, workspace);
-
-  //     map.addLayer(layer);
-  //     const thimphuCoords = fromLonLat([89.638427, 27.478586]); // Thimphu coordinates
-
-  //     // Animate to the new location
-  //     map.getView().animate({
-  //       center: thimphuCoords,
-  //       zoom: 14,
-  //       duration: 1000,
-  //     });
-  //   }
-  // });
-
-  // document.getElementById("add-points").addEventListener("click", async () => {
-  //   const geoserverURL = "http://localhost:8080/geoserver/ows";
-  //   const workspace = "ne";
-  //   const layer_name = "thromdeFTTHPoints";
-
-  //   // Check if layer already exists
-  //   const hasLayer = map
-  //     .getLayers()
-  //     .getArray()
-  //     .some((layer) => layer.get("title") === "wms-layer-" + layer_name);
-
-  //   if (hasLayer) {
-  //     // Remove layer if it exists
-  //     map.getLayers().forEach((layer) => {
-  //       if (layer.get("title") === "wms-layer-" + layer_name) {
-  //         map.removeLayer(layer);
-  //       }
-  //     });
-  //   } else {
-  //     // Add layer if it doesn't exist
-  //     const layer = loadWms(geoserverURL, layer_name, workspace);
-  //     map.addLayer(layer);
-
-  //     // Convert coordinates from lon/lat to the map's projection
-  //     const thimphuCoords = fromLonLat([89.638427, 27.478586]); // Thimphu coordinates
-
-  //     // Animate to the new location
-  //     map.getView().animate({
-  //       center: thimphuCoords,
-  //       zoom: 14,
-  //       duration: 1000,
-  //     });
-  //   }
-  // });
-
-  // document.getElementById("add-raster").addEventListener("click", async () => {
-  //   const geoserverURL = "http://localhost:8080/geoserver/ows";
-  //   const workspace = "nurc";
-  //   const layer_name = "mosaic";
-
-  //   // Check if layer already exists
-  //   const hasLayer = map
-  //     .getLayers()
-  //     .getArray()
-  //     .some((layer) => layer.get("title") === "wms-layer-" + layer_name);
-
-  //   if (hasLayer) {
-  //     // Remove layer if it exists
-  //     map.getLayers().forEach((layer) => {
-  //       if (layer.get("title") === "wms-layer-" + layer_name) {
-  //         map.removeLayer(layer);
-  //       }
-  //     });
-  //   } else {
-  //     // Add layer if it doesn't exist
-  //     const layer = loadWms(geoserverURL, layer_name, workspace);
-  //     map.addLayer(layer);
-
-  //     // Convert coordinates from lon/lat to the map's projection
-  //     const thimphuCoords = fromLonLat([12.4964, 41.9028]); // Thimphu coordinates
-
-  //     // Animate to the new location
-  //     map.getView().animate({
-  //       center: thimphuCoords,
-  //       zoom: 4,
-  //       duration: 1000,
-  //     });
-  //   }
-  // });
+  // Add WMTS layer event listener
   document.getElementById("add-wmts").addEventListener("click", async () => {
     const extent = [
       9975165.7992, 3174385.502833938, 9983429.539675102, 3192174.929474232,
@@ -342,20 +271,44 @@ document.addEventListener("DOMContentLoaded", async () => {
     );
     map.addLayer(wmtsLayer);
     map.getView().fit(extent);
+    showPopupMessage("WMTS layer added", "success");
   });
 
-  // const featureSelection = activateSelectInteraction(map)
-  document.getElementById('create-buffer').addEventListener('click', async()=>{
-
-    const selectedFeatures = select.getFeatures();
-
-    if(selectedFeatures.getArray().length>0){
-      selectedFeatures.forEach((feature)=>{
-        createBuffer(feature,10,wfsLayer)
-      })
+  // Export GeoJSON event listener
+  document.getElementById('export-drawing')?.addEventListener('click', () => {
+    const features = drawTools.source.getFeatures();
+    
+    if (features.length === 0) {
+      showPopupMessage('No features to export', 'warning');
+      return;
     }
+    
+    try {
+      const format = new GeoJSON();
+      const geojson = format.writeFeatures(features, {
+        dataProjection: 'EPSG:4326',
+        featureProjection: 'EPSG:3857'
+      });
+      
+      // Create a download link
+      const blob = new Blob([geojson], {type: 'application/json'});
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = 'export.geojson';
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+      
+      showPopupMessage(`Exported ${features.length} features to GeoJSON`, 'success');
+    } catch (error) {
+      console.error("Error exporting to GeoJSON:", error);
+      showPopupMessage(`Error exporting to GeoJSON: ${error.message}`, 'error');
+    }
+  });
 
-  })
-
-  
+  setTimeout(() => {
+    document.body.classList.remove("initial-load");
+  }, 3000);
 });
